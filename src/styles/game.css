@@ -1,0 +1,836 @@
+/*
+  game.css
+  ────────
+  HUD overlay styles for the GamePage world view.
+
+  Visual source:
+  - Image 2 (gameplay-master): layout, proportions, panel positions
+  - Image 3 (ui-bible): border style, gold system, panel anatomy
+
+  Panel anatomy from Image 3:
+  ┌─◆─────────────────────────────◆─┐  ← outer border: 2px solid gold-dim
+  │  [████████ HEADER BAR ████████]  │  ← gold gradient fill, Cinzel font
+  │  inner content area               │  ← dark bg, inset border
+  └─◆─────────────────────────────◆─┘  ← bottom ornament
+       ↑ corner ◆ rotated 45°
+
+  Colors extracted from references:
+  - Panel bg:        #090c0f (near-black)
+  - Border gold:     #9a6e1e dim / #c8902a mid / #e8b84b bright
+  - Header gold:     gradient #1e1400 → #3a2400
+  - Text gold:       #d4a040 headings, #c8b89a body
+*/
+
+/* ══════════════════════════════════════════════════════════════
+   GAME PAGE ROOT
+   Fullscreen, no scroll, canvas behind everything
+   ══════════════════════════════════════════════════════════════ */
+.game-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #050c10;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PHASER CANVAS MOUNT
+   ══════════════════════════════════════════════════════════════ */
+.game-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Phaser injects canvas; ensure it fills the div */
+.game-canvas canvas {
+  display: block;
+  width:  100% !important;
+  height: 100% !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LOADING SCREEN
+   ══════════════════════════════════════════════════════════════ */
+.game-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: #050c10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-loading__inner {
+  text-align: center;
+}
+
+.game-loading__logo {
+  font-family: 'Cinzel Decorative', 'Cinzel', serif;
+  font-size: clamp(28px, 4vw, 48px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #e8b84b;
+  text-shadow:
+    0 0 20px rgba(232,184,75,0.4),
+    0 0 50px rgba(200,144,42,0.2);
+  animation: game-logo-pulse 2.5s ease-in-out infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes game-logo-pulse {
+  0%,100% { text-shadow: 0 0 20px rgba(232,184,75,0.4), 0 0 50px rgba(200,144,42,0.2); }
+  50%      { text-shadow: 0 0 40px rgba(232,184,75,0.7), 0 0 80px rgba(200,144,42,0.35); }
+}
+
+.game-loading__sub {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: #7a6a52;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.game-loading__bar {
+  width: 220px;
+  height: 2px;
+  background: #1a2830;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.game-loading__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c8902a, #e8b84b);
+  animation: loading-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes loading-sweep {
+  0%   { width:0%;  margin-left:0; }
+  50%  { width:60%; margin-left:20%; }
+  100% { width:0%;  margin-left:100%; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ASSET NOTICE
+   Shown when rugtown-city.png is missing
+   ══════════════════════════════════════════════════════════════ */
+.asset-notice {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  background: rgba(26, 12, 0, 0.95);
+  border: 1px solid #c8902a;
+  border-top: none;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #c8b89a;
+  white-space: nowrap;
+  border-radius: 0 0 4px 4px;
+}
+
+.asset-notice__icon {
+  font-size: 14px;
+  color: #e8b84b;
+  flex-shrink: 0;
+}
+
+.asset-notice code {
+  background: rgba(0,0,0,0.4);
+  color: #e8b84b;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HUD ROOT
+   All HUD panels are positioned absolute children of .hud
+   z-index above the canvas
+   ══════════════════════════════════════════════════════════════ */
+.hud {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none; /* HUD root doesn't block clicks */
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PANEL BASE SYSTEM
+   Source: Image 3 — ornate dark panels with gold filigree borders
+
+   Key visual properties:
+   - 2-3px gold border on outer edge
+   - Inset box-shadow creates inner border effect
+   - Gold gradient header bar at top
+   - ◆ corner ornaments slightly outside border
+   ══════════════════════════════════════════════════════════════ */
+.hud-panel {
+  position: absolute;
+  pointer-events: all; /* Panels ARE interactive */
+
+  background: rgba(6, 10, 14, 0.96);
+  border: 2px solid #7a5c1e;
+
+  /* Inner glow border — simulates the double-border from Image 3 */
+  box-shadow:
+    inset  0  0  0 1px rgba(200, 144, 42, 0.15),
+    inset  0  0  0 3px rgba(0, 0, 0, 0.6),
+    inset  0  0  0 4px rgba(200, 144, 42, 0.08),
+    0  0  30px rgba(0, 0, 0, 0.6),
+    0  0  60px rgba(0, 0, 0, 0.3);
+
+  /* Bottom gold accent edge — visible in Image 3 panels */
+  border-bottom-color: #9a6e1e;
+}
+
+/* ── Corner ornaments — ◆ in each corner, outside the border ── */
+.panel-corner {
+  position: absolute;
+  font-size: 10px;
+  color: #7a5c1e;
+  line-height: 1;
+  z-index: 1;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.hud-panel:hover .panel-corner {
+  color: #c8902a;
+}
+
+.panel-corner--tl { top: -7px;  left: -7px;  }
+.panel-corner--tr { top: -7px;  right: -7px; }
+.panel-corner--bl { bottom: -7px; left: -7px; }
+.panel-corner--br { bottom: -7px; right: -7px; }
+
+/* ── Panel header ── */
+/* Source: Image 3 — gold gradient bar at top of every panel */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px 6px;
+  background: linear-gradient(180deg, #2a1800 0%, #1a1000 60%, transparent 100%);
+  border-bottom: 1px solid rgba(200, 144, 42, 0.25);
+  /* Top gold bar — the brightest feature of Image 3 panel headers */
+  border-top: 2px solid #c8902a;
+  margin-top: -2px; /* Align with panel border */
+}
+
+.panel-header__logo {
+  font-family: 'Cinzel', 'Cinzel Decorative', serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #e8b84b;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(232, 184, 75, 0.3);
+}
+
+.panel-header__sub {
+  font-family: 'Cinzel', serif;
+  font-size: 7px;
+  letter-spacing: 0.2em;
+  color: #7a5c1e;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOP-LEFT PANEL — Player card
+   Image 2: leftmost panel with avatar + name + stats
+   Width: ~200px
+   ══════════════════════════════════════════════════════════════ */
+.hud-panel--tl {
+  top: 16px;
+  left: 16px;
+  width: 210px;
+}
+
+/* Player card layout */
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.12);
+}
+
+.player-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid #7a5c1e;
+  background: #0d1117;
+  overflow: hidden;
+  /* Subtle amber glow behind avatar */
+  box-shadow: 0 0 12px rgba(200, 144, 42, 0.12);
+}
+
+.player-avatar svg {
+  width: 100%;
+  height: 100%;
+}
+
+.player-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-name {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8d8c0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.player-title {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: #7a6a52;
+  margin-top: 2px;
+}
+
+.player-rep {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.rep-label {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #9a6e1e;
+  font-family: 'Cinzel', serif;
+}
+
+.rep-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8b84b;
+  font-family: 'Cinzel', serif;
+  line-height: 1;
+}
+
+/* Quick stats */
+.quick-stats {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.08);
+}
+
+.qstat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.qstat__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #3a3020;
+  flex-shrink: 0;
+}
+
+.qstat__dot--live {
+  background: #16c85a;
+  box-shadow: 0 0 6px rgba(22, 200, 90, 0.5);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(22, 200, 90, 0.4); }
+  50%      { box-shadow: 0 0 0 5px rgba(22, 200, 90, 0); }
+}
+
+.qstat__label {
+  flex: 1;
+  color: #6a5a42;
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.04em;
+}
+
+.qstat__value {
+  color: #c8b89a;
+  font-weight: 600;
+  font-family: 'Cinzel', serif;
+}
+
+/* Mode badge */
+.mode-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #5a4e3a;
+}
+
+.mode-badge__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #e87020;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOP-CENTER COORDS BAR
+   Compact camera position + zoom controls
+   ══════════════════════════════════════════════════════════════ */
+.hud-coords {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  pointer-events: all;
+
+  background: rgba(6, 10, 14, 0.94);
+  border: 1px solid rgba(200, 144, 42, 0.3);
+  border-top: 2px solid #c8902a;
+  overflow: hidden;
+}
+
+.coord-btn {
+  padding: 6px 12px;
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #c8902a;
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(200, 144, 42, 0.15);
+  cursor: pointer;
+  pointer-events: all;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.coord-btn:last-child {
+  border-right: none;
+}
+
+.coord-btn:hover {
+  background: rgba(200, 144, 42, 0.1);
+  color: #e8b84b;
+}
+
+.coord-btn--reset {
+  font-size: 13px;
+  border-left: 1px solid rgba(200, 144, 42, 0.15);
+}
+
+.coord-text {
+  padding: 6px 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #9a8a6a;
+  white-space: nowrap;
+  min-width: 140px;
+  text-align: center;
+  user-select: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOP-RIGHT PANEL — Minimap + Zone list
+   Image 2: small map upper-right
+   Image 3: ornate panel
+   ══════════════════════════════════════════════════════════════ */
+.hud-panel--tr {
+  top: 16px;
+  right: 16px;
+  width: 200px;
+}
+
+/* Minimap */
+.minimap {
+  position: relative;
+  margin: 10px 12px 8px;
+  height: 120px;
+  background: #060e12;
+  border: 1px solid rgba(200, 144, 42, 0.2);
+  overflow: hidden;
+  cursor: crosshair;
+
+  /* Subtle city-colored gradient background */
+  background:
+    radial-gradient(ellipse 60% 50% at 40% 60%, rgba(200, 112, 32, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 70% 25%, rgba(30, 203, 203, 0.08) 0%, transparent 50%),
+    #060e12;
+}
+
+.minimap:hover {
+  border-color: rgba(200, 144, 42, 0.4);
+}
+
+/* Zone dots on minimap */
+.minimap-zone {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: transform 0.15s;
+  /* Colored glow per zone */
+  box-shadow: 0 0 4px currentColor;
+}
+
+.minimap-zone:hover {
+  transform: translate(-50%, -50%) scale(1.5);
+}
+
+.minimap-zone__label {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 6px;
+  font-family: 'Cinzel', serif;
+  color: #c8b89a;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.minimap-zone:hover .minimap-zone__label {
+  opacity: 1;
+}
+
+/* Player dot */
+.minimap-player {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #c8902a;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 8px rgba(200, 144, 42, 0.8);
+  z-index: 2;
+  animation: minimap-pulse 2s ease-in-out infinite;
+}
+
+@keyframes minimap-pulse {
+  0%,100% { box-shadow: 0 0 5px rgba(200,144,42,0.8); }
+  50%      { box-shadow: 0 0 12px rgba(232,184,75,1); }
+}
+
+/* Camera viewport rect */
+.minimap-viewport {
+  position: absolute;
+  border: 1px solid rgba(232, 184, 75, 0.4);
+  background: rgba(232, 184, 75, 0.04);
+  pointer-events: none;
+  z-index: 1;
+  min-width: 4px;
+  min-height: 4px;
+}
+
+/* Zone legend */
+.zone-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+  padding: 4px 12px 8px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.08);
+}
+
+.zone-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: #7a6a52;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: color 0.15s;
+}
+
+.zone-legend-item:hover {
+  color: #c8b89a;
+}
+
+.zone-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.zone-name {
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.04em;
+}
+
+/* Camera info */
+.cam-info {
+  padding: 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #5a4e3a;
+  line-height: 1.4;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BOTTOM ACTION BAR
+   Source: Image 2 — horizontal icon strip at very bottom
+   Source: Image 3 — gold icon buttons with ornate frame
+
+   Layout: centered, dark semi-transparent, gold border top,
+           icon + label for each slot, 8 items
+   ══════════════════════════════════════════════════════════════ */
+.action-bar {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: all;
+
+  display: flex;
+  align-items: center;
+  gap: 0;
+
+  background: rgba(5, 8, 12, 0.97);
+  border: 1px solid rgba(200, 144, 42, 0.35);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+
+  /* Top gold highlight */
+  border-top: 2px solid #c8902a;
+
+  /* Ambient glow */
+  box-shadow:
+    0 -4px 30px rgba(0, 0, 0, 0.5),
+    0 -1px 0 rgba(200, 144, 42, 0.2),
+    inset 0 1px 0 rgba(200, 144, 42, 0.08);
+}
+
+/* Side ornaments */
+.action-bar__ornament {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  color: #4a3a18;
+  width: 32px;
+  flex-shrink: 0;
+}
+
+.action-bar__ornament svg {
+  width: 16px;
+  height: 32px;
+}
+
+/* Action button */
+.action-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 10px 6px;
+  min-width: 64px;
+
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(200, 144, 42, 0.1);
+  cursor: pointer;
+  pointer-events: all;
+  overflow: hidden;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s;
+}
+
+.action-btn:last-of-type {
+  border-right: none;
+}
+
+.action-btn:hover {
+  background: rgba(26, 14, 2, 0.9);
+}
+
+.action-btn:hover .action-btn__icon {
+  transform: translateY(-2px);
+}
+
+.action-btn:hover .action-btn__label {
+  color: #c8b89a;
+}
+
+/* Active state */
+.action-btn--active {
+  background: rgba(30, 16, 2, 0.95);
+  border-bottom: 2px solid #c8902a;
+}
+
+.action-btn--active .action-btn__label {
+  color: #e8b84b;
+}
+
+/* Shimmer on hover */
+.action-btn__shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(232, 184, 75, 0.1) 50%,
+    transparent 100%
+  );
+  transform: skewX(-15deg);
+  pointer-events: none;
+}
+
+.action-btn:hover .action-btn__shimmer {
+  animation: btn-shimmer 0.5s ease forwards;
+}
+
+@keyframes btn-shimmer {
+  from { left: -100%; }
+  to   { left: 150%; }
+}
+
+/* Corner ornaments for active */
+.action-btn__corner {
+  position: absolute;
+  font-size: 6px;
+  color: #c8902a;
+  line-height: 1;
+}
+
+.action-btn__corner--tl { top: 1px; left: 2px; }
+.action-btn__corner--tr { top: 1px; right: 2px; }
+
+.action-btn__icon {
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.action-btn__label {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #6a5a42;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.action-btn__key {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 7px;
+  color: #4a3a1e;
+  background: rgba(0,0,0,0.3);
+  padding: 1px 3px;
+  line-height: 1;
+  border: 1px solid rgba(200, 144, 42, 0.1);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CONTROLS HINT
+   Faint text, bottom of screen, tells user how to navigate
+   ══════════════════════════════════════════════════════════════ */
+.controls-hint {
+  position: absolute;
+  bottom: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #3a3020;
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.04em;
+  /* Fade in, then fade to almost nothing */
+  animation: hint-fade 8s ease forwards;
+}
+
+@keyframes hint-fade {
+  0%  { opacity: 0; }
+  10% { opacity: 0.8; }
+  70% { opacity: 0.8; }
+  100%{ opacity: 0.15; }
+}
+
+.hint-sep {
+  color: #1e1800;
+  font-size: 12px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .hud-panel--tl { width: 180px; }
+  .hud-panel--tr { width: 170px; }
+  .action-btn { min-width: 50px; padding: 6px 8px 5px; }
+  .action-btn__icon { font-size: 16px; }
+  .action-btn__label { font-size: 7px; }
+}
+
+@media (max-width: 600px) {
+  /* Hide sidebars on small screens */
+  .hud-panel--tl { display: none; }
+  .hud-panel--tr { display: none; }
+
+  /* Coords bar goes to top-left */
+  .hud-coords {
+    left: 8px;
+    transform: none;
+  }
+
+  /* Action bar scrollable */
+  .action-bar {
+    left: 0;
+    right: 0;
+    transform: none;
+    border-radius: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+  }
+
+  .action-btn__key { display: none; }
+  .controls-hint { display: none; }
+}

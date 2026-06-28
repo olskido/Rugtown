@@ -1,0 +1,1010 @@
+/*
+  landing.css
+  All styles for the LandingPage component.
+  Visual reference: Image 2 (homepage), cross-referenced with Image 1 (UI bible).
+
+  Architecture:
+  .landing                  — fullscreen container
+  .landing__bg              — background layers
+  .landing__particles       — particle system
+  .landing__content         — main content flex center
+  .landing__card            — the centered ornate panel
+    .card__*                — card internals
+    .btn                    — button variants
+    .stat                   — stat pills
+  .landing__features        — bottom feature bar
+    .feature-card           — individual feature cards
+*/
+
+/* ══════════════════════════════════════════════════════════════
+   LANDING ROOT
+   ══════════════════════════════════════════════════════════════ */
+.landing {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Don't center vertically — card sits at ~40% from top like Image 2 */
+  justify-content: flex-start;
+  overflow: hidden;
+  /* Stagger all children on mount */
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.landing--mounted {
+  opacity: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BACKGROUND SYSTEM
+   Source: Image 2 shows a rich isometric city that fills the entire
+   viewport. Dark teal-black overall, warm amber pools of light
+   from lanterns, cooler teal from rooftops and steeples.
+   ══════════════════════════════════════════════════════════════ */
+.landing__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* ── City background ── */
+/*
+  We cannot use an image file, so we build a multi-layer CSS gradient
+  that evokes the color palette of Images 2/3/4:
+  - Overall: deep dark teal (#060e10 to #030608)
+  - Warm light pools: amber/gold radials (lanterns, windows)
+  - Cool teal highlights: building tops, steeples (from Images 3/4)
+  - Red accent upper-right: the red building visible in Image 2
+  - Gold accent upper-right corner: the gold vault/banner in Image 2
+*/
+.landing__bg-city {
+  position: absolute;
+  inset: -5%;     /* Slightly oversized for camera drift room */
+  width: 110%;
+  height: 110%;
+
+  /* Layer 1: Base deep teal-black (overall city darkness) */
+  background:
+    /* Gold vault glow — upper right (Image 2: gold illuminated building) */
+    radial-gradient(ellipse 30% 40% at 88% 15%,
+      rgba(200, 144, 42, 0.22) 0%,
+      rgba(180, 120, 20, 0.10) 35%,
+      transparent 65%),
+
+    /* Teal tower glow — upper center-right (Image 2: blue teal tall building) */
+    radial-gradient(ellipse 20% 30% at 65% 8%,
+      rgba(30, 203, 203, 0.18) 0%,
+      rgba(20, 140, 140, 0.08) 40%,
+      transparent 70%),
+
+    /* Warm center lantern glow — the main plaza light from Image 2 */
+    radial-gradient(ellipse 55% 45% at 38% 60%,
+      rgba(200, 120, 30, 0.20) 0%,
+      rgba(160, 90, 20, 0.12) 30%,
+      rgba(100, 60, 10, 0.05) 55%,
+      transparent 75%),
+
+    /* Right side warm glow — the fire/fountain glow from Image 2 right */
+    radial-gradient(ellipse 30% 35% at 78% 62%,
+      rgba(220, 100, 20, 0.18) 0%,
+      rgba(180, 80, 15, 0.08) 40%,
+      transparent 65%),
+
+    /* Red building area — upper right quad in Image 2 */
+    radial-gradient(ellipse 20% 35% at 82% 35%,
+      rgba(160, 30, 20, 0.20) 0%,
+      rgba(120, 20, 15, 0.08) 40%,
+      transparent 65%),
+
+    /* Deep background: multi-stop teal-black gradient */
+    linear-gradient(
+      168deg,
+      #03080a 0%,
+      #04090c 15%,
+      #050c10 30%,
+      #060e12 45%,
+      #040b0e 60%,
+      #030609 80%,
+      #020407 100%
+    );
+
+  /* Slow parallax camera drift — "living city" feel */
+  animation: cameraDrift 28s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── Fog layers ── */
+/*
+  Atmospheric fog matching the haze visible in Image 2/3/4.
+  Three independent layers with different speeds, opacities, and shapes
+  create an organic non-repeating fog effect.
+*/
+.landing__fog {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Fog 1: Large, slow, main atmospheric layer */
+.landing__fog--1 {
+  width: 160%;
+  height: 60%;
+  top: 30%;
+  left: -30%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(10, 28, 35, 0.4) 0%,
+    rgba(8, 22, 28, 0.2) 40%,
+    transparent 70%
+  );
+  animation: fogDrift 45s ease-in-out infinite;
+}
+
+/* Fog 2: Medium, medium speed, slight blue tint (cooler zone) */
+.landing__fog--2 {
+  width: 120%;
+  height: 50%;
+  top: 10%;
+  right: -20%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(8, 24, 32, 0.35) 0%,
+    rgba(6, 18, 25, 0.15) 45%,
+    transparent 70%
+  );
+  animation: fogDrift2 60s ease-in-out infinite;
+}
+
+/* Fog 3: Small, faster, foreground wisps */
+.landing__fog--3 {
+  width: 80%;
+  height: 40%;
+  bottom: 15%;
+  left: 10%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(12, 20, 24, 0.3) 0%,
+    rgba(8, 16, 20, 0.1) 50%,
+    transparent 70%
+  );
+  animation: fogDrift3 35s ease-in-out infinite;
+}
+
+/* ── Warm vignette ── */
+/* The warm amber that pools at the bottom, matching lantern light from Image 3 */
+.landing__vignette-warm {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 100% 60% at 50% 100%,
+      rgba(120, 60, 10, 0.15) 0%,
+      transparent 60%);
+  pointer-events: none;
+}
+
+/* ── Dark overlay ── */
+/* Makes card readable without completely hiding the city */
+.landing__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 6, 9, 0.55);
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PARTICLE SYSTEM
+   ══════════════════════════════════════════════════════════════ */
+.landing__particles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing__particle {
+  position: absolute;
+  border-radius: 50%;
+  animation: particleFloat linear infinite;
+  will-change: transform, opacity;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN CONTENT
+   ══════════════════════════════════════════════════════════════ */
+.landing__content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Shift card up slightly — in Image 2 it's above center */
+  padding: 24px 16px 110px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CENTER CARD
+   Source: Image 2 shows a panel with:
+   - Dark near-black background
+   - DOUBLE gold border (outer thick, inner thin)
+   - Decorative corner ornaments (◆ diamonds)
+   - Ornate top/bottom bars
+   - Width: ~340px, very compact
+   ══════════════════════════════════════════════════════════════ */
+.landing__card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+
+  /* Card background — deep dark matching Image 1 panels */
+  background: rgba(4, 8, 12, 0.94);
+
+  /* Double border system: outer gold, with inner via box-shadow */
+  border: 2px solid var(--gold-400);
+  box-shadow:
+    /* Inner border inset */
+    inset 0 0 0 1px rgba(200, 144, 42, 0.25),
+    /* Inner thin gold ring */
+    inset 0 0 0 4px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 5px rgba(200, 144, 42, 0.15),
+    /* Outer ambient glow */
+    0 0 40px rgba(180, 120, 20, 0.12),
+    0 0 80px rgba(160, 100, 10, 0.06),
+    /* Drop shadow */
+    0 20px 60px rgba(0, 0, 0, 0.7);
+
+  /* Mount animation */
+  animation: cardMount 0.6s var(--ease-gold) 0.2s both;
+}
+
+/* ── Top ornament bar ── */
+/* The gold strip at the top of panels in Image 1 */
+.card__top-ornament {
+  position: absolute;
+  top: -1px;
+  left: 8%;
+  right: 8%;
+}
+
+.card__top-ornament-line {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--gold-500) 10%,
+    var(--gold-300) 30%,
+    var(--gold-200) 50%,
+    var(--gold-300) 70%,
+    var(--gold-500) 90%,
+    transparent 100%
+  );
+  animation: dividerGrow 0.8s var(--ease-gold) 0.5s both;
+  transform-origin: center;
+}
+
+.card__bottom-ornament {
+  position: absolute;
+  bottom: -1px;
+  left: 8%;
+  right: 8%;
+}
+
+/* ── Corner ornaments ── */
+/* ◆ diamonds at each corner of the card border — Image 1 style */
+.card__corner {
+  position: absolute;
+  font-size: 11px;
+  color: var(--gold-400);
+  line-height: 1;
+  /* Prevent corner from overlapping content */
+  z-index: 1;
+  animation: cornerAppear 0.4s var(--ease-gold) both;
+}
+.card__corner--tl { top: -7px;  left:  -7px;  animation-delay: 0.6s; }
+.card__corner--tr { top: -7px;  right: -7px;  animation-delay: 0.65s; }
+.card__corner--bl { bottom: -7px; left: -7px; animation-delay: 0.7s; }
+.card__corner--br { bottom: -7px; right: -7px; animation-delay: 0.75s; }
+
+/* ── Card inner ── */
+.card__inner {
+  padding: 28px 28px 24px;
+}
+
+/* ── Logo section ── */
+.card__logo-section {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Arch icon above logo — decorative architectural motif from Image 2 */
+.card__arch-icon {
+  width: 64px;
+  height: 38px;
+  margin: 0 auto 10px;
+  color: var(--gold-400);
+  opacity: 0.9;
+  animation: cardMount 0.5s var(--ease-gold) 0.3s both;
+}
+
+/* RUGTOWN wordmark */
+.card__logo {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 4px;
+  line-height: 1;
+}
+
+.card__logo-text {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 5vw, 34px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: var(--gold-200);
+  /* Glow pulse animation */
+  animation: logoGlow 4s ease-in-out infinite;
+  /* Subtle text stroke for crispness */
+  -webkit-text-stroke: 0.5px rgba(232, 184, 75, 0.3);
+}
+
+/* Side decorative lines flanking the logo */
+.card__logo-line {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-500));
+}
+.card__logo-line--left  { right: calc(100% + 6px); background: linear-gradient(90deg, transparent, var(--gold-500)); }
+.card__logo-line--right { left:  calc(100% + 6px); background: linear-gradient(90deg, var(--gold-500), transparent); }
+
+/* The Degen City subtitle */
+.card__subtitle {
+  font-family: var(--font-title);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  color: var(--gold-400);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  opacity: 0.9;
+  animation: subtitleReveal 0.6s var(--ease-gold) 0.4s both;
+}
+
+/* Ornate gold divider — matches the horizontal separator in Image 1 panels */
+.card__divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 14px;
+  width: 80%;
+}
+
+.card__divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-500) 40%, var(--gold-400) 100%);
+  animation: dividerGrow 0.6s var(--ease-gold) 0.5s both;
+  transform-origin: right;
+}
+.card__divider-line:last-child {
+  background: linear-gradient(90deg, var(--gold-400), var(--gold-500) 60%, transparent);
+  transform-origin: left;
+}
+
+.card__divider-gem {
+  font-size: 8px;
+  color: var(--gold-300);
+  flex-shrink: 0;
+  animation: cornerAppear 0.3s var(--ease-gold) 0.5s both;
+}
+
+/* Tagline — "Survive or Get Rugged." */
+.card__tagline {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--text-base);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  animation: subtitleReveal 0.6s var(--ease-gold) 0.55s both;
+}
+
+/* ── Actions ── */
+.card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: cardMount 0.5s var(--ease-gold) 0.5s both;
+}
+
+/* Two-column button row */
+.card__btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BUTTON SYSTEM
+   Source: Image 2 shows 3 button styles:
+   1. Primary: Filled gold — "ENTER THE CITY" — most prominent
+   2. Secondary: Dark background + gold border — "Live Players", "Connect Wallet"
+   3. Ghost: Very subtle — "Today's Alpha Calls", "Latest Activity"
+   ══════════════════════════════════════════════════════════════ */
+.btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 16px;
+  height: 42px;
+  font-family: var(--font-title);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition:
+    background 0.18s var(--ease-gold),
+    border-color 0.18s var(--ease-gold),
+    box-shadow 0.18s var(--ease-gold),
+    color 0.18s var(--ease-gold),
+    transform 0.15s var(--ease-gold);
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* ── Primary button — "ENTER THE CITY" ── */
+/*
+  Image 2: The main CTA is a warm gold filled rectangle with darker text,
+  subtle inner highlight at top, slight glow. The ▶ arrow is on the left.
+*/
+.btn--primary {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(
+    180deg,
+    #d4a040 0%,
+    #c8902a 40%,
+    #b87820 70%,
+    #c8902a 100%
+  );
+  border: 1px solid var(--gold-300);
+  color: rgba(10, 6, 0, 0.92);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  box-shadow:
+    0 2px 0 rgba(0,0,0,0.4),
+    0 0 20px rgba(200, 144, 42, 0.25),
+    inset 0 1px 0 rgba(255, 220, 120, 0.3),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+}
+
+.btn--primary:hover {
+  background: linear-gradient(
+    180deg,
+    #e0b050 0%,
+    #d4a040 40%,
+    #c88828 70%,
+    #d4a040 100%
+  );
+  border-color: var(--gold-200);
+  box-shadow:
+    0 2px 0 rgba(0,0,0,0.4),
+    0 0 30px rgba(200, 144, 42, 0.4),
+    0 0 60px rgba(180, 120, 20, 0.15),
+    inset 0 1px 0 rgba(255, 220, 120, 0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  transform: translateY(-1px);
+}
+
+/* Shimmer sweep on hover */
+.btn__shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 240, 180, 0.3) 50%,
+    transparent 100%
+  );
+  transform: skewX(-15deg);
+  pointer-events: none;
+}
+.btn--primary:hover .btn__shimmer {
+  animation: goldShimmer 0.6s var(--ease-gold) forwards;
+}
+
+.btn__arrow {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.btn__label {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Secondary button — "Live Players", "Connect Wallet" ── */
+/*
+  Image 2: Dark fill, gold border, gold text.
+  Slightly smaller than primary.
+*/
+.btn--secondary {
+  background: rgba(8, 12, 16, 0.8);
+  border: 1px solid var(--gold-500);
+  color: var(--gold-400);
+  font-size: 10px;
+  height: 38px;
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: rgba(26, 18, 4, 0.9);
+  border-color: var(--gold-400);
+  color: var(--gold-200);
+  box-shadow: 0 0 14px rgba(200, 144, 42, 0.15);
+}
+
+/* Disabled state — "Connect Wallet" is shown but disabled */
+.btn--disabled,
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Live indicator dot */
+.btn__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.btn__dot--live {
+  background: #16c85a;
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+.btn__icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* ── Ghost button — "Alpha Calls", "Latest Activity" ── */
+.btn--ghost {
+  background: rgba(8, 12, 16, 0.5);
+  border: 1px solid rgba(200, 144, 42, 0.25);
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  height: 34px;
+}
+
+.btn--ghost:hover {
+  background: rgba(18, 12, 4, 0.7);
+  border-color: rgba(200, 144, 42, 0.45);
+  color: var(--gold-400);
+}
+
+/* Back button — text only */
+.btn--back {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 0;
+  height: auto;
+  text-align: left;
+  transition: color 0.15s;
+}
+.btn--back:hover {
+  color: var(--text-base);
+}
+
+/* ── Live Stats ── */
+.card__stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 0 4px;
+  animation: statPulse 0.5s var(--ease-gold) 1s both;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: 10px;
+}
+
+.stat__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.stat__dot--live {
+  background: #16c85a;
+  box-shadow: 0 0 6px rgba(22, 200, 90, 0.5);
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+.stat__dot--amber {
+  background: var(--amber);
+  box-shadow: 0 0 5px rgba(232, 112, 32, 0.4);
+}
+
+.stat__value {
+  font-family: var(--font-title);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold-300);
+  min-width: 24px;
+  text-align: right;
+}
+
+.stat__label {
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.stat__divider {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+/* ── Network badge ── */
+.card__network-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+.badge__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  opacity: 0.7;
+}
+
+/* ── Guest mode ── */
+.card__guest-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: cardMount 0.3s var(--ease-gold) both;
+}
+
+.guest__prompt {
+  font-family: var(--font-title);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.guest__input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  background: rgba(6, 10, 14, 0.9);
+  border: 1px solid var(--gold-500);
+  color: var(--text-bright);
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.guest__input:focus {
+  border-color: var(--gold-400);
+  box-shadow:
+    0 0 0 1px rgba(200, 144, 42, 0.2),
+    0 0 16px rgba(200, 144, 42, 0.08);
+}
+
+.guest__input::placeholder {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.guest__warnings {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 0;
+  border-top: 1px solid rgba(200, 144, 42, 0.1);
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.guest__warnings li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guest__warnings span {
+  font-size: 12px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BOTTOM FEATURE BAR
+   Source: Image 2 — 6 equal dark cards at bottom of screen
+   Each: icon on top, label below, gold border, hover glow
+   Full width, no gaps between (or very minimal)
+   ══════════════════════════════════════════════════════════════ */
+.landing__features {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+.features__bar {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  /* Matches Image 2: cards touch or have 1px gap */
+  gap: 0;
+  border-top: 1px solid var(--gold-600);
+  background: rgba(3, 6, 9, 0.96);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FEATURE CARD
+   ══════════════════════════════════════════════════════════════ */
+.feature-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 8px 12px;
+  /* Divide cards with right border — last has none */
+  border-right: 1px solid rgba(200, 144, 42, 0.15);
+
+  background: rgba(4, 8, 12, 0.9);
+  cursor: pointer;
+  overflow: hidden;
+
+  transition:
+    background 0.2s var(--ease-gold),
+    border-color 0.2s;
+
+  /* Stagger animation — set by inline style.animationDelay */
+  animation: cardMount 0.4s var(--ease-gold) both;
+}
+
+.feature-card:last-child {
+  border-right: none;
+}
+
+/* Hover state */
+.feature-card:hover {
+  background: rgba(18, 10, 2, 0.95);
+}
+
+.feature-card[data-hovered="true"] {
+  background: rgba(18, 10, 2, 0.95);
+}
+
+/* Top ornament bar — gold header strip from Image 1 */
+.feature-card__top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--gold-600) 20%,
+    var(--gold-500) 50%,
+    var(--gold-600) 80%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.feature-card:hover .feature-card__top-bar,
+.feature-card[data-hovered="true"] .feature-card__top-bar {
+  opacity: 1;
+}
+
+/* Corner ornaments */
+.feature-card__corner {
+  position: absolute;
+  font-size: 7px;
+  color: var(--gold-600);
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.feature-card:hover .feature-card__corner,
+.feature-card[data-hovered="true"] .feature-card__corner {
+  opacity: 1;
+  color: var(--gold-500);
+}
+
+.feature-card__corner--tl { top: -4px;  left: 2px; }
+.feature-card__corner--tr { top: -4px;  right: 2px; }
+.feature-card__corner--bl { bottom: -4px; left: 2px; }
+.feature-card__corner--br { bottom: -4px; right: 2px; }
+
+/* Icon */
+.feature-card__icon {
+  width: 28px;
+  height: 28px;
+  color: var(--gold-500);
+  transition: color 0.2s, transform 0.2s var(--ease-gold);
+  flex-shrink: 0;
+}
+
+.feature-card:hover .feature-card__icon,
+.feature-card[data-hovered="true"] .feature-card__icon {
+  color: var(--gold-300);
+  transform: translateY(-2px);
+}
+
+.feature-card__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Label */
+.feature-card__label {
+  font-family: var(--font-title);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-500);
+  text-align: center;
+  line-height: 1.3;
+  transition: color 0.2s;
+}
+
+.feature-card:hover .feature-card__label,
+.feature-card[data-hovered="true"] .feature-card__label {
+  color: var(--gold-300);
+}
+
+/* Glow overlay on hover */
+.feature-card__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 80% at 50% 100%,
+    rgba(200, 144, 42, 0.07) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.feature-card:hover .feature-card__glow,
+.feature-card[data-hovered="true"] .feature-card__glow {
+  opacity: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
+
+/* Tablet */
+@media (max-width: 768px) {
+  .landing__content {
+    padding-bottom: 90px;
+  }
+
+  .landing__card {
+    max-width: 340px;
+  }
+
+  .card__inner {
+    padding: 22px 20px 18px;
+  }
+
+  .features__bar {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .feature-card {
+    padding: 10px 4px 8px;
+  }
+
+  .feature-card__icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .feature-card__label {
+    font-size: 7px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .card__logo-text {
+    font-size: 24px;
+    letter-spacing: 0.15em;
+  }
+
+  .card__inner {
+    padding: 18px 16px 14px;
+  }
+
+  .card__btn-row {
+    grid-template-columns: 1fr;
+  }
+
+  .features__bar {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+  }
+
+  .feature-card {
+    border-bottom: 1px solid rgba(200, 144, 42, 0.1);
+  }
+
+  .card__stats {
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-start;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 360px) {
+  .card__logo-text {
+    font-size: 20px;
+  }
+
+  .btn--primary {
+    height: 42px;
+    font-size: 11px;
+  }
+}
