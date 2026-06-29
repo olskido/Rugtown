@@ -66,7 +66,10 @@
   width: 110%;
   height: 110%;
 
-  /* Layer 1: Base deep teal-black (overall city darkness) */
+  /* The real city artwork is the base layer; the radial-gradient glow
+     pools sit in front of it as warm/cool atmospheric light, and the
+     deep gradient behind it is a graceful fallback if the art is
+     missing (matches WorldScene's own city-art path). */
   background:
     /* Gold vault glow — upper right (Image 2: gold illuminated building) */
     radial-gradient(ellipse 30% 40% at 88% 15%,
@@ -99,7 +102,10 @@
       rgba(120, 20, 15, 0.08) 40%,
       transparent 65%),
 
-    /* Deep background: multi-stop teal-black gradient */
+    /* Real city artwork — same asset WorldScene renders in-game */
+    url('/assets/backgrounds/rugtown-city.png') center / cover no-repeat,
+
+    /* Deep fallback gradient, visible if the art fails to load */
     linear-gradient(
       168deg,
       #03080a 0%,
@@ -928,6 +934,86 @@
 .feature-card:hover .feature-card__glow,
 .feature-card[data-hovered="true"] .feature-card__glow {
   opacity: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ANIMATIONS
+   Every @keyframes referenced above, in one place.
+   ══════════════════════════════════════════════════════════════ */
+@keyframes cameraDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(-1.5%, -1%) scale(1.04); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes fogDrift {
+  0%, 100% { transform: translate(0, 0); opacity: 0.8; }
+  50%      { transform: translate(4%, -3%); opacity: 1; }
+}
+
+@keyframes fogDrift2 {
+  0%, 100% { transform: translate(0, 0); opacity: 0.7; }
+  50%      { transform: translate(-5%, 2%); opacity: 0.95; }
+}
+
+@keyframes fogDrift3 {
+  0%, 100% { transform: translate(0, 0); opacity: 0.6; }
+  50%      { transform: translate(3%, 3%); opacity: 0.85; }
+}
+
+@keyframes particleFloat {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateY(-105vh) translateX(var(--drift, 0px)); opacity: 0; }
+}
+
+@keyframes cardMount {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes dividerGrow {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes cornerAppear {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes subtitleReveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes logoGlow {
+  0%, 100% {
+    text-shadow:
+      0 0 16px rgba(232, 184, 75, 0.35),
+      0 0 36px rgba(200, 144, 42, 0.18);
+  }
+  50% {
+    text-shadow:
+      0 0 26px rgba(232, 184, 75, 0.55),
+      0 0 54px rgba(200, 144, 42, 0.3);
+  }
+}
+
+@keyframes goldShimmer {
+  from { left: -100%; }
+  to   { left: 150%; }
+}
+
+@keyframes dotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 200, 90, 0.45); }
+  50%      { box-shadow: 0 0 0 5px rgba(22, 200, 90, 0); }
+}
+
+@keyframes statPulse {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ══════════════════════════════════════════════════════════════

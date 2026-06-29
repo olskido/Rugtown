@@ -98,7 +98,12 @@ function useCountUp(target: number, duration: number = 1200, delay: number = 0):
 // ──────────────────────────────────────────────────────────────
 // Main Component
 // ──────────────────────────────────────────────────────────────
-export function LandingPage() {
+interface LandingPageProps {
+  /** Called once a guest name is submitted — parent navigates to GamePage */
+  onEnter: (name: string) => void;
+}
+
+export function LandingPage({ onEnter }: LandingPageProps) {
   const [mode, setMode] = useState<'home' | 'guest'>('home');
   const [guestName, setGuestName] = useState('');
   const [particles] = useState(() => generateParticles(40));
@@ -124,13 +129,12 @@ export function LandingPage() {
   const alphaCount    = useCountUp(MOCK_STATS.alphaCalls, 1000, 1100);
   const activityMins  = useCountUp(MOCK_STATS.latestActivity, 600, 1200);
 
-  // Handle guest entry
+  // Handle guest entry — hands the chosen (or generated) name to the parent,
+  // which swaps the app over to GamePage.
   const handleGuestEnter = useCallback(() => {
     const name = guestName.trim() || `Degen${Math.floor(Math.random() * 9999)}`;
-    // In the full game this navigates to GamePage
-    // For now: landing page complete, waiting for next instruction
-    console.log('[RugTown] Guest enter:', name);
-  }, [guestName]);
+    onEnter(name);
+  }, [guestName, onEnter]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleGuestEnter();
@@ -284,15 +288,14 @@ export function LandingPage() {
                   {/* Shimmer sweep on hover */}
                   <span className="btn__shimmer" aria-hidden />
                   <span className="btn__arrow" aria-hidden>▶</span>
-                  <span className="btn__label">ENTER THE CITY</span>
+                  <span className="btn__label">Enter as Guest</span>
                 </button>
 
                 {/* Secondary row — "Live Players" + "Connect Wallet" from Image 2 */}
                 <div className="card__btn-row">
                   <button
                     className="btn btn--secondary"
-                    onClick={() => setMode('guest')}
-                    aria-label="See live players"
+                    aria-label="Real players currently online"
                   >
                     <span className="btn__dot btn__dot--live" aria-hidden />
                     <span>Live Players</span>
@@ -316,18 +319,12 @@ export function LandingPage() {
 
                 {/* Tertiary row — "Today's Alpha Calls" + "Latest Activity" from Image 2 */}
                 <div className="card__btn-row">
-                  <button
-                    className="btn btn--ghost"
-                    onClick={() => setMode('guest')}
-                  >
+                  <button className="btn btn--ghost">
                     <span className="btn__icon" aria-hidden>📡</span>
                     <span>Today's Alpha Calls</span>
                   </button>
 
-                  <button
-                    className="btn btn--ghost"
-                    onClick={() => setMode('guest')}
-                  >
+                  <button className="btn btn--ghost">
                     <span className="btn__icon" aria-hidden>⚡</span>
                     <span>Latest Activity</span>
                   </button>

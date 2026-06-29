@@ -21,6 +21,26 @@
   --bg:          #050c10;
   --text:        #c8b89a;
   --text-dim:    #7a6a52;
+
+  /* Numeric gold scale + text/font tokens used by LandingPage (landing.css) —
+     same palette as above, just exposed under the naming landing.css expects. */
+  --gold-200: #f3d896;
+  --gold-300: #e8b84b;
+  --gold-400: #c8902a;
+  --gold-500: #9a6e1e;
+  --gold-600: #6a4c14;
+
+  --text-base:   #c8b89a;
+  --text-bright: #f0e8d8;
+  --text-faint:  #4a3e2e;
+  --amber:       #e8701e;
+
+  --font-display: 'Cinzel Decorative', 'Cinzel', serif;
+  --font-title:   'Cinzel', serif;
+  --font-body:    'Cinzel', serif;
+  --font-mono:    'Courier New', monospace;
+
+  --ease-gold: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html, body, #root {
