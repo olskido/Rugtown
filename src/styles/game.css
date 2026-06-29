@@ -39,6 +39,10 @@
   position: absolute;
   inset: 0;
   z-index: 0;
+  /* Stop the browser's own pinch-zoom/pan/double-tap-zoom on the
+     playfield so it can't fight the game's WASD/touch movement or
+     its own scroll-wheel/pinch zoom. */
+  touch-action: none;
 }
 
 /* Phaser injects canvas; ensure it fills the div */
@@ -2435,15 +2439,13 @@
 }
 
 @media (max-width: 600px) {
-  /* Hide sidebars on small screens */
-  .hud-panel--tl { display: none; }
-  .hud-panel--tr { display: none; }
+  /* Sidebars are toggled into small corner buttons on mobile instead of
+     being hidden outright — see .mobile-collapsed-btn. The desktop
+     fixed-position panels are reused as-is when opened. */
 
-  /* Coords bar goes to top-left */
-  .hud-coords {
-    left: 8px;
-    transform: none;
-  }
+  /* Replaced by the dedicated mobile action cluster (zoom/reset there
+     reuse the exact same handlers as this bar) */
+  .hud-coords { display: none; }
 
   /* Action bar scrollable */
   .action-bar {
@@ -2458,4 +2460,144 @@
 
   .action-btn__key { display: none; }
   .controls-hint { display: none; }
+
+  /* Action-bar panels open full-screen on mobile — a small anchored box
+     is hard to use on a touchscreen */
+  .chat-panel,
+  .quest-panel,
+  .holder-panel,
+  .leaderboard-panel,
+  .settings-panel,
+  .inventory-panel,
+  .emote-panel {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+    transform: none;
+    border-radius: 0;
+  }
+
+  .chat-log {
+    height: auto;
+    flex: 1;
+  }
+
+  .quest-list,
+  .inventory-grid,
+  .leaderboard-list {
+    max-height: none;
+    flex: 1;
+  }
+
+  /* Keep clear of the mobile controls cluster at the bottom */
+  .zone-prompt { bottom: 132px; }
+
+  /* ── Collapsed-into-a-button sidebars ── */
+  .mobile-collapsed-btn {
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    background: rgba(6, 10, 14, 0.92);
+    border: 1px solid rgba(200, 144, 42, 0.4);
+    border-top: 2px solid #c8902a;
+    border-radius: 50%;
+    cursor: pointer;
+    pointer-events: all;
+    z-index: 11;
+  }
+
+  .mobile-collapsed-btn--tl { top: 16px; left: 16px; }
+  .mobile-collapsed-btn--tr { top: 16px; right: 16px; }
+
+  .mobile-panel-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(200, 144, 42, 0.3);
+    border-radius: 50%;
+    color: #c8902a;
+    font-size: 11px;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  /* ── Mobile touch controls: joystick + zoom/interact cluster ── */
+  .mobile-controls {
+    position: absolute;
+    inset: 0;
+    bottom: 60px;
+    pointer-events: none; /* only the two interactive children opt back in */
+  }
+
+  .mobile-joystick {
+    position: absolute;
+    left: 22px;
+    bottom: 22px;
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    background: rgba(6, 10, 14, 0.55);
+    border: 2px solid rgba(200, 144, 42, 0.4);
+    pointer-events: all;
+    touch-action: none;
+  }
+
+  .mobile-joystick__knob {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    margin: -20px;
+    border-radius: 50%;
+    background: rgba(232, 184, 75, 0.85);
+    border: 1px solid #7a5c1e;
+    box-shadow: 0 0 10px rgba(232, 184, 75, 0.4);
+  }
+
+  .mobile-action-cluster {
+    position: absolute;
+    right: 16px;
+    bottom: 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    pointer-events: all;
+  }
+
+  .mobile-zoom-btn,
+  .mobile-interact-btn {
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cinzel', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #e8b84b;
+    background: rgba(6, 10, 14, 0.85);
+    border: 1px solid rgba(200, 144, 42, 0.4);
+    border-radius: 50%;
+    touch-action: none;
+  }
+
+  .mobile-interact-btn {
+    color: #0a0c0e;
+    background: linear-gradient(180deg, #e8b84b, #c8902a);
+    border-color: #7a5c1e;
+  }
 }

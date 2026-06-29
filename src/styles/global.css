@@ -51,6 +51,12 @@ html, body, #root {
   color: var(--text);
   font-family: 'Cinzel', Georgia, serif;
   -webkit-font-smoothing: antialiased;
+  /* Mobile: stop pull-to-refresh/rubber-band scrolling at the document
+     edges. Deliberately NOT setting touch-action/user-select here —
+     that's scoped to the game canvas/joystick in game.css instead, so
+     HUD form controls (sliders, the chat input) keep normal touch
+     behavior. */
+  overscroll-behavior: none;
 }
 
 ::-webkit-scrollbar { width: 4px; }

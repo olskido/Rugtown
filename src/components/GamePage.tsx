@@ -617,6 +617,79 @@ export function GamePage({ playerName }: GamePageProps) {
     sceneRef.current?.setTargetZoom(1.0);
   }, [worldSize]);
 
+  /* ── Mobile layout ──
+     isMobile drives the virtual joystick/interact button (touch-only
+     controls that make no sense on desktop) and which side panels are
+     collapsed into small toggle buttons. Matches the existing ≤600px
+     CSS breakpoint that already adapts the rest of the HUD. */
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 600);
+  const [mobilePlayerCardOpen, setMobilePlayerCardOpen] = useState(false);
+  const [mobileMapOpen, setMobileMapOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 600);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  // If the viewport grows back past the mobile breakpoint mid-touch,
+  // make sure the player doesn't keep drifting in the last direction.
+  useEffect(() => {
+    if (!isMobile) sceneRef.current?.setVirtualMove(0, 0);
+  }, [isMobile]);
+
+  /* ── Virtual joystick (movement) — Pointer Events cover touch/mouse/pen
+     with one set of handlers; setPointerCapture keeps tracking the same
+     finger even if it drifts outside the joystick base. ── */
+  const JOYSTICK_RADIUS = 42; // px, matches .mobile-joystick CSS size
+  const joystickBaseRef = useRef<HTMLDivElement>(null);
+  const joystickPointerIdRef = useRef<number | null>(null);
+  const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0 });
+
+  const updateJoystickFromPointer = useCallback((clientX: number, clientY: number) => {
+    const base = joystickBaseRef.current;
+    if (!base) return;
+    const rect = base.getBoundingClientRect();
+    let dx = clientX - (rect.left + rect.width / 2);
+    let dy = clientY - (rect.top + rect.height / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > JOYSTICK_RADIUS) {
+      dx = (dx / dist) * JOYSTICK_RADIUS;
+      dy = (dy / dist) * JOYSTICK_RADIUS;
+    }
+    setJoystickKnob({ x: dx, y: dy });
+    sceneRef.current?.setVirtualMove(dx / JOYSTICK_RADIUS, dy / JOYSTICK_RADIUS);
+  }, []);
+
+  const endJoystick = useCallback(() => {
+    joystickPointerIdRef.current = null;
+    setJoystickKnob({ x: 0, y: 0 });
+    sceneRef.current?.setVirtualMove(0, 0);
+  }, []);
+
+  const handleJoystickPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    joystickPointerIdRef.current = e.pointerId;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    updateJoystickFromPointer(e.clientX, e.clientY);
+  }, [updateJoystickFromPointer]);
+
+  const handleJoystickPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickPointerIdRef.current !== e.pointerId) return;
+    e.preventDefault();
+    updateJoystickFromPointer(e.clientX, e.clientY);
+  }, [updateJoystickFromPointer]);
+
+  const handleJoystickPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickPointerIdRef.current !== e.pointerId) return;
+    endJoystick();
+  }, [endJoystick]);
+
+  /* ── Mobile interact button — same effect as one E key press ── */
+  const handleMobileInteract = useCallback(() => {
+    sceneRef.current?.requestInteract();
+  }, []);
+
   /* ── Interaction zone modal ──
      Closing plays a short exit animation before the modal actually
      unmounts — requestCloseModal triggers it, the effect below clears
@@ -985,13 +1058,31 @@ export function GamePage({ playerName }: GamePageProps) {
               TOP-LEFT: RugTown Logo + Player Card
               Image 2: avatar top-left, name + stats below
               Image 3: ornate gold-bordered panel
+              On mobile this collapses into a small toggle button so it
+              doesn't permanently cover part of the playfield.
               ────────────────────────────────────────────────────── */}
+          {isMobile && !mobilePlayerCardOpen && (
+            <button
+              className="mobile-collapsed-btn mobile-collapsed-btn--tl"
+              onClick={() => setMobilePlayerCardOpen(true)}
+              aria-label="Show player info"
+            >👤</button>
+          )}
+          {(!isMobile || mobilePlayerCardOpen) && (
           <div className="hud-panel hud-panel--tl">
             {/* Panel corner ornaments — Image 3 style */}
             <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+
+            {isMobile && (
+              <button
+                className="mobile-panel-close"
+                onClick={() => setMobilePlayerCardOpen(false)}
+                aria-label="Close player info"
+              >✕</button>
+            )}
 
             {/* Panel header bar — gold strip from Image 3 */}
             <div className="panel-header">
@@ -1044,6 +1135,7 @@ export function GamePage({ playerName }: GamePageProps) {
               WORLD VIEW · NO BACKEND
             </div>
           </div>
+          )}
 
           {/* ──────────────────────────────────────────────────────
               TOP-CENTER: Camera coordinates + controls
@@ -1076,12 +1168,29 @@ export function GamePage({ playerName }: GamePageProps) {
               RIGHT SIDEBAR: Minimap + Zone list
               Image 2: small map upper-right with zone dots
               Image 3: ornate gold bordered panel
+              On mobile this collapses into a small toggle button.
               ────────────────────────────────────────────────────── */}
+          {isMobile && !mobileMapOpen && (
+            <button
+              className="mobile-collapsed-btn mobile-collapsed-btn--tr"
+              onClick={() => setMobileMapOpen(true)}
+              aria-label="Show map"
+            >🗺️</button>
+          )}
+          {(!isMobile || mobileMapOpen) && (
           <div className="hud-panel hud-panel--tr">
             <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+
+            {isMobile && (
+              <button
+                className="mobile-panel-close"
+                onClick={() => setMobileMapOpen(false)}
+                aria-label="Close map"
+              >✕</button>
+            )}
 
             <div className="panel-header">
               <span className="panel-header__logo">RUGTOWN MAP</span>
@@ -1165,6 +1274,7 @@ export function GamePage({ playerName }: GamePageProps) {
               <span>Scroll to zoom</span>
             </div>
           </div>
+          )}
 
           {/* ──────────────────────────────────────────────────────
               CITY CHAT — toggled from the action bar's Chat button
@@ -1661,6 +1771,39 @@ export function GamePage({ playerName }: GamePageProps) {
               </svg>
             </div>
           </div>
+
+          {/* ──────────────────────────────────────────────────────
+              MOBILE TOUCH CONTROLS — joystick (movement), interact
+              button (same effect as E), and a zoom/reset cluster.
+              Desktop keyboard/mouse controls are untouched; these only
+              render below the ≤600px breakpoint.
+              ────────────────────────────────────────────────────── */}
+          {isMobile && (
+            <div className="mobile-controls">
+              <div
+                className="mobile-joystick"
+                ref={joystickBaseRef}
+                onPointerDown={handleJoystickPointerDown}
+                onPointerMove={handleJoystickPointerMove}
+                onPointerUp={handleJoystickPointerUp}
+                onPointerCancel={handleJoystickPointerUp}
+                role="application"
+                aria-label="Move"
+              >
+                <div
+                  className="mobile-joystick__knob"
+                  style={{ transform: `translate(${joystickKnob.x}px, ${joystickKnob.y}px)` }}
+                />
+              </div>
+
+              <div className="mobile-action-cluster">
+                <button className="mobile-zoom-btn" onClick={zoomOut} aria-label="Zoom out">−</button>
+                <button className="mobile-zoom-btn" onClick={zoomIn} aria-label="Zoom in">+</button>
+                <button className="mobile-zoom-btn mobile-zoom-btn--reset" onClick={resetView} aria-label="Reset camera">⌂</button>
+                <button className="mobile-interact-btn" onClick={handleMobileInteract} aria-label="Interact">E</button>
+              </div>
+            </div>
+          )}
 
           {/* Controls hint — fades after a few seconds */}
           <div className="controls-hint" role="note">

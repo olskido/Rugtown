@@ -25,7 +25,7 @@ const DEFAULT_WORLD_W   = 3840;
 const DEFAULT_WORLD_H   = 2160;
 
 // Player movement — feels like Stardew Valley / Pokemon
-const PLAYER_SPEED      = 280;          // px/sec at full run (was 200 — +40%, felt sluggish)
+const PLAYER_SPEED      = 330;          // px/sec at full run (reduced from 420)
 const PLAYER_ACCEL_TIME = 0.12;         // seconds to reach full speed — unchanged, keeps the ramp feel/smoothness identical
 const PLAYER_DECEL_TIME = 0.08;         // seconds to stop — unchanged, keeps stops snappy (not slippery)
 const PLAYER_DIAG       = 0.7071;       // diagonal normalization
@@ -269,6 +269,13 @@ export class WorldScene extends Phaser.Scene {
   /* ── NPC dialogue proximity ── */
   private nearNpcName: string | null = null;
 
+  /* ── Mobile virtual controls (joystick + interact button) ──
+     Both default to "nothing pressed" so desktop keyboard play is
+     completely unaffected when nothing on mobile is touching them. */
+  private virtualMoveX = 0;   // -1..1
+  private virtualMoveY = 0;   // -1..1
+  private virtualInteractRequested = false;
+
   /* ── Reward feedback (floating text above player) ── */
   private floatingTexts: { obj: Phaser.GameObjects.Text; vy: number; life: number; maxLife: number }[] = [];
 
@@ -446,6 +453,14 @@ export class WorldScene extends Phaser.Scene {
     if (tvx !== 0 && tvy !== 0) {
       tvx *= PLAYER_DIAG;
       tvy *= PLAYER_DIAG;
+    }
+
+    /* ── Mobile virtual joystick — analog, only overrides when actually
+       being touched (both axes 0 otherwise), so desktop keyboard input
+       above is untouched when nothing on mobile is pressed. ── */
+    if (this.virtualMoveX !== 0 || this.virtualMoveY !== 0) {
+      tvx = this.virtualMoveX * PLAYER_SPEED;
+      tvy = this.virtualMoveY * PLAYER_SPEED;
     }
 
     /* ── Smooth acceleration / deceleration ── */
@@ -999,6 +1014,21 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * True once for an E key press OR a mobile interact-button tap —
+   * whichever happened. The virtual flag is consumed (reset) on read so
+   * a single tap can't fire twice across the same frame's two proximity
+   * checks (zone vs NPC), matching how Keyboard.JustDown already behaves.
+   */
+  private consumeInteractPress(): boolean {
+    if (Phaser.Input.Keyboard.JustDown(this.keyE)) return true;
+    if (this.virtualInteractRequested) {
+      this.virtualInteractRequested = false;
+      return true;
+    }
+    return false;
+  }
+
   private updateZoneProximity() {
     let nearest: ActiveZone | null = null;
     let nearestDist = Infinity;
@@ -1019,7 +1049,7 @@ export class WorldScene extends Phaser.Scene {
       this.registry.set('nearZone', nearest ? { id: nearest.id, name: nearest.name } : null);
     }
 
-    if (nearest && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+    if (nearest && this.consumeInteractPress()) {
       this.events.emit('zone-interact', { id: nearest.id, name: nearest.name });
     }
   }
@@ -1057,7 +1087,7 @@ export class WorldScene extends Phaser.Scene {
       this.registry.set('nearNpc', nearest ? { name: nearest.name } : null);
     }
 
-    if (nearest && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+    if (nearest && this.consumeInteractPress()) {
       this.events.emit('npc-interact', { name: nearest.name });
     }
   }
@@ -1540,5 +1570,20 @@ export class WorldScene extends Phaser.Scene {
   /** Settings panel's collision-debug toggle — mirrors the C key. */
   setCollisionDebugVisible(visible: boolean) {
     this.setCollisionDebug(visible);
+  }
+
+  /**
+   * Mobile virtual joystick — x/y each -1..1, combined magnitude already
+   * clamped to <=1 by the caller. (0, 0) means "not touched", which is
+   * the default and leaves keyboard movement completely unaffected.
+   */
+  setVirtualMove(x: number, y: number) {
+    this.virtualMoveX = Phaser.Math.Clamp(x, -1, 1);
+    this.virtualMoveY = Phaser.Math.Clamp(y, -1, 1);
+  }
+
+  /** Mobile interact button — same effect as a single E key press. */
+  requestInteract() {
+    this.virtualInteractRequested = true;
   }
 }
