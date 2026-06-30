@@ -36,7 +36,7 @@ const CAM_DEADZONE_X    = 80;           // px of camera deadzone around player
 const CAM_DEADZONE_Y    = 60;
 
 // Zoom
-const ZOOM_MIN          = 0.35;
+const ZOOM_MIN          = 0.35;        // absolute floor; the dynamic per-frame zoomMin (see computeZoomMin) is usually the binding constraint and is normally higher than this
 const ZOOM_MAX          = 2.2;
 const ZOOM_STEP         = 0.08;
 const ZOOM_LERP         = 0.10;
@@ -54,10 +54,11 @@ const SHADOW_H          = 7;
 
 // Walk animation (shared by player + NPCs)
 const WALK_CYCLE_SPEED   = 8;     // step frequency
-const LEG_STAGGER_Y       = 3;     // alternating vertical leg offset while walking
-const LEG_LIFT            = 3.5;   // how much the forward leg shortens/lifts while stepping
-const BODY_BOB_WALK       = 1.8;   // torso bob amplitude while walking
-const ARM_SWING_WALK      = 3.2;   // arm swing amplitude while walking
+const LEG_STAGGER_Y       = 4;     // alternating vertical leg offset while walking (was 3 — more visible)
+const LEG_LIFT            = 5;     // how much the forward leg shortens/lifts while stepping (was 3.5)
+const LEG_SWING_X         = 2.2;   // alternating fore/aft leg offset — reads as an actual stride, not just marching in place
+const BODY_BOB_WALK       = 2;     // torso bob amplitude while walking (was 1.8 — kept subtle per spec)
+const ARM_SWING_WALK      = 3.6;   // arm swing amplitude while walking (was 3.2)
 
 // Idle animation (shared) — always running, so characters never look frozen
 const IDLE_BREATH_SPEED   = 1.7;    // breathing cycle speed
@@ -65,6 +66,7 @@ const IDLE_BREATH_SCALE   = 0.035;  // torso squash/stretch fraction while idle
 const IDLE_BOB            = 0.6;    // tiny vertical bob while idle
 const IDLE_SWAY           = 0.045;  // radians — gentle idle lean side to side
 const IDLE_ARM_SWAY       = 0.4;    // px — barely-there arm drift while idle
+const IDLE_HEAD_BOB       = 0.5;    // px — tiny independent head movement, separate from body sway
 
 // Turn smoothing — player
 const LEAN_MAX            = 0.11;   // radians (~6°) max lean
@@ -112,8 +114,55 @@ const NPC_SPEECH_LINES = [
   'Meme Market is pumping',
 ];
 
-const NPC_COAT_PALETTE = [0x1a1c20, 0x202225, 0x23201a, 0x1c2024, 0x221a1c, 0x1a2024];
 const NPC_SKIN_PALETTE = [0xd4a878, 0xc89868, 0xb88858, 0xe0b890];
+
+/* ─── NPC visual variants ───
+   5 named looks (coat + accent recolors of the same shared silhouette,
+   no new shapes/assets) assigned to the 10 NPCs by name below. */
+interface NpcVariant {
+  coatColor: number;
+  coatHighlite: number;
+  coatShade: number;
+  accentColor: number;
+}
+
+const NPC_VARIANTS = {
+  degenHoodie: {
+    coatColor: 0x1c1e22, coatHighlite: 0x2e3038, coatShade: 0x101216,
+    accentColor: 0xe8b84b, // gold — the classic look
+  },
+  whaleSuit: {
+    coatColor: 0x16243a, coatHighlite: 0x2a4868, coatShade: 0x0c1622,
+    accentColor: 0x5cb8ec, // icy blue
+  },
+  marketTrader: {
+    coatColor: 0x3a2a18, coatHighlite: 0x5a4228, coatShade: 0x201408,
+    accentColor: 0xe8902a, // warm amber
+  },
+  rugAlleyInformant: {
+    coatColor: 0x241418, coatHighlite: 0x3a1e24, coatShade: 0x140a0c,
+    accentColor: 0xc83838, // red — not the usual gold
+  },
+  alphaAnalyst: {
+    coatColor: 0x24282e, coatHighlite: 0x3c4450, coatShade: 0x141618,
+    accentColor: 0x3ecfc0, // teal
+  },
+} satisfies Record<string, NpcVariant>;
+
+type NpcVariantKey = keyof typeof NPC_VARIANTS;
+
+const NPC_VARIANT_BY_NAME: Record<string, NpcVariantKey> = {
+  JeetBot:        'degenHoodie',
+  PumpGoblin:     'degenHoodie',
+  MoonboyNPC:     'degenHoodie',
+  LiquidityLarry: 'marketTrader',
+  BagHolderBen:   'marketTrader',
+  AlphaAisha:     'alphaAnalyst',
+  ChartChad:      'alphaAnalyst',
+  WhaleGhost:     'whaleSuit',
+  RugSlayerNPC:   'rugAlleyInformant',
+  DumpDemon:      'rugAlleyInformant',
+};
 
 /* ─── Interaction zones ───
    Coordinates, radii, and display names all come from the World Object
@@ -181,6 +230,8 @@ interface HumanoidPose {
   legLiftL: number;
   legLiftR: number;
   armSwing: number;
+  legSwingX?: number;
+  headBob?: number;
   rotation?: number;
   breathScale?: number;
   scale?: number;
@@ -220,6 +271,7 @@ interface NpcData {
   coatColor: number;
   coatHighlite: number;
   coatShade: number;
+  accentColor: number;
   skinColor: number;
   speechTimerNext: number;
   speechShowUntil: number;
@@ -306,6 +358,9 @@ export class WorldScene extends Phaser.Scene {
   /* ── Zoom ── */
   private targetZoom  = ZOOM_DEFAULT;
   private currentZoom = ZOOM_DEFAULT;
+  /** Recomputed every frame so the world image always covers the
+   *  viewport, on any screen size/orientation/fullscreen state. */
+  private zoomMin = ZOOM_MIN;
 
   /* ── Misc ── */
   private tick = 0;               // ms accumulator for registry publish rate
@@ -398,7 +453,7 @@ export class WorldScene extends Phaser.Scene {
       const dir = dy > 0 ? -1 : 1;
       this.targetZoom = Phaser.Math.Clamp(
         this.targetZoom + dir * ZOOM_STEP * 1.5,
-        ZOOM_MIN, ZOOM_MAX
+        this.zoomMin, ZOOM_MAX
       );
     });
 
@@ -538,12 +593,21 @@ export class WorldScene extends Phaser.Scene {
       if (this.emotePulseUntil < 0) this.emotePulseUntil = 0;
     }
 
+    /* ── Dynamic minimum zoom — keeps the city image covering the full
+       viewport on any screen size/orientation. Re-clamping both values
+       every frame (not just on new input) means a resize, rotation, or
+       fullscreen toggle can never leave empty space showing, even if
+       nothing zooms in response. ── */
+    this.zoomMin = this.computeZoomMin();
+    if (this.targetZoom < this.zoomMin) this.targetZoom = this.zoomMin;
+    if (this.currentZoom < this.zoomMin) this.currentZoom = this.zoomMin;
+
     /* ── Zoom key input ── */
     if (Phaser.Input.Keyboard.JustDown(this.keyZoomIn)) {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom + ZOOM_STEP * 2, ZOOM_MIN, ZOOM_MAX);
+      this.targetZoom = Phaser.Math.Clamp(this.targetZoom + ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
     }
     if (Phaser.Input.Keyboard.JustDown(this.keyZoomOut)) {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom - ZOOM_STEP * 2, ZOOM_MIN, ZOOM_MAX);
+      this.targetZoom = Phaser.Math.Clamp(this.targetZoom - ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
     }
     if (Phaser.Input.Keyboard.JustDown(this.keyZoomReset)) {
       this.targetZoom = ZOOM_DEFAULT;
@@ -596,10 +660,12 @@ export class WorldScene extends Phaser.Scene {
     const legLiftL      = this.isMoving ? Math.max(0, stepL) * LEG_LIFT : 0;
     const legLiftR       = this.isMoving ? Math.max(0, stepR) * LEG_LIFT : 0;
     const legStagger        = this.isMoving ? stepL * LEG_STAGGER_Y : 0;
+    const legSwingX           = this.isMoving ? stepL * LEG_SWING_X : 0;
     const walkBob             = this.isMoving ? Math.abs(stepL) * BODY_BOB_WALK : 0;
     const armSwing              = this.isMoving
       ? stepL * ARM_SWING_WALK
       : Math.sin(breathPhase * 0.55) * IDLE_ARM_SWAY;
+    const idleHeadBob            = this.isMoving ? 0 : Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB;
 
     const bodyBob = this.isMoving ? walkBob : idleBob;
     const sway    = this.isMoving ? 0 : idleSway;
@@ -608,9 +674,12 @@ export class WorldScene extends Phaser.Scene {
     const emoteProgress = this.emotePulseUntil / EMOTE_PULSE_DURATION;
     const emotePulse = emoteProgress > 0 ? 1 + Math.sin(emoteProgress * Math.PI) * EMOTE_PULSE_AMOUNT : 1;
 
-    /* ── Shadow — stays flat on the ground, shrinks a touch when "lifted" ── */
+    /* ── Shadow — two layers (soft halo + denser core) for a stronger,
+       more grounded look. Stays flat on the ground regardless of lean. ── */
     this.playerShadow.clear();
-    this.playerShadow.fillStyle(0x000000, 0.28);
+    this.playerShadow.fillStyle(0x000000, 0.20);
+    this.playerShadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 5) * (1 - bodyBob * 0.05), SHADOW_H + 2);
+    this.playerShadow.fillStyle(0x000000, 0.42);
     this.playerShadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * (1 - bodyBob * 0.05), SHADOW_H);
     this.playerShadow.setPosition(this.px, this.py);
 
@@ -632,12 +701,14 @@ export class WorldScene extends Phaser.Scene {
       legLiftL,
       legLiftR,
       armSwing,
+      legSwingX,
+      headBob: idleHeadBob,
       rotation: this.lean + sway,
       breathScale: breathScale * emotePulse,
     });
 
     /* ── Label / speech bubble — stay upright regardless of body lean ── */
-    const headYLocal = -bodyBob - CHAR_H * 0.45;
+    const headYLocal = -bodyBob - CHAR_H * 0.5;
     this.playerLabel.setPosition(this.px, this.py + headYLocal - 6);
     this.playerSpeech.setPosition(this.px, this.py + headYLocal - 18);
   }
@@ -657,8 +728,10 @@ export class WorldScene extends Phaser.Scene {
     const coatColor    = p.coatColor    ?? 0x1a1c20;
     const coatHighlite = p.coatHighlite ?? 0x2c2e36;
     const coatShade    = p.coatShade    ?? 0x101216;
-    const coatDetail   = p.goldColor    ?? 0xe8b84b;
+    const accentColor  = p.goldColor    ?? 0xe8b84b;
     const skinColor    = p.skinColor    ?? 0xd4a878;
+    const legSwingX    = p.legSwingX    ?? 0;
+    const headBob      = p.headBob      ?? 0;
 
     const isLeft  = p.facing === 'left';
     const isRight = p.facing === 'right';
@@ -668,94 +741,110 @@ export class WorldScene extends Phaser.Scene {
 
     g.clear();
 
-    // ── Legs ──
+    // ── Legs + feet ── (wider stance, fore/aft swing so steps actually
+    // alternate forward/back instead of just bobbing up and down)
     const legColors = [0x2a2018, 0x1e1810];
-    const lx1  = -5;
-    const lx2  = 5;
-    const legY = by + CHAR_H * 0.28;
-    const legH = CHAR_H * 0.32;
-    const legH1 = legH - p.legLiftL;
-    const legH2 = legH - p.legLiftR;
+    const shoeColor = 0x0c0c0e;
+    const lx1  = -6;
+    const lx2  = 6;
+    const legY = by + CHAR_H * 0.30;
+    const legH = CHAR_H * 0.28;
+    const legH1 = Math.max(4, legH - p.legLiftL);
+    const legH2 = Math.max(4, legH - p.legLiftR);
 
     g.fillStyle(legColors[0]);
-    g.fillRoundedRect(lx1 - 3, legY + p.legStagger, 6, legH1, 1.5);
+    g.fillRoundedRect(lx1 - 3 + legSwingX, legY + p.legStagger, 6, legH1, 1.5);
     g.fillStyle(legColors[1]);
-    g.fillRoundedRect(lx2 - 3, legY - p.legStagger, 6, legH2, 1.5);
+    g.fillRoundedRect(lx2 - 3 - legSwingX, legY - p.legStagger, 6, legH2, 1.5);
 
-    g.fillStyle(0x3a3020, 0.6);
-    g.fillRect(lx1 - 2, legY + legH1 - 3 + p.legStagger, 5, 3);
-    g.fillRect(lx2 - 2, legY + legH2 - 3 - p.legStagger, 5, 3);
+    // Shoes — small distinct blocks at each foot, clearer than a tint strip
+    g.fillStyle(shoeColor);
+    g.fillRoundedRect(lx1 - 4 + legSwingX, legY + legH1 - 2.5 + p.legStagger, 8, 4, 1.5);
+    g.fillRoundedRect(lx2 - 4 - legSwingX, legY + legH2 - 2.5 - p.legStagger, 8, 4, 1.5);
+    g.fillStyle(0x4a3a24, 0.55);
+    g.fillRect(lx1 - 3 + legSwingX, legY + legH1 - 1.5 + p.legStagger, 6, 1.5);
+    g.fillRect(lx2 - 3 - legSwingX, legY + legH2 - 1.5 - p.legStagger, 6, 1.5);
 
-    // ── Coat / hoodie ──
-    const bodyY = by - CHAR_H * 0.08;
-    const bodyW = CHAR_W - 2;
-    const bodyH = CHAR_H * 0.42;
+    // ── Coat / hoodie ── (tapered waist instead of one flat box, a bit
+    // less boxy/robotic)
+    const bodyY = by - CHAR_H * 0.06;
+    const bodyW = CHAR_W;
+    const bodyH = CHAR_H * 0.40;
 
-    g.fillStyle(0x05060a, 0.5);
-    g.fillRoundedRect(-bodyW / 2 - 1, bodyY - 1, bodyW + 2, bodyH + 2, 4);
+    g.fillStyle(0x05060a, 0.55);
+    g.fillRoundedRect(-bodyW / 2 - 1, bodyY - 1, bodyW + 2, bodyH + 2, 5);
 
     g.fillStyle(coatColor);
-    g.fillRoundedRect(-bodyW / 2, bodyY, bodyW, bodyH, 3);
+    g.fillRoundedRect(-bodyW / 2, bodyY, bodyW, bodyH * 0.65, 4);
+    g.fillRoundedRect(-bodyW / 2 + 1.5, bodyY + bodyH * 0.55, bodyW - 3, bodyH * 0.45, 4);
 
-    g.fillStyle(coatShade, 0.5);
+    g.fillStyle(coatShade, 0.55);
     g.fillRect(bodyW / 2 - 3, bodyY + 2, 3, bodyH - 4);
-    g.fillStyle(coatHighlite, 0.55);
+    g.fillStyle(coatHighlite, 0.6);
     g.fillRect(-bodyW / 2,     bodyY + 2, 2, bodyH - 4);
 
     if (!isBack) {
-      g.fillStyle(coatDetail, 0.9);
-      g.fillRect(-3, bodyY + 2, 6, 3);
-      g.fillRect(-1, bodyY + bodyH * 0.35, 2, bodyH * 0.5);
+      // Collar + zipper — the per-variant accent color (gold by default)
+      g.fillStyle(accentColor, 0.95);
+      g.fillRoundedRect(-3, bodyY + 1, 6, 3, 1);
+      g.fillRect(-1, bodyY + bodyH * 0.32, 2, bodyH * 0.55);
+    } else {
+      // From behind: a thin accent stripe across the shoulders instead
+      g.fillStyle(accentColor, 0.55);
+      g.fillRect(-bodyW / 2 + 2, bodyY + 2, bodyW - 4, 1.5);
     }
 
-    // ── Arms ──
-    const armColor = 0x161820;
-    const armY = bodyY + 3;
-    const armH = CHAR_H * 0.28;
+    // ── Arms + hands ──
+    const armColor = 0x14161c;
+    const armY = bodyY + 2;
+    const armH = CHAR_H * 0.27;
 
     g.fillStyle(armColor);
-    g.fillRoundedRect(-bodyW / 2 - 4, armY + p.armSwing,  4, armH, 1.5);
-    g.fillRoundedRect( bodyW / 2,     armY - p.armSwing,  4, armH, 1.5);
+    g.fillRoundedRect(-bodyW / 2 - 4, armY + p.armSwing,  4, armH, 2);
+    g.fillRoundedRect( bodyW / 2,     armY - p.armSwing,  4, armH, 2);
+    g.fillStyle(skinColor, 0.95);
+    g.fillCircle(-bodyW / 2 - 2, armY + p.armSwing + armH, 2);
+    g.fillCircle( bodyW / 2 + 2, armY - p.armSwing + armH, 2);
 
-    // ── Head ──
+    // ── Head ── (bigger and rounder so it reads clearly at small scale)
     const headColor = isBack ? 0x1a1c20 : skinColor;
-    const headY  = by - CHAR_H * 0.45;
-    const headW  = CHAR_W - 6;
-    const headH  = CHAR_H * 0.26;
-    const lookOX = isLeft ? -1.5 : isRight ? 1.5 : 0;
+    const headY  = by - CHAR_H * 0.50 + headBob;
+    const headW  = CHAR_W - 2;
+    const headH  = CHAR_H * 0.32;
+    const lookOX = isLeft ? -2.2 : isRight ? 2.2 : 0;
 
-    g.fillStyle(0x05060a, 0.5);
-    g.fillRoundedRect(-headW / 2 - 2 + lookOX, headY - 5, headW + 4, headH + 9, 4);
+    g.fillStyle(0x05060a, 0.55);
+    g.fillRoundedRect(-headW / 2 - 2 + lookOX, headY - 5, headW + 4, headH + 9, 5);
 
     g.fillStyle(headColor);
-    g.fillRoundedRect(-headW / 2 + lookOX, headY, headW, headH, 3);
+    g.fillRoundedRect(-headW / 2 + lookOX, headY, headW, headH, 5);
 
     // ── Hood ──
-    const hairColor = 0x1a1820;
+    const hairColor = 0x171720;
     g.fillStyle(hairColor);
-    g.fillRoundedRect(-headW / 2 - 1 + lookOX, headY - 4, headW + 2, 8, 3);
-    g.fillRect(-headW / 2 - 2 + lookOX, headY,     3, headH * 0.7);
-    g.fillRect( headW / 2 - 1 + lookOX, headY,     3, headH * 0.7);
+    g.fillRoundedRect(-headW / 2 - 1 + lookOX, headY - 5, headW + 2, 9, 4);
+    g.fillRoundedRect(-headW / 2 - 2 + lookOX, headY,     4, headH * 0.75, 2);
+    g.fillRoundedRect( headW / 2 - 2 + lookOX, headY,     4, headH * 0.75, 2);
 
-    // Gold drawstring tips
-    g.fillStyle(coatDetail, 0.85);
-    g.fillRect(-headW / 2 - 1 + lookOX, headY + headH * 0.65, 2, 2);
-    g.fillRect( headW / 2 - 1 + lookOX, headY + headH * 0.65, 2, 2);
+    // Drawstring tips — per-variant accent color
+    g.fillStyle(accentColor, 0.9);
+    g.fillCircle(-headW / 2 + lookOX, headY + headH * 0.68, 1.3);
+    g.fillCircle( headW / 2 + lookOX, headY + headH * 0.68, 1.3);
 
-    // ── Face details (only from front / sides) ──
+    // ── Face details (front/side only — back view stays a plain hood) ──
     if (!isBack) {
-      const eyeY  = headY + headH * 0.35;
-      const eyeOX = lookOX * 1.6;
+      const eyeY  = headY + headH * 0.4;
+      const eyeOX = lookOX * 1.3;
 
-      g.fillStyle(0x080808);
-      g.fillRect(-4 + eyeOX, eyeY, 2, 2);
-      g.fillRect( 2 + eyeOX, eyeY, 2, 2);
+      g.fillStyle(0x0a0a0a);
+      g.fillRect(-4.5 + eyeOX, eyeY, 2.5, 2.5);
+      g.fillRect( 2 + eyeOX,   eyeY, 2.5, 2.5);
 
-      g.fillStyle(0x0a2030, 0.9);
-      g.fillRect(-5 + eyeOX, eyeY - 1, 5, 3);
-      g.fillRect( 1 + eyeOX, eyeY - 1, 5, 3);
+      g.fillStyle(0x0a2030, 0.92);
+      g.fillRoundedRect(-5.5 + eyeOX, eyeY - 1, 6, 3.5, 1);
+      g.fillRoundedRect( 0.5 + eyeOX, eyeY - 1, 6, 3.5, 1);
       g.fillStyle(0x303030);
-      g.fillRect(-1 + eyeOX, eyeY,     2, 2);
+      g.fillRect(-0.5 + eyeOX, eyeY + 0.5, 2, 1.5);
     }
 
     g.setPosition(x, y);
@@ -772,6 +861,7 @@ export class WorldScene extends Phaser.Scene {
      ═══════════════════════════════════════════════════════════ */
   private createNpcs() {
     NPC_NAMES.forEach((name, i) => {
+      const variant = NPC_VARIANTS[NPC_VARIANT_BY_NAME[name] ?? 'degenHoodie'];
       const landmark = NPC_LANDMARKS[i % NPC_LANDMARKS.length];
       const homeX = Phaser.Math.Clamp(this.worldW * landmark.fx + Phaser.Math.Between(-20, 20), CHAR_W, this.worldW - CHAR_W);
       const homeY = Phaser.Math.Clamp(this.worldH * landmark.fy + Phaser.Math.Between(-20, 20), CHAR_H, this.worldH - CHAR_H);
@@ -818,9 +908,10 @@ export class WorldScene extends Phaser.Scene {
         walkMax: Phaser.Math.Between(1800, 3200),
         animTick: Phaser.Math.Between(0, 4000),               // random phase offset
         lean: 0,
-        coatColor: Phaser.Utils.Array.GetRandom(NPC_COAT_PALETTE),
-        coatHighlite: 0x2c2e36,
-        coatShade: 0x101216,
+        coatColor: variant.coatColor,
+        coatHighlite: variant.coatHighlite,
+        coatShade: variant.coatShade,
+        accentColor: variant.accentColor,
         skinColor: Phaser.Utils.Array.GetRandom(NPC_SKIN_PALETTE),
         speechTimerNext: Phaser.Math.Between(NPC_SPEECH_MIN_GAP, NPC_SPEECH_MAX_GAP),
         speechShowUntil: 0,
@@ -927,16 +1018,20 @@ export class WorldScene extends Phaser.Scene {
     const legLiftL      = n.isMoving ? Math.max(0, stepL) * LEG_LIFT : 0;
     const legLiftR       = n.isMoving ? Math.max(0, stepR) * LEG_LIFT : 0;
     const legStagger        = n.isMoving ? stepL * LEG_STAGGER_Y : 0;
+    const legSwingX           = n.isMoving ? stepL * LEG_SWING_X : 0;
     const walkBob             = n.isMoving ? Math.abs(stepL) * BODY_BOB_WALK : 0;
     const armSwing              = n.isMoving
       ? stepL * ARM_SWING_WALK
       : Math.sin(breathPhase * 0.55) * IDLE_ARM_SWAY;
+    const idleHeadBob            = n.isMoving ? 0 : Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB;
 
     const bodyBob = n.isMoving ? walkBob : idleBob;
     const sway    = n.isMoving ? 0 : idleSway;
 
     n.shadow.clear();
-    n.shadow.fillStyle(0x000000, 0.24);
+    n.shadow.fillStyle(0x000000, 0.16);
+    n.shadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 4) * NPC_SCALE * (1 - bodyBob * 0.05), (SHADOW_H + 2) * NPC_SCALE);
+    n.shadow.fillStyle(0x000000, 0.34);
     n.shadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * NPC_SCALE * (1 - bodyBob * 0.05), SHADOW_H * NPC_SCALE);
     n.shadow.setPosition(n.px, n.py);
 
@@ -947,6 +1042,8 @@ export class WorldScene extends Phaser.Scene {
       legLiftL,
       legLiftR,
       armSwing,
+      legSwingX,
+      headBob: idleHeadBob,
       rotation: n.lean + sway,
       breathScale,
       scale: NPC_SCALE,
@@ -954,10 +1051,11 @@ export class WorldScene extends Phaser.Scene {
       coatColor: n.coatColor,
       coatHighlite: n.coatHighlite,
       coatShade: n.coatShade,
+      goldColor: n.accentColor,
       skinColor: n.skinColor,
     });
 
-    const headYLocal = -bodyBob - CHAR_H * 0.45;
+    const headYLocal = -bodyBob - CHAR_H * 0.5;
     const labelY = n.py + headYLocal * NPC_SCALE - 5;
     n.label.setPosition(n.px, labelY);
     n.speech.setPosition(n.px, labelY - 12);
@@ -1134,6 +1232,22 @@ export class WorldScene extends Phaser.Scene {
     this.collisionDebugVisible = visible;
     this.collisionDebugGraphics.setVisible(visible);
     this.registry.set('collisionDebug', visible);
+  }
+
+  /**
+   * The zoom level below which the camera's view area would exceed the
+   * world image in either dimension — i.e. the point past which empty
+   * background starts showing. Below this, `viewport / zoom` (the area
+   * actually visible) would be bigger than the world image, so the
+   * floor is whichever axis needs the most zoom to still cover it.
+   * Called every frame so resize/rotate/fullscreen are always correct.
+   */
+  private computeZoomMin(): number {
+    if (this.worldW <= 0 || this.worldH <= 0) return ZOOM_MIN;
+    const vw = this.scale.width;
+    const vh = this.scale.height;
+    if (vw <= 0 || vh <= 0) return ZOOM_MIN;
+    return Math.max(vw / this.worldW, vh / this.worldH, ZOOM_MIN);
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -1495,10 +1609,10 @@ export class WorldScene extends Phaser.Scene {
     this.keyC         = kb.addKey(Phaser.Input.Keyboard.KeyCodes.C);
 
     kb.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_ADD).on('down', () => {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom + ZOOM_STEP * 2, ZOOM_MIN, ZOOM_MAX);
+      this.targetZoom = Phaser.Math.Clamp(this.targetZoom + ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
     });
     kb.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_SUBTRACT).on('down', () => {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom - ZOOM_STEP * 2, ZOOM_MIN, ZOOM_MAX);
+      this.targetZoom = Phaser.Math.Clamp(this.targetZoom - ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
     });
     kb.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_ZERO).on('down', () => {
       this.targetZoom = ZOOM_DEFAULT;
@@ -1542,7 +1656,23 @@ export class WorldScene extends Phaser.Scene {
   }
 
   setTargetZoom(z: number) {
-    this.targetZoom = Phaser.Math.Clamp(z, ZOOM_MIN, ZOOM_MAX);
+    this.targetZoom = Phaser.Math.Clamp(z, this.zoomMin, ZOOM_MAX);
+  }
+
+  /**
+   * "Reset camera" (the ⌂ button) — resets zoom back to default and
+   * makes sure the camera is actively following the player again. Does
+   * NOT move the player: the camera already centers on the player via
+   * startFollow, so there's nothing else to "recenter". Deliberately
+   * does not use panTo()/tweens, which animate the player's own
+   * position and would fight live joystick/keyboard input.
+   */
+  resetCamera() {
+    this.setTargetZoom(ZOOM_DEFAULT);
+    // Unconditional re-affirm — idempotent (same target/values) when
+    // follow was already active, and recovers it if it somehow wasn't.
+    this.cameras.main.startFollow(this.player, true, CAM_LERP, CAM_LERP);
+    this.cameras.main.setDeadzone(CAM_DEADZONE_X, CAM_DEADZONE_Y);
   }
 
   getPlayerPos() {

@@ -2378,6 +2378,135 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
+   DISTRICT PROGRESS PANEL
+   Toggled from the action bar's Map button. Local progression layered
+   on top of the existing world — nothing here blocks movement.
+   ══════════════════════════════════════════════════════════════ */
+.district-panel {
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  animation: chat-panel-in 0.18s ease both;
+}
+
+.district-panel .panel-header {
+  justify-content: space-between;
+}
+
+.district-panel__close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(200, 144, 42, 0.3);
+  border-radius: 50%;
+  color: #c8902a;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.district-panel__close:hover {
+  background: rgba(200, 144, 42, 0.15);
+  color: #e8b84b;
+}
+
+.district-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.district-list::-webkit-scrollbar { width: 4px; }
+.district-list::-webkit-scrollbar-thumb { background: #7a5c1e; }
+
+.district-item {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(200, 144, 42, 0.15);
+  border-left: 2px solid rgba(200, 144, 42, 0.3);
+  transition: border-color 0.2s, background 0.2s, opacity 0.2s;
+}
+
+.district-item--locked {
+  opacity: 0.7;
+}
+
+.district-item--unlocked {
+  border-left-color: #e8b84b;
+  background: rgba(200, 144, 42, 0.07);
+}
+
+.district-item__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.district-item__name {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #e8d8c0;
+  letter-spacing: 0.02em;
+}
+
+.district-item__status {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9a8a6a;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(200, 144, 42, 0.15);
+}
+
+.district-item__status--unlocked {
+  color: #0a0c0e;
+  background: #e8b84b;
+  border-color: #e8b84b;
+}
+
+.district-item__desc {
+  margin: 0 0 4px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  line-height: 1.45;
+  color: #8a7a5c;
+}
+
+.district-item__req {
+  margin: 0;
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  color: #6a5a42;
+}
+
+.district-item--unlocked .district-item__req {
+  color: #6fdb8f;
+}
+
+/* Minimap dot — subtle ring for a landmark whose district is unlocked */
+.minimap-zone--district-unlocked {
+  box-shadow: 0 0 0 2px rgba(232, 184, 75, 0.55), 0 0 4px currentColor;
+}
+
+/* ══════════════════════════════════════════════════════════════
    TOAST NOTIFICATIONS
    Small, auto-dismissing — used for quest-complete right now
    ══════════════════════════════════════════════════════════════ */
@@ -2469,7 +2598,8 @@
   .leaderboard-panel,
   .settings-panel,
   .inventory-panel,
-  .emote-panel {
+  .emote-panel,
+  .district-panel {
     top: 0;
     left: 0;
     right: 0;
@@ -2487,7 +2617,8 @@
 
   .quest-list,
   .inventory-grid,
-  .leaderboard-list {
+  .leaderboard-list,
+  .district-list {
     max-height: none;
     flex: 1;
   }

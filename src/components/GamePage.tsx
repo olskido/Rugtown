@@ -162,6 +162,72 @@ const MOCK_ITEMS: MockItem[] = [
 const INVENTORY_TABS = ['Items', 'Badges'] as const;
 type InventoryTab = (typeof INVENTORY_TABS)[number];
 
+/* ─── District progression — local-only. Every unlock condition reuses
+   state already tracked for quests/badges; nothing new is requested
+   from WorldScene, and no movement is blocked. ─── */
+interface District {
+  id: string;
+  name: string;
+  description: string;
+  requirement: string;
+}
+
+const DISTRICTS: District[] = [
+  {
+    id: 'spawn-plaza',
+    name: 'Spawn Plaza',
+    description: 'The fountain square where every degen starts their journey.',
+    requirement: 'Unlocked by default',
+  },
+  {
+    id: 'meme-market',
+    name: 'Meme Market',
+    description: 'Stalls trading the latest meme tokens.',
+    requirement: 'Claim REP from the Spawn Fountain',
+  },
+  {
+    id: 'hall-of-fame',
+    name: 'Hall of Fame',
+    description: "A monument to RugTown's top degens.",
+    requirement: 'Visit Meme Market',
+  },
+  {
+    id: 'whale-tower',
+    name: 'Whale Tower',
+    description: 'A watchtower for tracking large wallet movements.',
+    requirement: 'Reach 20 REP',
+  },
+  {
+    id: 'alpha-lounge',
+    name: 'Alpha Lounge',
+    description: 'An exclusive lounge for alpha calls and private chat.',
+    requirement: 'Talk to any NPC',
+  },
+  {
+    id: 'rug-alley',
+    name: 'Rug Alley',
+    description: 'A shadier corner of town — watch your wallet.',
+    requirement: 'Check Whale Tower',
+  },
+  {
+    id: 'holder-vault',
+    name: 'Holder Vault',
+    description: 'A Gold-tier-only vault preview.',
+    requirement: 'Holder tier must be Gold',
+  },
+];
+
+/** Districts that line up with a real WorldObject get a minimap highlight
+ *  when unlocked (req. 5) — Rug Alley and Holder Vault aren't registered
+ *  landmarks, so they simply don't get one. */
+const WORLD_OBJECT_TO_DISTRICT: Record<string, string> = {
+  fountain: 'spawn-plaza',
+  market:   'meme-market',
+  fame:     'hall-of-fame',
+  whale:    'whale-tower',
+  alpha:    'alpha-lounge',
+};
+
 /* ─── Player emotes — local-only. Each one shows a speech bubble above
    the player, plays a brief pop animation, and logs to chat. ─── */
 interface Emote {
@@ -459,6 +525,25 @@ export function GamePage({ playerName }: GamePageProps) {
     }
   }, [showToast]);
 
+  /* ── District progression ── */
+  const isMapOpen = activeAction === 'Map';
+  const announcedDistrictsRef = useRef<Set<string>>(new Set());
+  const wasGoldRef = useRef(false);
+  const [districtUnlocked, setDistrictUnlocked] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(DISTRICTS.map(d => [d.id, d.id === 'spawn-plaza']))
+  );
+
+  // Sticky — once unlocked, stays unlocked (same idempotent pattern as
+  // quests/badges). Holder Vault is the one exception, handled below.
+  const unlockDistrict = useCallback((id: string) => {
+    setDistrictUnlocked(prev => (prev[id] ? prev : { ...prev, [id]: true }));
+    if (!announcedDistrictsRef.current.has(id)) {
+      announcedDistrictsRef.current.add(id);
+      const district = DISTRICTS.find(d => d.id === id);
+      if (district) showToast(`🗺️ District unlocked: ${district.name}`);
+    }
+  }, [showToast]);
+
   const setHolderTierAndNotify = useCallback((tier: HolderTier) => {
     if (tier === holderTier) return;
     const mult = HOLDER_TIERS.find(t => t.tier === tier)?.multiplier ?? 1;
@@ -612,10 +697,13 @@ export function GamePage({ playerName }: GamePageProps) {
   const zoomIn  = useCallback(() => sceneRef.current?.setTargetZoom(camera.zoom + 0.15), [camera.zoom]);
   const zoomOut = useCallback(() => sceneRef.current?.setTargetZoom(camera.zoom - 0.15), [camera.zoom]);
   const resetView = useCallback(() => {
-    // Return player to fountain spawn area (38% x, 58% y) and reset zoom
-    sceneRef.current?.panTo(worldSize.w * 0.38, worldSize.h * 0.58, 600);
-    sceneRef.current?.setTargetZoom(1.0);
-  }, [worldSize]);
+    // Resets zoom and re-affirms camera follow — does NOT move the
+    // player. panTo() animates the player's own position via a tween,
+    // which fights live joystick/keyboard input every frame it's
+    // running; that was the cause of the "reset teleports player and
+    // breaks controls" bug.
+    sceneRef.current?.resetCamera();
+  }, []);
 
   /* ── Mobile layout ──
      isMobile drives the virtual joystick/interact button (touch-only
@@ -834,6 +922,39 @@ export function GamePage({ playerName }: GamePageProps) {
   useEffect(() => {
     if (nearZone?.id === 'whale') unlockBadge('whale-watcher');
   }, [nearZone, unlockBadge]);
+
+  /* ── District unlocks — same trigger state as the quests/badges above. ── */
+  useEffect(() => {
+    if (fountainClaimed) unlockDistrict('meme-market');
+  }, [fountainClaimed, unlockDistrict]);
+
+  useEffect(() => {
+    if (nearZone?.id === 'market') unlockDistrict('hall-of-fame');
+  }, [nearZone, unlockDistrict]);
+
+  useEffect(() => {
+    if (rep >= 20) unlockDistrict('whale-tower');
+  }, [rep, unlockDistrict]);
+
+  useEffect(() => {
+    if (dialogue) unlockDistrict('alpha-lounge');
+  }, [dialogue, unlockDistrict]);
+
+  useEffect(() => {
+    if (nearZone?.id === 'whale') unlockDistrict('rug-alley');
+  }, [nearZone, unlockDistrict]);
+
+  // Holder Vault is "only when Gold", not "after reaching Gold once" — it's
+  // the one district that can re-lock if the (mock) tier changes back down.
+  // Toasts on each transition into Gold, not just the first time ever.
+  useEffect(() => {
+    const isGold = holderTier === 'Gold';
+    setDistrictUnlocked(prev => (prev['holder-vault'] === isGold ? prev : { ...prev, 'holder-vault': isGold }));
+    if (isGold && !wasGoldRef.current) {
+      showToast('🗺️ District unlocked: Holder Vault');
+    }
+    wasGoldRef.current = isGold;
+  }, [holderTier, showToast]);
 
   /* ── Simulated Live City Events ──
      Self-rescheduling timer (10-20s, randomized each time so it never
@@ -1209,20 +1330,24 @@ export function GamePage({ playerName }: GamePageProps) {
               {/* Landmark dots — every registered WorldObject, positioned
                   from the same fractional coordinates WorldScene uses for
                   actual interaction detection */}
-              {WORLD_OBJECTS.map(obj => (
-                <div
-                  key={obj.id}
-                  className={`minimap-zone ${nearestLandmark?.id === obj.id ? 'minimap-zone--active' : ''}`}
-                  style={{
-                    left: `${obj.x * 100}%`,
-                    top: `${obj.y * 100}%`,
-                    background: LANDMARK_COLORS[obj.id] ?? '#e8b84b',
-                  }}
-                  title={`${obj.futureIcon} ${obj.displayName}`}
-                >
-                  <span className="minimap-zone__label">{obj.futureIcon} {obj.displayName}</span>
-                </div>
-              ))}
+              {WORLD_OBJECTS.map(obj => {
+                const districtId = WORLD_OBJECT_TO_DISTRICT[obj.id];
+                const districtIsUnlocked = districtId ? districtUnlocked[districtId] : false;
+                return (
+                  <div
+                    key={obj.id}
+                    className={`minimap-zone ${nearestLandmark?.id === obj.id ? 'minimap-zone--active' : ''} ${districtIsUnlocked ? 'minimap-zone--district-unlocked' : ''}`}
+                    style={{
+                      left: `${obj.x * 100}%`,
+                      top: `${obj.y * 100}%`,
+                      background: LANDMARK_COLORS[obj.id] ?? '#e8b84b',
+                    }}
+                    title={`${obj.futureIcon} ${obj.displayName}`}
+                  >
+                    <span className="minimap-zone__label">{obj.futureIcon} {obj.displayName}</span>
+                  </div>
+                );
+              })}
 
               {/* Player dot */}
               <div
@@ -1714,6 +1839,52 @@ export function GamePage({ playerName }: GamePageProps) {
           )}
 
           {/* ──────────────────────────────────────────────────────
+              DISTRICT PROGRESS — toggled from the action bar's Map
+              button. Local-only progression layered on top of the
+              existing world; nothing is physically blocked.
+              ────────────────────────────────────────────────────── */}
+          {isMapOpen && (
+            <div className="hud-panel district-panel">
+              <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
+              <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
+              <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
+              <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+
+              <div className="panel-header">
+                <span className="panel-header__logo">DISTRICT PROGRESS</span>
+                <button
+                  className="district-panel__close"
+                  onClick={() => setActiveAction(null)}
+                  aria-label="Close district progress"
+                >✕</button>
+              </div>
+
+              <div className="district-list">
+                {DISTRICTS.map(d => {
+                  const unlocked = districtUnlocked[d.id];
+                  return (
+                    <div
+                      key={d.id}
+                      className={`district-item ${unlocked ? 'district-item--unlocked' : 'district-item--locked'}`}
+                    >
+                      <div className="district-item__header">
+                        <span className="district-item__name">{d.name}</span>
+                        <span className={`district-item__status district-item__status--${unlocked ? 'unlocked' : 'locked'}`}>
+                          {unlocked ? '🔓 Unlocked' : '🔒 Locked'}
+                        </span>
+                      </div>
+                      <p className="district-item__desc">{d.description}</p>
+                      <p className="district-item__req">
+                        {unlocked ? '✓' : '•'} {d.requirement}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ──────────────────────────────────────────────────────
               BOTTOM ACTION BAR
               Image 2: horizontal row of icon buttons at screen bottom
               Image 3: gold-bordered dark bar, circular icon buttons
@@ -1813,7 +1984,7 @@ export function GamePage({ playerName }: GamePageProps) {
             <span className="hint-sep">·</span>
             <span>Scroll wheel  zoom</span>
             <span className="hint-sep">·</span>
-            <span>⌂  return to fountain</span>
+            <span>⌂  reset camera</span>
             <span className="hint-sep">·</span>
             <span>Click map  teleport</span>
           </div>
