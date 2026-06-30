@@ -3,6 +3,8 @@ import { RugTownGame } from '../game/RugTownGame';
 import { WorldScene, NPC_SPEECH_BY_PERSONALITY, type NpcPersonality } from '../game/scenes/WorldScene';
 import { getWorldObject, WORLD_OBJECTS } from '../game/world/WorldObjects';
 import { soundManager, type SoundChannel } from '../audio/SoundManager';
+import type { EventRarity, EventReward, EventLocation, EventPhase as EnginePhase } from '../game/events/EventTypes';
+import { EVENT_DEFINITIONS } from '../game/events/EventDefinitions';
 
 /*
   GamePage.tsx
@@ -54,6 +56,87 @@ interface ChatMessage {
   kind: 'player' | 'npc' | 'event';
 }
 
+/* ─── Event HUD (Phase 2 Event Engine) ───
+   Shape WorldScene publishes to the registry's 'currentEvent' key (see
+   handleEventPhaseChange in WorldScene.ts) — a flattened, JSON-friendly
+   snapshot of the engine's EventInstance, not the instance itself. Reusing
+   the engine's own field types (EventRarity/EventReward/EventLocation)
+   keeps this in sync with EventDefinitions.ts without duplicating them. */
+interface RegistryCurrentEvent {
+  id: string;
+  title: string;
+  description: string;
+  rarity: EventRarity;
+  phase: EnginePhase;
+  phaseDuration: number;
+  phaseStartedAt: number;
+  reward: EventReward;
+  location: EventLocation;
+  dialogue: string | null;
+  /** id of the event that chained into this one (Phase 4 Event Chain
+   *  System), or null if it was picked the normal random way. */
+  chainedFrom: string | null;
+}
+
+const EVENT_PHASE_LABELS: Record<EnginePhase, string> = {
+  idle: 'Idle',
+  countdown: 'Starting Soon',
+  announcement: 'Announcement',
+  live: 'Live Now',
+  completed: 'Completed',
+  cooldown: 'Cooldown',
+};
+
+function formatEventTime(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `${s}s`;
+}
+
+/** One city-chat line per phase the event is worth announcing for —
+ *  Idle/Cooldown are deliberately silent so the chat doesn't spam on
+ *  every event's wind-down. */
+function eventChatLine(evt: RegistryCurrentEvent): { icon: string; text: string } | null {
+  switch (evt.phase) {
+    case 'countdown':
+      return { icon: '⏳', text: `${evt.title} is brewing near ${evt.location.displayName}...` };
+    case 'announcement':
+      return { icon: '📢', text: `Citizens of RugTown — ${evt.description}` };
+    case 'live':
+      return { icon: '🔥', text: `${evt.title} is live now at ${evt.location.displayName}!` };
+    case 'completed':
+      return {
+        icon: '✅',
+        text: evt.reward.type !== 'none' ? `${evt.title} has ended. Reward: ${evt.reward.label}` : `${evt.title} has ended.`,
+      };
+    default:
+      return null;
+  }
+}
+
+/* ─── Event Chain System (Phase 4) ───
+   Fires once, the first time a chained event's countdown shows up, in
+   addition to (not instead of) the normal eventChatLine() above — see
+   the poll loop. `sourceTitle` is resolved from EVENT_DEFINITIONS by
+   the chainedFrom id WorldScene published. ─── */
+const CHAIN_TRIGGER_LINES: ((sourceTitle: string) => string)[] = [
+  () => 'One event has triggered another...',
+  (sourceTitle) => `The city reacts to the ${sourceTitle}.`,
+  (sourceTitle) => `Word spreads fast after the ${sourceTitle}.`,
+  () => 'The story of RugTown continues...',
+];
+
+/** Short "Today's Story" log line for an event reaching its Live phase
+ *  — deliberately terser than eventChatLine()'s chat phrasing. Other
+ *  phases don't get an automatic entry; the rest of the story log is
+ *  filled in by player actions (treasure/whale claims). */
+function storyLogLineForLive(evt: RegistryCurrentEvent): string {
+  const verbs = ['started', 'began', 'is underway'];
+  const verb = verbs[Math.floor(Math.random() * verbs.length)];
+  return `${evt.title} ${verb}`;
+}
+
 /* ─── Action bar items matching Image 2 bottom bar ─── */
 const ACTION_BAR_ITEMS = [
   { icon: '💬', label: 'Chat',        key: 'C' },
@@ -63,6 +146,7 @@ const ACTION_BAR_ITEMS = [
   { icon: '🏆', label: 'Leaderboard', key: 'L' },
   { icon: '💎', label: 'Holder',      key: 'H' },
   { icon: '🗺️',  label: 'Map',         key: 'M' },
+  { icon: '📜', label: 'Story',       key: '' },
   { icon: '⚙️',  label: 'Settings',    key: '' },
 ];
 
@@ -113,6 +197,15 @@ const LEADERBOARD_NPCS = [
 const LEADERBOARD_TABS = ['Daily', 'Weekly', 'All Time'] as const;
 type LeaderboardTab = (typeof LEADERBOARD_TABS)[number];
 
+/* ─── Hall of Fame statue flavor — keyed by rank, not by identity, so it
+   reads naturally whether the #1 spot is an NPC or the player (req. 12:
+   no real users, nothing here is tied to a specific person). ─── */
+const STATUE_RANK_FLAVOR: Record<number, { title: string; flavor: string }> = {
+  1: { title: 'Hall of Fame Legend', flavor: 'Etched in gold for all of RugTown to remember.' },
+  2: { title: 'Silver Standard', flavor: 'A close second, forever recognized.' },
+  3: { title: 'Bronze Contender', flavor: 'Third place, but never forgotten.' },
+};
+
 /* ─── NPC dialogue — 3 flavor lines per citizen, no backend/AI ─── */
 const NPC_DIALOGUE: Record<string, string[]> = {
   JeetBot:        ["I bought the top again.", "Sold the bottom last week.", "Red candles don't scare me... much."],
@@ -144,6 +237,8 @@ const BADGES: Badge[] = [
   { id: 'market-scout',     name: 'Market Scout',     description: 'Scouted out the Meme Market.',              icon: '🛒' },
   { id: 'npc-talker',       name: 'NPC Talker',       description: 'Talked to a citizen of RugTown.',           icon: '💬' },
   { id: 'whale-watcher',    name: 'Whale Watcher',    description: 'Kept an eye on Whale Tower.',                icon: '🐳' },
+  { id: 'treasure-finder',  name: 'Treasure Finder',  description: 'Found a hidden chest during a Treasure Hunt event.', icon: '🗝️' },
+  { id: 'whale-watcher-plus', name: 'Whale Watcher+', description: 'Inspected a live Whale Alert event.', icon: '🐋' },
 ];
 
 interface MockItem {
@@ -448,6 +543,52 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
   const [dialogue, setDialogue] = useState<{ npcName: string; line: string } | null>(null);
   const [dialogueClosing, setDialogueClosing] = useState(false);
 
+  /* ── Event HUD (Phase 2 Event Engine) — read-only from the registry,
+     WorldScene/EventManager own all the actual lifecycle state. ── */
+  const [eventPhase, setEventPhase] = useState<EnginePhase>('idle');
+  const [currentEvent, setCurrentEvent] = useState<RegistryCurrentEvent | null>(null);
+  const [eventTimeRemaining, setEventTimeRemaining] = useState(0);
+  const lastEventChatKeyRef = useRef<string | null>(null);
+  const lastChainAnnouncedKeyRef = useRef<string | null>(null);
+
+  /* ── "Today's Story" log (Phase 4 Event Chain System) — a rolling
+     window of the last 5 notable moments (event phase starts + player
+     claims). Local-only React state, nothing persisted, nothing sent
+     anywhere. ── */
+  const [storyLog, setStoryLog] = useState<{ id: number; text: string }[]>([]);
+  const storyLogIdRef = useRef(0);
+  const pushStoryLog = useCallback((text: string) => {
+    setStoryLog(prev => {
+      const next = [...prev, { id: ++storyLogIdRef.current, text }];
+      return next.length > 5 ? next.slice(next.length - 5) : next;
+    });
+  }, []);
+
+  /* ── Treasure Hunt chest — read-only from the registry; WorldScene owns
+     spawn/despawn/claim-gating, this just mirrors it for the HUD/minimap. ── */
+  const [treasureChest, setTreasureChest] = useState<{ wx: number; wy: number } | null>(null);
+  const [nearTreasure, setNearTreasure] = useState(false);
+  const [treasureClaim, setTreasureClaim] = useState<{ claimId: number; amount: number; label: string } | null>(null);
+  const treasureClaimIdRef = useRef(0);
+
+  /* ── Whale Alert marker — same read-only-mirror pattern as the chest
+     above; WorldScene owns spawn/despawn/claim-gating. ── */
+  const [whaleMarker, setWhaleMarker] = useState<{ wx: number; wy: number } | null>(null);
+  const [nearWhale, setNearWhale] = useState(false);
+  const [whaleAlert, setWhaleAlert] = useState<{
+    wallet: string; buySol: number; tokenSymbol: string; riskLevel: string; rewardLabel: string;
+  } | null>(null);
+  const [whaleAlertClosing, setWhaleAlertClosing] = useState(false);
+  const [whaleClaim, setWhaleClaim] = useState<{ claimId: number; amount: number; label: string } | null>(null);
+  const whaleClaimIdRef = useRef(0);
+
+  /* ── Hall of Fame statues — permanent fixture, not event-driven. No
+     claim/reward (unlike the chest/whale), so there's no *Claim state —
+     just the proximity mirror and the inspect modal. ── */
+  const [nearStatue, setNearStatue] = useState<{ rank: number; name: string } | null>(null);
+  const [statueModal, setStatueModal] = useState<{ rank: number; name: string; rep: number; isPlayer: boolean } | null>(null);
+  const [statueModalClosing, setStatueModalClosing] = useState(false);
+
   /* ── Local city chat (frontend-only, no backend) ── */
   const chatInputRef = useRef<HTMLInputElement>(null);
   const chatLogRef   = useRef<HTMLDivElement>(null);
@@ -475,6 +616,10 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
   const [holderTier, setHolderTier] = useState<HolderTier>('None');
   const [tierJustChanged, setTierJustChanged] = useState(false);
   const isHolderOpen = activeAction === 'Holder';
+
+  /* ── "Today's Story" log panel (Phase 4 Event Chain System) ── */
+  const isStoryOpen = activeAction === 'Story';
+
   const holderMultiplier = HOLDER_TIERS.find(t => t.tier === holderTier)?.multiplier ?? 1;
   const applyHolderMultiplier = useCallback(
     (base: number) => Math.round(base * holderMultiplier),
@@ -492,6 +637,21 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
   ]
     .sort((a, b) => b.rep - a.rep)
     .map((row, i) => ({ ...row, rank: i + 1 }));
+
+  /* ── Hall of Fame statues — WorldScene renders the actual markers near
+     the 'fame' landmark, but it has no leaderboard data of its own, so
+     GamePage pushes the top 3 rows (same data as the Leaderboard panel
+     above) every time they actually change. The ref-based JSON guard
+     just avoids redundant Graphics rebuilds on every ~100ms poll tick. ── */
+  const hallOfFameTop3JsonRef = useRef('');
+  useEffect(() => {
+    if (!ready) return;
+    const top3 = leaderboardRows.slice(0, 3).map(r => ({ rank: r.rank, name: r.name, rep: r.rep, isPlayer: r.isPlayer }));
+    const json = JSON.stringify(top3);
+    if (json === hallOfFameTop3JsonRef.current) return;
+    hallOfFameTop3JsonRef.current = json;
+    sceneRef.current?.setHallOfFameStatues(top3);
+  }, [ready, leaderboardRows]);
 
   /* ── Local sound system — WebAudio-only, starts muted. The first
      pointerdown/keydown anywhere unlocks it (also satisfies browser
@@ -676,6 +836,10 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
           setModalClosing(false);
           setModalZone(zone.id);
           setActiveAction(null); // only one overlay open at a time
+          setWhaleAlertClosing(false);
+          setWhaleAlert(null);
+          setStatueModalClosing(false);
+          setStatueModal(null);
           soundManager.play('modal');
         });
 
@@ -695,6 +859,10 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
           setDialogueClosing(false);
           setDialogue({ npcName: npc.name, line: lines[Math.floor(Math.random() * lines.length)] });
           setActiveAction(null); // only one overlay open at a time
+          setWhaleAlertClosing(false);
+          setWhaleAlert(null);
+          setStatueModalClosing(false);
+          setStatueModal(null);
           soundManager.play('modal');
         });
 
@@ -702,6 +870,79 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
         scene.events.on('npc-chat', (msg: { name: string; text: string }) => {
           if (cancelled) return;
           appendChatMessage(msg.name, msg.text, 'npc');
+        });
+
+        // Treasure Hunt chest opened — WorldScene has already destroyed the
+        // chest (so a double-claim is impossible) and computed the reward
+        // from the live event state. This just records the claim; the
+        // actual REP/badge/chat side effects run in the effect below, which
+        // always reads fresh playerName/holderMultiplier (this listener is
+        // registered once, so it must not read that state directly).
+        scene.events.on('treasure-interact', (payload: { rewardAmount: number; rewardLabel: string }) => {
+          if (cancelled) return;
+          setTreasureClaim({ claimId: ++treasureClaimIdRef.current, amount: payload.rewardAmount, label: payload.rewardLabel });
+        });
+
+        // Whale Alert marker inspected — same one-shot-claim guarantee as
+        // the treasure chest (WorldScene destroyed the marker before
+        // emitting). Opens the Whale Alert modal AND records the claim;
+        // the modal is purely a flavor/transparency display, the actual
+        // REP/badge/chat side effects run in the effect below so they
+        // always read fresh playerName/holderMultiplier.
+        scene.events.on('whale-interact', (payload: {
+          wallet: string; buySol: number; tokenSymbol: string; riskLevel: string; rewardAmount: number; rewardLabel: string;
+        }) => {
+          if (cancelled) return;
+          setDialogueClosing(false);
+          setDialogue(null);
+          setModalClosing(false);
+          setModalZone(null);
+          setActiveAction(null); // only one overlay open at a time
+          setWhaleAlertClosing(false);
+          setWhaleAlert({
+            wallet: payload.wallet,
+            buySol: payload.buySol,
+            tokenSymbol: payload.tokenSymbol,
+            riskLevel: payload.riskLevel,
+            rewardLabel: payload.rewardLabel,
+          });
+          setStatueModalClosing(false);
+          setStatueModal(null);
+          setWhaleClaim({ claimId: ++whaleClaimIdRef.current, amount: payload.rewardAmount, label: payload.rewardLabel });
+          soundManager.play('modal');
+        });
+
+        // Town Crier shows up for any event's Announcement phase — purely
+        // a chat-message hook here, the character itself is entirely
+        // WorldScene-rendered (no proximity prompt/modal, nothing to
+        // claim). The bell sound already played in WorldScene at spawn.
+        scene.events.on('town-crier-announce', (payload: { title: string }) => {
+          if (cancelled) return;
+          appendChatMessage('Town Crier', `🔔 Town Crier announces: ${payload.title}`, 'event');
+        });
+
+        // Hall of Fame statue inspected — no claim/reward (statues are a
+        // permanent fixture, not a one-shot event pickup), just opens the
+        // inspect modal and posts a chat message. Clears every other
+        // overlay first, same exclusivity rule as the others above.
+        scene.events.on('statue-interact', (payload: { rank: number; name: string; rep: number; isPlayer: boolean }) => {
+          if (cancelled) return;
+          setDialogueClosing(false);
+          setDialogue(null);
+          setModalClosing(false);
+          setModalZone(null);
+          setActiveAction(null);
+          setWhaleAlertClosing(false);
+          setWhaleAlert(null);
+          setStatueModalClosing(false);
+          setStatueModal(payload);
+          soundManager.play('modal');
+          const inspectorName = playerName || 'DegenExplorer';
+          appendChatMessage(
+            'City Feed',
+            `🏛️ ${inspectorName} inspected the #${payload.rank} statue — ${payload.name}.`,
+            'event'
+          );
         });
       },
     });
@@ -721,6 +962,69 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
       setNearZone(reg.get('nearZone') ?? null);
       setNearNpc(reg.get('nearNpc') ?? null);
       setCollisionDebugOn(reg.get('collisionDebug') ?? false);
+
+      // Event HUD — read-only registry poll, same pattern as everything
+      // else above. WorldScene/EventManager remain the only source of
+      // truth for the lifecycle; this just mirrors it into React state.
+      const evt: RegistryCurrentEvent | null = reg.get('currentEvent') ?? null;
+      const phase: EnginePhase = reg.get('eventPhase') ?? 'idle';
+      setEventPhase(phase);
+      setCurrentEvent(evt);
+      setEventTimeRemaining(evt ? Math.max(0, evt.phaseDuration - (Date.now() - evt.phaseStartedAt)) : 0);
+
+      if (evt) {
+        // Fire the chat line (+ toast/sound for the bigger beats) exactly
+        // once per phase, not once per 100ms poll tick.
+        const key = `${evt.id}:${evt.phase}`;
+        if (lastEventChatKeyRef.current !== key) {
+          lastEventChatKeyRef.current = key;
+          const line = eventChatLine(evt);
+          if (line) {
+            appendChatMessage('City Feed', `${line.icon} ${line.text}`, 'event');
+            if (evt.phase === 'live') {
+              showToast(`${line.icon} ${evt.title} is live!`);
+              soundManager.play('event');
+              // "Today's Story" only logs the moment an event actually
+              // starts — claims (treasure/whale) add their own entries
+              // separately, in their respective claim effects below.
+              pushStoryLog(storyLogLineForLive(evt));
+            } else if (evt.phase === 'announcement') {
+              soundManager.play('event');
+            }
+          }
+        }
+
+        // Event Chain System (Phase 4) — Countdown is always a brand new
+        // event instance's first phase, so this fires exactly once per
+        // chained event, the moment it's first seen (same dedup key as
+        // above, just a different condition).
+        if (evt.phase === 'countdown' && evt.chainedFrom && lastChainAnnouncedKeyRef.current !== key) {
+          lastChainAnnouncedKeyRef.current = key;
+          const sourceDef = EVENT_DEFINITIONS.find(d => d.id === evt.chainedFrom);
+          const sourceTitle = sourceDef?.title ?? 'previous event';
+          const lineFn = CHAIN_TRIGGER_LINES[Math.floor(Math.random() * CHAIN_TRIGGER_LINES.length)];
+          appendChatMessage('City Feed', `🔗 ${lineFn(sourceTitle)}`, 'event');
+        }
+      } else {
+        lastEventChatKeyRef.current = null;
+        lastChainAnnouncedKeyRef.current = null;
+      }
+
+      // Treasure Hunt chest — read-only mirror for the minimap marker and
+      // the "Press E to open treasure" prompt below.
+      setTreasureChest(reg.get('treasureChest') ?? null);
+      setNearTreasure(reg.get('nearTreasure') ?? false);
+
+      // Whale Alert marker — read-only mirror for the minimap marker and
+      // the "Press E to inspect whale" prompt below.
+      setWhaleMarker(reg.get('whaleMarker') ?? null);
+      setNearWhale(reg.get('nearWhale') ?? false);
+
+      // Hall of Fame statues — read-only mirror for the "Press E to
+      // inspect statue" prompt below (the statues themselves are pushed
+      // the other direction, GamePage → WorldScene, in the leaderboard
+      // effect above).
+      setNearStatue(reg.get('nearStatue') ?? null);
     }, 100);
 
     return () => {
@@ -749,6 +1053,10 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
       setModalZone(null);
       setDialogueClosing(false);
       setDialogue(null);
+      setWhaleAlertClosing(false);
+      setWhaleAlert(null);
+      setStatueModalClosing(false);
+      setStatueModal(null);
       setActiveAction(prev => prev === hud.label ? null : hud.label);
     };
     window.addEventListener('keydown', handler);
@@ -891,6 +1199,60 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [dialogue, requestCloseDialogue]);
 
+  /* ── Whale Alert modal — same open/close-animation pattern as the
+     landmark modal/NPC dialogue above. Note: closing this does NOT
+     re-grant or revoke REP — that already happened once, synchronously,
+     when the marker was inspected (see the whaleClaim effect). ── */
+  const requestCloseWhaleAlert = useCallback(() => {
+    setWhaleAlertClosing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!whaleAlertClosing) return;
+    const t = setTimeout(() => {
+      setWhaleAlert(null);
+      setWhaleAlertClosing(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [whaleAlertClosing]);
+
+  /* ── ESC closes an open Whale Alert modal ── */
+  useEffect(() => {
+    if (!whaleAlert) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestCloseWhaleAlert();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [whaleAlert, requestCloseWhaleAlert]);
+
+  /* ── Hall of Fame statue modal — same open/close-animation pattern as
+     the others. Nothing to grant on close (or open) — statues have no
+     reward, just a flavor inspect + chat message, already fired the
+     moment the scene event arrived. ── */
+  const requestCloseStatueModal = useCallback(() => {
+    setStatueModalClosing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!statueModalClosing) return;
+    const t = setTimeout(() => {
+      setStatueModal(null);
+      setStatueModalClosing(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [statueModalClosing]);
+
+  /* ── ESC closes an open Hall of Fame statue modal ── */
+  useEffect(() => {
+    if (!statueModal) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestCloseStatueModal();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [statueModal, requestCloseStatueModal]);
+
   /* ── Chat panel ── */
   const sendChatMessage = useCallback(() => {
     const text = chatInput.trim();
@@ -984,6 +1346,45 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
   useEffect(() => {
     if (nearZone?.id === 'whale') unlockBadge('whale-watcher');
   }, [nearZone, unlockBadge]);
+
+  /* ── Treasure Hunt claim — fires once per claimId (WorldScene already
+     guarantees a chest can only ever be claimed once, by destroying it
+     synchronously before emitting 'treasure-interact'). Lives in an
+     effect rather than directly in the scene-event listener above so it
+     always reads fresh playerName/holderMultiplier/showToast instead of
+     whatever they were when the listener was registered. ── */
+  useEffect(() => {
+    if (!treasureClaim) return;
+    const amount = applyHolderMultiplier(treasureClaim.amount);
+    setRep(r => r + amount);
+    setRewardFlash(k => k + 1);
+    sceneRef.current?.playRewardEffect(`+${amount} REP`);
+    soundManager.play('reward');
+    unlockBadge('treasure-finder');
+    const name = playerName || 'DegenExplorer';
+    appendChatMessage('City Feed', `🏆 ${name} found the treasure!`, 'event');
+    showToast(`🏆 Treasure found! +${amount} REP`);
+    pushStoryLog(`${name} found the treasure`);
+  }, [treasureClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog]);
+
+  /* ── Whale Alert claim — same one-shot pattern as the treasure claim
+     above (WorldScene destroys the marker before emitting, so this only
+     ever fires once per event). "Inspecting" the whale (the E press,
+     which already opened the modal in the listener above) is what grants
+     the REP — not closing the modal. ── */
+  useEffect(() => {
+    if (!whaleClaim) return;
+    const amount = applyHolderMultiplier(whaleClaim.amount);
+    setRep(r => r + amount);
+    setRewardFlash(k => k + 1);
+    sceneRef.current?.playRewardEffect(`+${amount} REP`);
+    soundManager.play('reward');
+    unlockBadge('whale-watcher-plus');
+    const name = playerName || 'DegenExplorer';
+    appendChatMessage('City Feed', `🐳 ${name} inspected the whale alert!`, 'event');
+    showToast(`🐳 Whale inspected! +${amount} REP`);
+    pushStoryLog(`${name} inspected the whale`);
+  }, [whaleClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog]);
 
   /* ── District unlocks — same trigger state as the quests/badges above. ── */
   useEffect(() => {
@@ -1454,6 +1855,34 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
                 );
               })}
 
+              {/* Treasure Hunt chest — only rendered while a chest exists
+                  (req. 3/11), position mirrors WorldScene's own spawn point */}
+              {treasureChest && (
+                <div
+                  className="minimap-treasure"
+                  style={{
+                    left: `${(treasureChest.wx / worldSize.w) * 100}%`,
+                    top: `${(treasureChest.wy / worldSize.h) * 100}%`,
+                  }}
+                  title="Treasure Chest"
+                  aria-label="Treasure chest location"
+                />
+              )}
+
+              {/* Whale Alert marker — only rendered while it exists
+                  (req. 3/11), position mirrors WorldScene's own spawn point */}
+              {whaleMarker && (
+                <div
+                  className="minimap-whale"
+                  style={{
+                    left: `${(whaleMarker.wx / worldSize.w) * 100}%`,
+                    top: `${(whaleMarker.wy / worldSize.h) * 100}%`,
+                  }}
+                  title="Whale Alert"
+                  aria-label="Whale alert location"
+                />
+              )}
+
               {/* Player dot */}
               <div
                 className="minimap-player"
@@ -1664,6 +2093,45 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
                   <div className="holder-vault-status">
                     🔓 Vault Access: Preview Enabled
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ──────────────────────────────────────────────────────
+              TODAY'S STORY — toggled from the action bar's Story button
+              (Phase 4 Event Chain System). Last 5 notable moments: an
+              event going Live, or a player claiming a treasure/whale.
+              Local-only, nothing persisted between sessions.
+              ────────────────────────────────────────────────────── */}
+          {isStoryOpen && (
+            <div className="hud-panel story-panel">
+              <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
+              <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
+              <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
+              <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+
+              <div className="panel-header">
+                <span className="panel-header__logo">TODAY'S STORY</span>
+                <button
+                  className="story-panel__close"
+                  onClick={() => setActiveAction(null)}
+                  aria-label="Close story log"
+                >✕</button>
+              </div>
+
+              <div className="story-panel__body">
+                {storyLog.length === 0 ? (
+                  <p className="story-panel__empty">Nothing has happened yet — stay close to the city.</p>
+                ) : (
+                  <ol className="story-log-list">
+                    {storyLog.map((entry, i) => (
+                      <li key={entry.id} className="story-log-item">
+                        <span className="story-log-item__index">{i + 1}</span>
+                        <span className="story-log-item__text">{entry.text}</span>
+                      </li>
+                    ))}
+                  </ol>
                 )}
               </div>
             </div>
@@ -2015,11 +2483,17 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
                 onClick={() => {
                   soundManager.play('click');
                   // Same rule as the keyboard shortcuts — only one overlay
-                  // (HUD panel vs. landmark modal vs. NPC dialogue) at a time.
+                  // (HUD panel vs. landmark modal vs. NPC dialogue vs. the
+                  // Whale Alert modal vs. the Hall of Fame statue modal)
+                  // at a time.
                   setModalClosing(false);
                   setModalZone(null);
                   setDialogueClosing(false);
                   setDialogue(null);
+                  setWhaleAlertClosing(false);
+                  setWhaleAlert(null);
+                  setStatueModalClosing(false);
+                  setStatueModal(null);
                   setActiveAction(prev => prev === item.label ? null : item.label);
                 }}
                 aria-label={item.label}
@@ -2098,16 +2572,29 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
           </div>
 
           {/* Interaction prompt — landmark zone takes priority over an NPC,
-              and it's hidden while any other overlay (modal, dialogue, or
-              an action-bar panel) is already on screen so it can't overlap
+              which takes priority over the Treasure Hunt chest / Whale
+              Alert marker, which takes priority over a Hall of Fame statue
+              (matches WorldScene's own updateZoneProximity/
+              updateNpcProximity/updateTreasureProximity/updateWhaleProximity/
+              updateStatueProximity priority order — treasure and whale can
+              never both be active since only one event is ever Live at
+              once). Hidden while any other overlay (modal, dialogue, or an
+              action-bar panel) is already on screen so it can't overlap
               the bottom-center panels (Holder/Leaderboard/Settings/etc). */}
-          {!modalZone && !dialogue && !activeAction && (nearZone || nearNpc) && (
+          {!modalZone && !dialogue && !activeAction && !whaleAlert && !statueModal &&
+            (nearZone || nearNpc || nearTreasure || nearWhale || nearStatue) && (
             <div className="zone-prompt" role="status">
               <span className="zone-prompt__key">E</span>
               <span className="zone-prompt__text">
                 {nearZone
                   ? `Press E to interact — ${nearZone.name}`
-                  : `Press E to talk — ${nearNpc!.name}`}
+                  : nearNpc
+                  ? `Press E to talk — ${nearNpc.name}`
+                  : nearTreasure
+                  ? 'Press E to open treasure'
+                  : nearWhale
+                  ? 'Press E to inspect whale'
+                  : 'Press E to inspect statue'}
               </span>
             </div>
           )}
@@ -2185,6 +2672,123 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
         </div>
       )}
 
+      {/* ══════════════════════════════════════════════════════════
+          WHALE ALERT MODAL — same black/gold style as the landmark
+          modal/NPC dialogue above. Everything shown is clearly fake/
+          local flavor data generated by WorldScene at inspection time —
+          no real wallet, chain, or Solana connection.
+          ══════════════════════════════════════════════════════════ */}
+      {whaleAlert && (
+        <div
+          className={`modal-overlay ${whaleAlertClosing ? 'modal-overlay--closing' : ''}`}
+          onClick={requestCloseWhaleAlert}
+        >
+          <div
+            className={`modal-panel ${whaleAlertClosing ? 'modal-panel--closing' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+            <span className="modal-panel__shimmer" aria-hidden />
+
+            <div className="modal-header">
+              <span className="modal-header__icon" aria-hidden>🐳</span>
+              <div className="modal-header__titles">
+                <span className="modal-header__title">Whale Alert</span>
+                <span className="modal-header__sub">DEVNET · MOCK DATA</span>
+              </div>
+              <button className="modal-close" onClick={requestCloseWhaleAlert} aria-label="Close">✕</button>
+            </div>
+
+            <div className="modal-body">
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Wallet</span>
+                <span className="whale-alert-row__value whale-alert-row__value--mono">{whaleAlert.wallet}</span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Buy Amount</span>
+                <span className="whale-alert-row__value">{whaleAlert.buySol} SOL</span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Token</span>
+                <span className="whale-alert-row__value">{whaleAlert.tokenSymbol}</span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Risk Level</span>
+                <span className={`whale-alert-risk whale-alert-risk--${whaleAlert.riskLevel.toLowerCase()}`}>
+                  {whaleAlert.riskLevel}
+                </span>
+              </div>
+              <div className="whale-alert-row whale-alert-row--reward">
+                <span className="whale-alert-row__label">Reward</span>
+                <span className="whale-alert-row__value whale-alert-row__value--gold">{whaleAlert.rewardLabel}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          HALL OF FAME STATUE MODAL — same black/gold style as the
+          others. Rank/name/REP come straight from the same leaderboard
+          data the Leaderboard panel uses; title/flavor are rank-based
+          (req. 12: no real users, nothing tied to a specific identity).
+          ══════════════════════════════════════════════════════════ */}
+      {statueModal && (
+        <div
+          className={`modal-overlay ${statueModalClosing ? 'modal-overlay--closing' : ''}`}
+          onClick={requestCloseStatueModal}
+        >
+          <div
+            className={`modal-panel ${statueModalClosing ? 'modal-panel--closing' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+            <span className="modal-panel__shimmer" aria-hidden />
+
+            <div className="modal-header">
+              <span className="modal-header__icon" aria-hidden>🏛️</span>
+              <div className="modal-header__titles">
+                <span className="modal-header__title">
+                  #{statueModal.rank} {statueModal.name}{statueModal.isPlayer ? ' (You)' : ''}
+                </span>
+                <span className="modal-header__sub">
+                  {statueModal.isPlayer ? 'Hall of Fame Statue' : 'Hall of Fame Statue · RugTown Citizen'}
+                </span>
+              </div>
+              <button className="modal-close" onClick={requestCloseStatueModal} aria-label="Close">✕</button>
+            </div>
+
+            <div className="modal-body">
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Rank</span>
+                <span className={`statue-rank-badge statue-rank-badge--${statueModal.rank}`}>#{statueModal.rank}</span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Name</span>
+                <span className="whale-alert-row__value">{statueModal.name}</span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">REP</span>
+                <span className="whale-alert-row__value whale-alert-row__value--gold">{statueModal.rep.toLocaleString()}</span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Title</span>
+                <span className="whale-alert-row__value">{STATUE_RANK_FLAVOR[statueModal.rank]?.title ?? 'RugTown Citizen'}</span>
+              </div>
+              <p className="modal-text statue-modal__flavor">
+                &ldquo;{STATUE_RANK_FLAVOR[statueModal.rank]?.flavor ?? 'A name RugTown won\'t soon forget.'}&rdquo;
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Brief gold pulse across the whole screen when a reward is claimed */}
       {rewardFlash > 0 && (
         <div
@@ -2204,6 +2808,78 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
               <span className="toast__text">{t.text}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          EVENT HUD — Phase 2 Event Engine. Read-only: WorldScene's
+          EventManager owns all real lifecycle state, this just mirrors
+          the registry into the banner/pin below. Visible across every
+          non-idle phase (countdown/announcement/live/completed/cooldown).
+          ══════════════════════════════════════════════════════════ */}
+      {currentEvent && eventPhase !== 'idle' && (
+        <div className="event-hud" aria-live="polite">
+          <div
+            className={`event-banner ${
+              currentEvent.rarity === 'rare' || currentEvent.rarity === 'legendary' ? 'event-banner--pulse' : ''
+            }`}
+          >
+            <div className="event-banner__row event-banner__row--top">
+              <span className={`event-banner__rarity event-banner__rarity--${currentEvent.rarity}`}>
+                {currentEvent.rarity}
+              </span>
+              <span className="event-banner__title">{currentEvent.title}</span>
+              <span className="event-banner__phase">{EVENT_PHASE_LABELS[eventPhase]}</span>
+            </div>
+            <div className="event-banner__row event-banner__row--meta">
+              <span className="event-banner__meta">📍 {currentEvent.location.displayName}</span>
+              <span className="event-banner__meta-sep" aria-hidden>·</span>
+              <span className="event-banner__meta">🎁 {currentEvent.reward.label}</span>
+              {eventTimeRemaining > 0 && (
+                <>
+                  <span className="event-banner__meta-sep" aria-hidden>·</span>
+                  <span className="event-banner__meta event-banner__meta--time">
+                    ⏱ {formatEventTime(eventTimeRemaining)}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Small pinned indicator — stays up the whole time the event
+              is Live, distinct from (and smaller than) the banner above. */}
+          {eventPhase === 'live' && (
+            <div className="event-live-pin">
+              <span className="event-live-pin__dot" aria-hidden />
+              <span className="event-live-pin__label">LIVE</span>
+              <span className="event-live-pin__title">{currentEvent.title}</span>
+              {eventTimeRemaining > 0 && (
+                <span className="event-live-pin__time">{formatEventTime(eventTimeRemaining)}</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mayor announcement — a non-blocking card, deliberately without a
+          full-screen backdrop so it never interrupts movement or competes
+          with the modal/dialogue "only one overlay open at a time" rule
+          those use. Auto-clears the moment Announcement phase ends. */}
+      {eventPhase === 'announcement' && currentEvent && (
+        <div className="mayor-card" role="status" aria-live="polite">
+          <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
+          <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
+          <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
+          <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+          <div className="mayor-card__header">
+            <span className="mayor-card__icon" aria-hidden>📯</span>
+            <span className="mayor-card__title">Mayor of RugTown</span>
+          </div>
+          <p className="mayor-card__text">
+            <em>Citizens of RugTown...</em>
+            <br />
+            {currentEvent.description}
+          </p>
         </div>
       )}
     </div>

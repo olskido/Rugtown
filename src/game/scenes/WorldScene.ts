@@ -1,7 +1,11 @@
 import Phaser from 'phaser';
-import { getLiveWorldObjects, toWorldPosition, WORLD_OBJECTS } from '../world/WorldObjects';
+import { getLiveWorldObjects, getWorldObject, toWorldPosition, WORLD_OBJECTS } from '../world/WorldObjects';
 import { COLLISION_RECTS, toWorldRect } from '../world/CollisionZones';
 import { CHARACTER_STYLES, getCharacterStyle, DEFAULT_CHARACTER_STYLE_ID } from '../world/CharacterStyles';
+import { EventManager } from '../events/EventManager';
+import { EVENT_DEFINITIONS } from '../events/EventDefinitions';
+import type { EventDefinition, EventInstance, EventPhase } from '../events/EventTypes';
+import { soundManager } from '../../audio/SoundManager';
 
 /*
   WorldScene.ts — Player Movement + NPC Citizens Edition
@@ -294,6 +298,41 @@ const NPC_FACE_CHANCE  = 0.7;
 // if the player happens to be near both (see updateNpcProximity()).
 const NPC_TALK_RADIUS = 50;          // px
 
+// Opening the Treasure Hunt event's chest — same E key, lowest priority
+// of the three (see updateTreasureProximity()).
+const TREASURE_INTERACT_RADIUS = 60; // px
+
+// Inspecting the Whale Alert event's marker — same E key/priority tier
+// as the treasure chest (see updateWhaleProximity()). Treasure Hunt and
+// Whale Alert can never be Live at the same time (EventManager only
+// ever runs one event), so the two never compete for the prompt.
+const WHALE_INTERACT_RADIUS = 60; // px
+
+// Town Crier — appears during any event's Announcement phase.
+const TOWN_CRIER_LINE_DURATION = 2600; // ms each speech-bubble line stays up
+const TOWN_CRIER_FACE_RADIUS = 220;    // px — citizens within this radius briefly face him
+
+// Inspecting a Hall of Fame statue — same E key, lowest priority (after
+// landmark zones, NPCs, the treasure chest, and the whale marker).
+const STATUE_INTERACT_RADIUS = 55; // px
+
+// Rank-colored glow — gold/silver/bronze (req. 6).
+const STATUE_RANK_COLOR: Record<number, number> = {
+  1: 0xe8b84b,
+  2: 0xc9d2da,
+  3: 0xb5712b,
+};
+
+// Crowd reaction — speech bubbles for the larger wave of citizens
+// converging on a major-event moment (req. 6).
+const CROWD_REACTION_LINES = [
+  'I heard something!',
+  "Let's go!",
+  'Where?',
+  'Follow the crowd!',
+  'This city is alive.',
+];
+
 /* ─── Direction enum ─── */
 type Direction = 'down' | 'up' | 'left' | 'right';
 
@@ -445,6 +484,84 @@ export class WorldScene extends Phaser.Scene {
   /* ── Misc ── */
   private tick = 0;               // ms accumulator for registry publish rate
 
+  /* ── Event Engine (Phase 2) ──
+     The reusable lifecycle engine (src/game/events/) — framework-agnostic,
+     owns its own timers. WorldScene's job is just to: publish its state
+     to the registry for React, and apply the three local "effects" an
+     event can ask for (weather/music/citizen behaviour). Everything else
+     about an event (rarity, rewards, dialogue) is pure data it carries. */
+  private eventManager = new EventManager(EVENT_DEFINITIONS);
+  private eventManagerUnsubscribe: (() => void) | null = null;
+  private activeWeather: string | null = null;
+  private weatherGraphics!: Phaser.GameObjects.Graphics;
+  private rainDrops: { ox: number; oy: number; len: number; speed: number }[] = [];
+  private eventGatherSnapshot: { npc: NpcData; homeX: number; homeY: number; wanderRadius: number }[] | null = null;
+
+  /* ── Treasure Hunt chest — only ever exists while the 'treasure-hunt'
+     definition is Live; spawned/despawned from handleEventPhaseChange. ── */
+  private treasureChest: {
+    wx: number;
+    wy: number;
+    glow: Phaser.GameObjects.Graphics;
+    body: Phaser.GameObjects.Graphics;
+    label: Phaser.GameObjects.Text;
+  } | null = null;
+  private nearTreasure = false;
+
+  /* ── Whale Alert marker — only ever exists while the 'whale-alert'
+     definition is Live; spawned/despawned from handleEventPhaseChange. ── */
+  private whaleMarker: {
+    wx: number;
+    wy: number;
+    glow: Phaser.GameObjects.Graphics;
+    body: Phaser.GameObjects.Graphics;
+    label: Phaser.GameObjects.Text;
+  } | null = null;
+  private nearWhale = false;
+
+  /* ── Town Crier — only ever exists during the Announcement phase of
+     ANY event (not tied to one definition id, unlike the chest/whale
+     marker); spawned/despawned from handleEventPhaseChange. ── */
+  private townCrier: {
+    wx: number;
+    wy: number;
+    shadow: Phaser.GameObjects.Graphics;
+    body: Phaser.GameObjects.Graphics;
+    bell: Phaser.GameObjects.Text;
+    label: Phaser.GameObjects.Text;
+    speech: Phaser.GameObjects.Text;
+    lines: string[];
+    lineIndex: number;
+    lineTimer: number;
+    animTick: number;
+  } | null = null;
+
+  /* ── Hall of Fame statues — a permanent (not event-driven) fixture
+     near the 'fame' landmark. Rebuilt whenever GamePage pushes fresh
+     top-3 leaderboard data via setHallOfFameStatues(); empty until the
+     first push arrives shortly after the scene is ready. ── */
+  private hallOfFameStatues: {
+    rank: number;
+    name: string;
+    rep: number;
+    isPlayer: boolean;
+    wx: number;
+    wy: number;
+    glow: Phaser.GameObjects.Graphics;
+    body: Phaser.GameObjects.Graphics;
+    label: Phaser.GameObjects.Text;
+  }[] = [];
+  private nearStatueRank: number | null = null;
+
+  /* ── Crowd reaction — a second, larger wave of citizens pulled toward
+     a major-event moment (Town Crier announcing, Whale Alert/Treasure
+     Hunt/Fireworks/Dance Festival going Live). Deliberately separate
+     from eventGatherSnapshot (the existing small "inner circle" gather)
+     so the two never fight over the same citizen's home/wanderRadius —
+     triggerCrowdReaction() always samples from NPCs NOT already in
+     eventGatherSnapshot. ── */
+  private crowdReactionSnapshot: { npc: NpcData; homeX: number; homeY: number; wanderRadius: number }[] | null = null;
+
   constructor() { super({ key: 'WorldScene' }); }
 
   /* ═══════════════════════════════════════════════════════════
@@ -549,6 +666,17 @@ export class WorldScene extends Phaser.Scene {
     /* ── Spawn Plaza ambience ── */
     this.createPlazaAmbience();
 
+    /* ── Event Engine (Phase 2) ── */
+    this.weatherGraphics = this.add.graphics().setDepth(40).setVisible(false);
+    this.eventManagerUnsubscribe = this.eventManager.onChange((instance, prevPhase) => {
+      this.handleEventPhaseChange(instance, prevPhase);
+    });
+    this.eventManager.scheduleNext();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.eventManagerUnsubscribe?.();
+      this.eventManager.destroy();
+    });
+
     /* ── Initial draw ── */
     this.drawPlayer();
 
@@ -650,11 +778,27 @@ export class WorldScene extends Phaser.Scene {
     /* ── NPC citizens ── */
     this.updateNpcs(delta);
 
+    /* ── Event Engine weather overlay (purely cosmetic, additive layer) ── */
+    this.updateWeatherEffect(delta);
+    this.updateTreasureChest();
+    this.updateWhaleMarker();
+    this.updateTownCrier(delta);
+    this.updateHallOfFameStatues();
+
     /* ── Interaction zones ── */
     this.updateZoneProximity();
 
     /* ── NPC dialogue proximity ── */
     this.updateNpcProximity();
+
+    /* ── Treasure Hunt chest proximity (no-op unless one exists) ── */
+    this.updateTreasureProximity();
+
+    /* ── Whale Alert marker proximity (no-op unless one exists) ── */
+    this.updateWhaleProximity();
+
+    /* ── Hall of Fame statue proximity (no-op unless any exist) ── */
+    this.updateStatueProximity();
 
     /* ── Reward feedback (floating text) ── */
     this.updateFloatingTexts(delta);
@@ -1497,6 +1641,880 @@ export class WorldScene extends Phaser.Scene {
     n.speech.setText(text);
     n.speech.setVisible(true);
     n.speechShowUntil = NPC_SPEECH_DURATION;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     EVENT ENGINE (Phase 2)
+     WorldScene's side of the EventManager contract: publish lifecycle
+     state to the registry so React can read it, and apply/revert the
+     three local effects a data-driven event can ask for — weather,
+     music, and citizen behaviour. EventManager itself knows nothing
+     about Phaser; this is the one place that bridges the two.
+     ═══════════════════════════════════════════════════════════ */
+
+  /** Read-only passthrough — lets React (or anything else holding the
+   *  scene) inspect the current event without reaching into the
+   *  registry, mirroring getPlayerPos()/getWorldSize() below. */
+  getCurrentEvent(): EventInstance | null {
+    return this.eventManager.getCurrentEvent();
+  }
+
+  private dialogueFor(instance: EventInstance, phase: EventPhase): string | null {
+    const match = instance.definition.dialogue.find(d => d.phase === phase);
+    return match?.text ?? null;
+  }
+
+  private handleEventPhaseChange(instance: EventInstance | null, _prevPhase: EventPhase) {
+    this.registry.set('eventPhase', instance?.phase ?? 'idle');
+    this.registry.set('currentEvent', instance ? {
+      id: instance.definition.id,
+      title: instance.definition.title,
+      description: instance.definition.description,
+      rarity: instance.definition.rarity,
+      phase: instance.phase,
+      phaseDuration: instance.phaseDuration,
+      phaseStartedAt: instance.phaseStartedAt,
+      reward: instance.definition.reward,
+      location: instance.definition.location,
+      dialogue: this.dialogueFor(instance, instance.phase),
+      chainedFrom: instance.chainedFrom ?? null,
+    } : null);
+
+    if (!instance) {
+      this.revertEventOverrides();
+      this.despawnTreasureChest();
+      this.despawnWhaleMarker();
+      this.despawnTownCrier();
+      this.revertCrowdReaction();
+      return;
+    }
+
+    if (instance.phase === 'announcement') {
+      // Every event gets a Town Crier during Announcement — unlike the
+      // treasure chest/whale marker, this one isn't tied to a specific
+      // event id (req. 1/2). spawnTownCrier() triggers its own (smaller,
+      // tighter) crowd reaction internally.
+      this.spawnTownCrier(instance);
+    } else if (instance.phase === 'live') {
+      this.applyEventOverrides(instance.definition);
+      // Only their own definition ever spawns a marker — every other
+      // event leaves both untouched (treasure-hunt req. 11 / same rule
+      // for whale-alert).
+      if (instance.definition.id === 'treasure-hunt') {
+        this.spawnTreasureChest(instance.definition);
+      }
+      if (instance.definition.id === 'whale-alert') {
+        this.spawnWhaleMarker(instance.definition);
+      }
+      // The Crier's job (and his crowd) is done the moment the event
+      // goes Live — clear it before the Live-phase crowd (if any)
+      // takes over, so the two never overlap.
+      this.despawnTownCrier();
+      this.revertCrowdReaction();
+      this.triggerLiveCrowdReaction(instance.definition);
+    } else if (instance.phase === 'completed') {
+      this.revertEventOverrides();
+      this.despawnTreasureChest();
+      this.despawnWhaleMarker();
+      this.despawnTownCrier(); // safety net in case Live was skipped somehow
+      this.revertCrowdReaction();
+    }
+
+    // Citizens get a chance to "say" the event's line for this phase,
+    // reusing the existing ambient speech-bubble helper — no new UI.
+    const line = this.dialogueFor(instance, instance.phase);
+    if (line && (instance.phase === 'announcement' || instance.phase === 'live' || instance.phase === 'completed')) {
+      this.showNpcEventSpeech(line);
+    }
+  }
+
+  private applyEventOverrides(def: EventDefinition) {
+    this.activeWeather = def.weatherOverride ?? null;
+    if (!this.activeWeather) this.weatherGraphics.setVisible(false);
+
+    // Music override: SoundManager only supports one-shot named effects
+    // today (no per-track switching) — playing the existing 'event' cue
+    // is the honest stand-in until a real per-event track system exists.
+    // def.musicOverride is still carried through to the registry above
+    // so a future audio layer has the id to key off of immediately.
+    if (def.musicOverride) soundManager.play('event');
+
+    if (def.citizenBehaviour.mode === 'gather') {
+      this.applyEventCitizenGather(def);
+    }
+  }
+
+  private revertEventOverrides() {
+    this.activeWeather = null;
+    this.weatherGraphics.setVisible(false);
+    this.revertEventCitizenGather();
+  }
+
+  /** Pulls a sample of citizens toward the event's location for the
+   *  Live phase. Snapshots each one's home/wander radius first so
+   *  revertEventCitizenGather() can put them back exactly as they were
+   *  — this never permanently changes an NPC's normal routine. */
+  private applyEventCitizenGather(def: EventDefinition) {
+    if (this.npcs.length === 0) return;
+    const landmark = def.location.landmarkId ? getWorldObject(def.location.landmarkId) : undefined;
+    const { wx, wy } = landmark
+      ? toWorldPosition(landmark, this.worldW, this.worldH)
+      : { wx: this.plazaX, wy: this.plazaY };
+
+    const count = Math.min(def.citizenBehaviour.citizenCount ?? 8, this.npcs.length);
+    const sample = Phaser.Utils.Array.Shuffle(this.npcs.slice()).slice(0, count);
+
+    this.eventGatherSnapshot = sample.map(npc => ({
+      npc, homeX: npc.homeX, homeY: npc.homeY, wanderRadius: npc.wanderRadius,
+    }));
+
+    sample.forEach(npc => {
+      npc.homeX = Phaser.Math.Clamp(wx + Phaser.Math.Between(-40, 40), CHAR_W, this.worldW - CHAR_W);
+      npc.homeY = Phaser.Math.Clamp(wy + Phaser.Math.Between(-40, 40), CHAR_H, this.worldH - CHAR_H);
+      npc.wanderRadius = 60;
+      npc.state = 'walk';
+      npc.targetX = npc.homeX;
+      npc.targetY = npc.homeY;
+      npc.stateTimer = Phaser.Math.Between(800, 1600);
+    });
+  }
+
+  private revertEventCitizenGather() {
+    if (!this.eventGatherSnapshot) return;
+    this.eventGatherSnapshot.forEach(({ npc, homeX, homeY, wanderRadius }) => {
+      npc.homeX = homeX;
+      npc.homeY = homeY;
+      npc.wanderRadius = wanderRadius;
+      npc.state = 'pause';
+      npc.stateTimer = Phaser.Math.Between(400, 1200);
+    });
+    this.eventGatherSnapshot = null;
+  }
+
+  /** Lazily builds a small fixed pool of rain drops, positioned later
+   *  each frame as fractions (0-1) of the current camera view — cheap
+   *  at any zoom level since it never depends on world size directly. */
+  private ensureRainDrops() {
+    if (this.rainDrops.length > 0) return;
+    for (let i = 0; i < 90; i++) {
+      this.rainDrops.push({
+        ox: Math.random(),
+        oy: Math.random(),
+        len: 10 + Math.random() * 8,
+        speed: 280 + Math.random() * 160,
+      });
+    }
+  }
+
+  /** Purely cosmetic overlay — never touches collision/camera/background.
+   *  No-ops (and hides the layer) whenever no weather event is Live. */
+  private updateWeatherEffect(delta: number) {
+    if (this.activeWeather !== 'rain') {
+      if (this.weatherGraphics.visible) this.weatherGraphics.setVisible(false);
+      return;
+    }
+
+    this.ensureRainDrops();
+    this.weatherGraphics.setVisible(true);
+    this.weatherGraphics.clear();
+    this.weatherGraphics.lineStyle(1, 0x9fd0e8, 0.35);
+
+    const view = this.cameras.main.worldView;
+    const dt = delta / 1000;
+
+    for (const drop of this.rainDrops) {
+      drop.oy += (drop.speed * dt) / Math.max(1, view.height);
+      if (drop.oy > 1) { drop.oy -= 1; drop.ox = Math.random(); }
+      const x = view.x + drop.ox * view.width;
+      const y = view.y + drop.oy * view.height;
+      this.weatherGraphics.lineBetween(x, y, x - 3, y + drop.len);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     TREASURE HUNT CHEST
+     Only ever exists while the 'treasure-hunt' event definition is
+     Live — spawned/despawned from handleEventPhaseChange(). Everything
+     here is gated on `this.treasureChest` being non-null, so it's a
+     true no-op for every other event (req. 11).
+     ═══════════════════════════════════════════════════════════ */
+
+  /** Picks a world position for the chest. Treasure Hunt has no fixed
+   *  landmark (location.landmarkId is null — "somewhere in RugTown"),
+   *  so this tries random open spots (not inside collision) before
+   *  falling back to the plaza if it somehow can't find one. Events
+   *  anchored to a real landmark would just spawn there instead. */
+  private pickTreasureSpawnPosition(def: EventDefinition): { wx: number; wy: number } {
+    const landmark = def.location.landmarkId ? getWorldObject(def.location.landmarkId) : undefined;
+    if (landmark) return toWorldPosition(landmark, this.worldW, this.worldH);
+
+    const margin = 160;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const wx = Phaser.Math.Between(margin, this.worldW - margin);
+      const wy = Phaser.Math.Between(margin, this.worldH - margin);
+      if (!this.isBlockedAt(wx, wy)) return { wx, wy };
+    }
+    return { wx: this.plazaX, wy: this.plazaY };
+  }
+
+  /** Simple pixel-art chest — code-generated Graphics, same technique
+   *  as every character/prop in the game (no sprite assets). */
+  private drawTreasureChestGraphics(g: Phaser.GameObjects.Graphics) {
+    g.clear();
+    g.fillStyle(0x5a3a1e);
+    g.fillRoundedRect(-14, -6, 28, 16, 3);
+    g.fillStyle(0x3a2410);
+    g.fillRoundedRect(-15, -14, 30, 10, 4);
+    g.fillStyle(0xe8b84b);
+    g.fillRect(-15, -14, 30, 2);
+    g.fillRect(-15, -6, 28, 2);
+    g.fillStyle(0xe8b84b);
+    g.fillRoundedRect(-3, -8, 6, 6, 1);
+    g.fillStyle(0x3a2410, 0.85);
+    g.fillRect(-1, -6, 2, 3);
+  }
+
+  private spawnTreasureChest(def: EventDefinition) {
+    this.despawnTreasureChest(); // never let two chests stack
+
+    const { wx, wy } = this.pickTreasureSpawnPosition(def);
+
+    const glow = this.add.graphics().setDepth(13).setPosition(wx, wy);
+    const body = this.add.graphics().setDepth(14).setPosition(wx, wy);
+    this.drawTreasureChestGraphics(body);
+    const label = this.add.text(wx, wy - 24, '✦ Treasure Chest ✦', {
+      fontFamily: '"Cinzel", serif',
+      fontSize: '8px',
+      color: '#e8b84b',
+      backgroundColor: 'rgba(4,8,12,0.78)',
+      padding: { x: 4, y: 2 },
+    }).setOrigin(0.5, 1).setDepth(14.2);
+
+    this.treasureChest = { wx, wy, glow, body, label };
+    this.registry.set('treasureChest', { wx, wy });
+  }
+
+  private despawnTreasureChest() {
+    if (!this.treasureChest) return;
+    this.treasureChest.glow.destroy();
+    this.treasureChest.body.destroy();
+    this.treasureChest.label.destroy();
+    this.treasureChest = null;
+    this.registry.set('treasureChest', null);
+    if (this.nearTreasure) {
+      this.nearTreasure = false;
+      this.registry.set('nearTreasure', false);
+    }
+  }
+
+  /** Gold pulse — alpha/scale driven by the same always-running
+   *  animTick used for the player's idle breathing, redrawn cheaply
+   *  each frame (cheap: it's just a handful of concentric circles). */
+  private updateTreasureChest() {
+    if (!this.treasureChest) return;
+    const t = this.animTick / 1000;
+    const pulse = (Math.sin(t * 2.4) + 1) / 2; // 0..1
+
+    this.treasureChest.glow.clear();
+    const glowA = 0.12 + pulse * 0.18;
+    for (let r = 26; r > 0; r -= 5) {
+      this.treasureChest.glow.fillStyle(0xe8b84b, glowA * (1 - r / 26));
+      this.treasureChest.glow.fillCircle(0, 0, r);
+    }
+    this.treasureChest.glow.setScale(1 + pulse * 0.18);
+    this.treasureChest.body.setScale(1 + pulse * 0.06);
+  }
+
+  /** Same E-key proximity pattern as updateZoneProximity()/
+   *  updateNpcProximity(), lowest priority of the three — only checked
+   *  when neither a landmark zone nor an NPC claimed this frame's
+   *  proximity/E-press already. */
+  private updateTreasureProximity() {
+    if (!this.treasureChest) return;
+
+    if (this.nearZoneId || this.nearNpcName) {
+      if (this.nearTreasure) {
+        this.nearTreasure = false;
+        this.registry.set('nearTreasure', false);
+      }
+      return;
+    }
+
+    const dx = this.px - this.treasureChest.wx;
+    const dy = this.py - this.treasureChest.wy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const near = dist <= TREASURE_INTERACT_RADIUS;
+
+    if (near !== this.nearTreasure) {
+      this.nearTreasure = near;
+      this.registry.set('nearTreasure', near);
+    }
+
+    if (near && this.consumeInteractPress()) {
+      // Reward comes from the live engine state, not a stale snapshot —
+      // req. 10 (no double-claim) is enforced by destroying the chest
+      // (and its proximity/registry state) immediately, synchronously,
+      // before the event is even emitted.
+      const reward = this.eventManager.getCurrentEvent()?.definition.reward;
+      this.despawnTreasureChest();
+      this.events.emit('treasure-interact', {
+        rewardAmount: reward?.amount ?? 0,
+        rewardLabel: reward?.label ?? 'Treasure found!',
+      });
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     WHALE ALERT MARKER
+     Only ever exists while the 'whale-alert' event definition is Live —
+     spawned/despawned from handleEventPhaseChange(). Citizens gathering
+     toward Whale Tower is already handled by the existing, generic
+     applyEventCitizenGather() (whale-alert's citizenBehaviour.mode is
+     'gather' in EventDefinitions.ts) — nothing new needed for that part.
+     ═══════════════════════════════════════════════════════════ */
+
+  /** Simple pixel-art whale — code-generated Graphics, same technique
+   *  as every character/prop in the game (no sprite assets). */
+  private drawWhaleMarkerGraphics(g: Phaser.GameObjects.Graphics) {
+    g.clear();
+    g.fillStyle(0x1e4a6e);
+    g.fillEllipse(0, 0, 34, 18);
+    g.fillStyle(0x3a7aa8, 0.85);
+    g.fillEllipse(2, 5, 24, 9);
+    g.fillStyle(0x1e4a6e);
+    g.fillTriangle(14, -2, 27, -11, 27, 9);
+    g.fillStyle(0x0a0a0a);
+    g.fillCircle(-11, -3, 1.6);
+    g.fillStyle(0x9fd0e8, 0.85);
+    g.fillRect(-15, -15, 2, 6);
+    g.fillRect(-17, -17, 2, 4);
+    g.fillRect(-13, -17, 2, 4);
+  }
+
+  /** Clearly-fake flavor data for the Whale Alert modal — generated
+   *  fresh at inspection time, never tied to any real wallet/chain. */
+  private generateFakeWhaleIntel(): { wallet: string; buySol: number; tokenSymbol: string; riskLevel: string } {
+    const chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const chunk = (n: number) => {
+      let s = '';
+      for (let i = 0; i < n; i++) s += chars[Math.floor(Math.random() * chars.length)];
+      return s;
+    };
+    const tokens = ['$RUG', '$MOON', '$DEGEN', '$ALPHA', '$WHALE', '$PUMP', '$GHOST'];
+    const risks = ['Low', 'Medium', 'High', 'Extreme'];
+
+    return {
+      wallet: `${chunk(6)}...${chunk(4)}`,
+      buySol: Math.round((40 + Math.random() * 860) * 10) / 10,
+      tokenSymbol: Phaser.Utils.Array.GetRandom(tokens),
+      riskLevel: Phaser.Utils.Array.GetRandom(risks),
+    };
+  }
+
+  private spawnWhaleMarker(def: EventDefinition) {
+    this.despawnWhaleMarker(); // never let two markers stack
+
+    const landmark = def.location.landmarkId ? getWorldObject(def.location.landmarkId) : undefined;
+    const { wx, wy } = landmark
+      ? toWorldPosition(landmark, this.worldW, this.worldH)
+      : { wx: this.plazaX, wy: this.plazaY };
+
+    const glow = this.add.graphics().setDepth(13).setPosition(wx, wy);
+    const body = this.add.graphics().setDepth(14).setPosition(wx, wy);
+    this.drawWhaleMarkerGraphics(body);
+    const label = this.add.text(wx, wy - 26, '✦ Whale Alert ✦', {
+      fontFamily: '"Cinzel", serif',
+      fontSize: '8px',
+      color: '#5cb8ec',
+      backgroundColor: 'rgba(4,8,12,0.78)',
+      padding: { x: 4, y: 2 },
+    }).setOrigin(0.5, 1).setDepth(14.2);
+
+    this.whaleMarker = { wx, wy, glow, body, label };
+    this.registry.set('whaleMarker', { wx, wy });
+  }
+
+  private despawnWhaleMarker() {
+    if (!this.whaleMarker) return;
+    this.whaleMarker.glow.destroy();
+    this.whaleMarker.body.destroy();
+    this.whaleMarker.label.destroy();
+    this.whaleMarker = null;
+    this.registry.set('whaleMarker', null);
+    if (this.nearWhale) {
+      this.nearWhale = false;
+      this.registry.set('nearWhale', false);
+    }
+  }
+
+  /** Two-tone gold/blue pulse — feels distinct from the treasure chest's
+   *  plain gold glow, "special" per req. 2, via a slow crossfade between
+   *  the two colors layered under the alpha pulse. */
+  private updateWhaleMarker() {
+    if (!this.whaleMarker) return;
+    const t = this.animTick / 1000;
+    const pulse = (Math.sin(t * 2.0) + 1) / 2;       // 0..1, fast alpha/scale pulse
+    const colorMix = (Math.sin(t * 0.8) + 1) / 2;     // 0..1, slow gold↔blue crossfade
+
+    this.whaleMarker.glow.clear();
+    for (let r = 34; r > 0; r -= 6) {
+      const a = (0.10 + pulse * 0.16) * (1 - r / 34);
+      this.whaleMarker.glow.fillStyle(0xe8b84b, a * colorMix);
+      this.whaleMarker.glow.fillCircle(0, 0, r);
+      this.whaleMarker.glow.fillStyle(0x5cb8ec, a * (1 - colorMix));
+      this.whaleMarker.glow.fillCircle(0, 0, r);
+    }
+    this.whaleMarker.glow.setScale(1 + pulse * 0.16);
+    this.whaleMarker.body.setScale(1 + pulse * 0.05);
+  }
+
+  /** Same E-key proximity pattern as updateTreasureProximity() — lowest
+   *  priority, only checked when neither a landmark zone nor an NPC
+   *  claimed this frame's proximity/E-press already. */
+  private updateWhaleProximity() {
+    if (!this.whaleMarker) return;
+
+    if (this.nearZoneId || this.nearNpcName) {
+      if (this.nearWhale) {
+        this.nearWhale = false;
+        this.registry.set('nearWhale', false);
+      }
+      return;
+    }
+
+    const dx = this.px - this.whaleMarker.wx;
+    const dy = this.py - this.whaleMarker.wy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const near = dist <= WHALE_INTERACT_RADIUS;
+
+    if (near !== this.nearWhale) {
+      this.nearWhale = near;
+      this.registry.set('nearWhale', near);
+    }
+
+    if (near && this.consumeInteractPress()) {
+      // Same one-shot-claim pattern as the treasure chest: destroy the
+      // marker synchronously before emitting, so "grants REP once per
+      // event" (req. 8) is enforced by there being nothing left to
+      // press E on a second time.
+      const reward = this.eventManager.getCurrentEvent()?.definition.reward;
+      const intel = this.generateFakeWhaleIntel();
+      this.despawnWhaleMarker();
+      this.events.emit('whale-interact', {
+        wallet: intel.wallet,
+        buySol: intel.buySol,
+        tokenSymbol: intel.tokenSymbol,
+        riskLevel: intel.riskLevel,
+        rewardAmount: reward?.amount ?? 0,
+        rewardLabel: reward?.label ?? 'Whale spotted!',
+      });
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     TOWN CRIER
+     Appears during the Announcement phase of ANY event — unlike the
+     treasure chest/whale marker, this isn't tied to one definition id.
+     Purely ambient: no proximity prompt, no E-press, no reward. Drawn
+     with the same shared drawHumanoid() renderer as the player/citizens
+     for visual consistency, just in the "Gold Holder Coat" outfit plus
+     a bell marker so he reads as a special character at a glance.
+     ═══════════════════════════════════════════════════════════ */
+
+  /** "Somewhere in RugTown"-style events have no fixed landmark, so the
+   *  Crier defaults to Spawn Fountain (req. 3); events with a real
+   *  landmark get him posted right there instead. */
+  private pickTownCrierSpawnPosition(def: EventDefinition): { wx: number; wy: number } {
+    const landmark = def.location.landmarkId ? getWorldObject(def.location.landmarkId) : undefined;
+    if (landmark) return toWorldPosition(landmark, this.worldW, this.worldH);
+    return { wx: this.plazaX, wy: this.plazaY };
+  }
+
+  private spawnTownCrier(instance: EventInstance) {
+    this.despawnTownCrier(); // never let two stack (e.g. a very fast re-announce)
+
+    const def = instance.definition;
+    const { wx, wy } = this.pickTownCrierSpawnPosition(def);
+
+    const shadow = this.add.graphics().setDepth(13);
+    const body = this.add.graphics().setDepth(14);
+    const bell = this.add.text(wx, wy, '🔔', { fontSize: '13px' })
+      .setOrigin(0.5, 1).setDepth(14.3);
+    const label = this.add.text(wx, wy, 'Town Crier [NPC]', {
+      fontFamily: '"Cinzel", serif',
+      fontSize: '7px',
+      fontStyle: 'bold',
+      color: '#1a1408',
+      backgroundColor: 'rgba(232,184,75,0.92)',
+      padding: { x: 4, y: 2 },
+    }).setOrigin(0.5, 1).setDepth(14.2);
+    const speech = this.add.text(wx, wy, '', {
+      fontFamily: '"Cinzel", serif',
+      fontSize: '9px',
+      color: '#e8d8c0',
+      backgroundColor: 'rgba(10,14,18,0.92)',
+      padding: { x: 6, y: 4 },
+      align: 'center',
+      wordWrap: { width: 160 },
+    }).setOrigin(0.5, 1).setDepth(14.4).setVisible(false);
+
+    const shortDescription = def.description.length > 70
+      ? `${def.description.slice(0, 67)}...`
+      : def.description;
+
+    this.townCrier = {
+      wx, wy, shadow, body, bell, label, speech,
+      lines: ['Hear ye! Hear ye!', def.title, shortDescription],
+      lineIndex: 0,
+      lineTimer: 0,
+      animTick: 0,
+    };
+    this.registry.set('townCrier', { wx, wy });
+
+    this.showTownCrierLine(0);
+    this.faceNpcsTowardTownCrier(wx, wy);
+    // Nearby citizens don't just turn to face him — a crowd actually
+    // gathers closer for the announcement (req. 1), tighter/closer than
+    // the bigger Live-phase crowd reactions below.
+    this.triggerCrowdReaction(wx, wy, 10, 15, 55);
+
+    soundManager.play('bell');
+    this.events.emit('town-crier-announce', { title: def.title });
+  }
+
+  private despawnTownCrier() {
+    if (!this.townCrier) return;
+    this.townCrier.shadow.destroy();
+    this.townCrier.body.destroy();
+    this.townCrier.bell.destroy();
+    this.townCrier.label.destroy();
+    this.townCrier.speech.destroy();
+    this.townCrier = null;
+    this.registry.set('townCrier', null);
+  }
+
+  private showTownCrierLine(index: number) {
+    if (!this.townCrier) return;
+    this.townCrier.lineIndex = index;
+    this.townCrier.speech.setText(this.townCrier.lines[index]);
+    this.townCrier.speech.setVisible(true);
+    this.townCrier.lineTimer = TOWN_CRIER_LINE_DURATION;
+  }
+
+  /** Ambience only — a one-time nudge when the Crier shows up, not a
+   *  continuous force. Citizens already mid-walk will naturally turn
+   *  away again the next time their own movement updates `facing`. */
+  private faceNpcsTowardTownCrier(wx: number, wy: number) {
+    for (const n of this.npcs) {
+      const dx = wx - n.px;
+      const dy = wy - n.py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > TOWN_CRIER_FACE_RADIUS) continue;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        n.facing = dx > 0 ? 'right' : 'left';
+      } else {
+        n.facing = dy > 0 ? 'down' : 'up';
+      }
+    }
+  }
+
+  private updateTownCrier(delta: number) {
+    const tc = this.townCrier;
+    if (!tc) return;
+    tc.animTick += delta;
+
+    const t = tc.animTick / 1000;
+    const breathPhase = t * IDLE_BREATH_SPEED;
+    const breathe = Math.sin(breathPhase);
+    const idleBob = Math.abs(breathe) * IDLE_BOB;
+    const idleSway = Math.sin(breathPhase * 0.55) * IDLE_SWAY;
+    const breathScale = 1 + breathe * IDLE_BREATH_SCALE;
+    const idleHeadBob = Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB;
+
+    tc.shadow.clear();
+    tc.shadow.fillStyle(0x000000, 0.18);
+    tc.shadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 4) * (1 - idleBob * 0.05), SHADOW_H + 2);
+    tc.shadow.setPosition(tc.wx, tc.wy);
+
+    const goldOutfit = getCharacterStyle('goldHolderCoat');
+    this.drawHumanoid(tc.body, tc.wx, tc.wy, {
+      facing: 'down',
+      bodyBob: idleBob,
+      legStagger: 0,
+      legLiftL: 0,
+      legLiftR: 0,
+      armSwing: 0,
+      headBob: idleHeadBob,
+      rotation: idleSway,
+      breathScale,
+      coatColor: goldOutfit.coatColor,
+      coatHighlite: goldOutfit.coatHighlite,
+      coatShade: goldOutfit.coatShade,
+      goldColor: goldOutfit.accentColor,
+    });
+
+    const headYLocal = -idleBob - CHAR_H * 0.5;
+    const labelY = tc.wy + headYLocal - 6;
+    tc.label.setPosition(tc.wx, labelY);
+    tc.bell.setPosition(tc.wx, labelY - 14);
+    tc.speech.setPosition(tc.wx, labelY - 26);
+
+    tc.lineTimer -= delta;
+    if (tc.lineTimer <= 0) {
+      this.showTownCrierLine((tc.lineIndex + 1) % tc.lines.length);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     HALL OF FAME STATUES
+     A permanent fixture near the 'fame' landmark, NOT event-driven —
+     unlike the chest/whale/crier, these always exist once GamePage has
+     pushed leaderboard data at least once. GamePage owns the actual
+     leaderboard (local-only, no backend, no real users — see
+     LEADERBOARD_NPCS in GamePage.tsx); this is purely the read-only
+     world-rendering side of it.
+     ═══════════════════════════════════════════════════════════ */
+
+  /**
+   * Rebuilds the 3 statues from fresh top-3 leaderboard rows. Safe to
+   * call repeatedly (e.g. every time REP changes the ranking) — always
+   * tears down and redraws rather than trying to patch in place, since
+   * with only 3 statues that's simpler and cheap.
+   */
+  setHallOfFameStatues(rows: { rank: number; name: string; rep: number; isPlayer: boolean }[]) {
+    this.despawnHallOfFameStatues();
+
+    const fame = getWorldObject('fame');
+    if (!fame) return;
+    const { wx: baseX, wy: baseY } = toWorldPosition(fame, this.worldW, this.worldH);
+
+    // #1 front-center, #2/#3 flanking slightly behind — reads as a
+    // podium without needing any new art.
+    const offsets = [
+      { dx: 0, dy: -46 },
+      { dx: -58, dy: 6 },
+      { dx: 58, dy: 6 },
+    ];
+
+    rows.slice(0, 3).forEach((row, i) => {
+      const offset = offsets[i] ?? { dx: 0, dy: 0 };
+      const wx = baseX + offset.dx;
+      const wy = baseY + offset.dy;
+      const accentColor = STATUE_RANK_COLOR[row.rank] ?? STATUE_RANK_COLOR[3];
+
+      const glow = this.add.graphics().setDepth(11).setPosition(wx, wy);
+      const body = this.add.graphics().setDepth(12).setPosition(wx, wy);
+      this.drawStatueGraphics(body, accentColor);
+
+      const label = this.add.text(wx, wy - 28, `#${row.rank} ${row.name}${row.isPlayer ? ' (You)' : ''}`, {
+        fontFamily: '"Cinzel", serif',
+        fontSize: '7px',
+        fontStyle: 'bold',
+        color: '#1a1408',
+        backgroundColor: `#${accentColor.toString(16).padStart(6, '0')}`,
+        padding: { x: 4, y: 2 },
+      }).setOrigin(0.5, 1).setDepth(12.2);
+
+      this.hallOfFameStatues.push({
+        rank: row.rank, name: row.name, rep: row.rep, isPlayer: row.isPlayer,
+        wx, wy, glow, body, label,
+      });
+    });
+  }
+
+  private despawnHallOfFameStatues() {
+    if (this.hallOfFameStatues.length === 0) return;
+    for (const s of this.hallOfFameStatues) {
+      s.glow.destroy();
+      s.body.destroy();
+      s.label.destroy();
+    }
+    this.hallOfFameStatues = [];
+    if (this.nearStatueRank !== null) {
+      this.nearStatueRank = null;
+      this.registry.set('nearStatue', null);
+    }
+  }
+
+  /** Simple stone pedestal + bust — code-generated Graphics, same
+   *  technique as every character/prop in the game. Deliberately plain
+   *  stone-gray (not an outfit color) so the rank-colored glow/trim is
+   *  what reads as "gold/silver/bronze", not the statue material. */
+  private drawStatueGraphics(g: Phaser.GameObjects.Graphics, accentColor: number) {
+    g.clear();
+    g.fillStyle(0x000000, 0.3);
+    g.fillEllipse(0, 19, 26, 7);
+
+    g.fillStyle(0x2a2a2e);
+    g.fillRoundedRect(-15, 6, 30, 13, 2);
+    g.fillStyle(accentColor, 0.95);
+    g.fillRect(-15, 6, 30, 2);
+
+    g.fillStyle(0x9a9aa0);
+    g.fillRoundedRect(-9, -10, 18, 18, 3);
+    g.fillStyle(0x7a7a80, 0.6);
+    g.fillRect(2, -10, 7, 18);
+
+    g.fillStyle(0xaaaaae);
+    g.fillCircle(0, -16, 7);
+    g.fillStyle(0x7a7a80, 0.5);
+    g.fillCircle(3, -15, 5);
+  }
+
+  /** Slow, calm pulse — statues are a permanent fixture, not a
+   *  time-limited event marker, so the glow is gentler than the
+   *  treasure chest/whale marker's. */
+  private updateHallOfFameStatues() {
+    if (this.hallOfFameStatues.length === 0) return;
+    const t = this.animTick / 1000;
+    const pulse = (Math.sin(t * 1.1) + 1) / 2;
+
+    for (const s of this.hallOfFameStatues) {
+      const accentColor = STATUE_RANK_COLOR[s.rank] ?? STATUE_RANK_COLOR[3];
+      s.glow.clear();
+      const glowA = 0.08 + pulse * 0.1;
+      for (let r = 22; r > 0; r -= 5) {
+        s.glow.fillStyle(accentColor, glowA * (1 - r / 22));
+        s.glow.fillCircle(0, -4, r);
+      }
+      s.glow.setScale(1 + pulse * 0.1);
+    }
+  }
+
+  /** Same E-key proximity pattern as the other markers — lowest
+   *  priority of all of them (zones → NPCs → treasure → whale → statue),
+   *  checked against whichever statue is nearest. */
+  private updateStatueProximity() {
+    if (this.hallOfFameStatues.length === 0) return;
+
+    if (this.nearZoneId || this.nearNpcName || this.nearTreasure || this.nearWhale) {
+      if (this.nearStatueRank !== null) {
+        this.nearStatueRank = null;
+        this.registry.set('nearStatue', null);
+      }
+      return;
+    }
+
+    let nearest: (typeof this.hallOfFameStatues)[number] | null = null;
+    let nearestDist = STATUE_INTERACT_RADIUS;
+    for (const s of this.hallOfFameStatues) {
+      const dx = this.px - s.wx;
+      const dy = this.py - s.wy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= nearestDist) {
+        nearest = s;
+        nearestDist = dist;
+      }
+    }
+
+    const nearRank = nearest?.rank ?? null;
+    if (nearRank !== this.nearStatueRank) {
+      this.nearStatueRank = nearRank;
+      this.registry.set('nearStatue', nearest ? { rank: nearest.rank, name: nearest.name } : null);
+    }
+
+    if (nearest && this.consumeInteractPress()) {
+      this.events.emit('statue-interact', {
+        rank: nearest.rank,
+        name: nearest.name,
+        rep: nearest.rep,
+        isPlayer: nearest.isPlayer,
+      });
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     CROWD REACTION
+     A second, larger wave of citizens reacting to a major-event moment
+     — Town Crier announcing, or Whale Alert/Treasure Hunt/Fireworks/
+     Dance Festival going Live. Reuses the same home/wanderRadius/state
+     nudge technique as the existing (smaller) applyEventCitizenGather(),
+     but with its own snapshot array and its own NPC sample (always
+     excluding whoever that system already pulled in), so the two never
+     collide over the same citizen.
+     ═══════════════════════════════════════════════════════════ */
+
+  /**
+   * Pulls `count` citizens (not already part of the existing event-gather
+   * sample) toward (wx, wy), each with a randomized offset/speed/timing
+   * so the crowd reads as organic rather than a single-file line (req. 5),
+   * plus a staggered "crowd reaction" speech bubble per citizen (req. 6).
+   * Always reverts any previous crowd reaction first — only one is ever
+   * active at a time.
+   */
+  private triggerCrowdReaction(wx: number, wy: number, count: number, spreadMin = 20, spreadMax = 100) {
+    this.revertCrowdReaction();
+    if (this.npcs.length === 0) return;
+
+    const alreadyGathered = new Set(this.eventGatherSnapshot?.map(e => e.npc) ?? []);
+    const pool = this.npcs.filter(n => !alreadyGathered.has(n));
+    if (pool.length === 0) return;
+
+    const sample = Phaser.Utils.Array.Shuffle(pool.slice()).slice(0, Math.min(count, pool.length));
+    this.crowdReactionSnapshot = sample.map(npc => ({
+      npc, homeX: npc.homeX, homeY: npc.homeY, wanderRadius: npc.wanderRadius,
+    }));
+
+    sample.forEach(npc => {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Phaser.Math.Between(spreadMin, spreadMax);
+      npc.homeX = Phaser.Math.Clamp(wx + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
+      npc.homeY = Phaser.Math.Clamp(wy + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
+      npc.wanderRadius = 50;
+      npc.state = 'walk';
+      npc.targetX = npc.homeX;
+      npc.targetY = npc.homeY;
+      // Generous + randomized per-citizen — long enough for most to
+      // actually arrive given their own (also randomized) speed, short
+      // enough to naturally vary who gets there first.
+      npc.stateTimer = Phaser.Math.Between(7000, 14000);
+
+      this.time.delayedCall(Phaser.Math.Between(300, 3500), () => {
+        const line = Phaser.Utils.Array.GetRandom(CROWD_REACTION_LINES);
+        npc.speech.setText(line);
+        npc.speech.setVisible(true);
+        npc.speechShowUntil = NPC_SPEECH_DURATION;
+      });
+    });
+  }
+
+  private revertCrowdReaction() {
+    if (!this.crowdReactionSnapshot) return;
+    this.crowdReactionSnapshot.forEach(({ npc, homeX, homeY, wanderRadius }) => {
+      npc.homeX = homeX;
+      npc.homeY = homeY;
+      npc.wanderRadius = wanderRadius;
+      npc.state = 'pause';
+      npc.stateTimer = Phaser.Math.Between(400, 1200);
+    });
+    this.crowdReactionSnapshot = null;
+  }
+
+  /** Dispatches the Live-phase crowd reaction for the 4 named events
+   *  (req. 2/3/4) — every other event simply doesn't match any case, so
+   *  it gets no crowd reaction beyond the existing small gather, if any. */
+  private triggerLiveCrowdReaction(def: EventDefinition) {
+    switch (def.id) {
+      case 'whale-alert': {
+        const whale = getWorldObject('whale');
+        if (whale) {
+          const { wx, wy } = toWorldPosition(whale, this.worldW, this.worldH);
+          this.triggerCrowdReaction(wx, wy, 18);
+        }
+        break;
+      }
+      case 'treasure-hunt':
+        if (this.treasureChest) {
+          this.triggerCrowdReaction(this.treasureChest.wx, this.treasureChest.wy, 16);
+        }
+        break;
+      case 'fireworks':
+      case 'dance-festival':
+        this.triggerCrowdReaction(this.plazaX, this.plazaY, 20);
+        break;
+      default:
+        break;
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════

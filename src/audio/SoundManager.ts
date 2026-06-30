@@ -21,7 +21,8 @@ export type SoundEffectName =
   | 'reward'
   | 'quest'
   | 'event'
-  | 'chatSend';
+  | 'chatSend'
+  | 'bell';
 
 interface TonePreset {
   freq: number;
@@ -37,6 +38,9 @@ const EFFECT_PRESETS: Record<SoundEffectName, TonePreset> = {
   quest:    { freq: 392, freq2: 587, duration: 0.28, type: 'triangle' },
   event:    { freq: 330, duration: 0.14, type: 'sine' },
   chatSend: { freq: 880, duration: 0.06, type: 'square' },
+  // Town Crier's bell — a bright two-tone "ding-dong" ring (play() already
+  // sequences freq then freq2 with a short delay between them).
+  bell:     { freq: 988, freq2: 1318.5, duration: 0.4, type: 'triangle' },
 };
 
 const MUSIC_NOTES = [261.63, 329.63, 392.0, 523.25]; // soft C-major arpeggio
