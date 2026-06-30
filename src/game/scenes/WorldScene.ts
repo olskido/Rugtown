@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { getLiveWorldObjects, toWorldPosition } from '../world/WorldObjects';
+import { getLiveWorldObjects, toWorldPosition, WORLD_OBJECTS } from '../world/WorldObjects';
 import { COLLISION_RECTS, toWorldRect } from '../world/CollisionZones';
+import { CHARACTER_STYLES, getCharacterStyle, DEFAULT_CHARACTER_STYLE_ID } from '../world/CharacterStyles';
 
 /*
   WorldScene.ts — Player Movement + NPC Citizens Edition
@@ -80,89 +81,163 @@ const EMOTE_PULSE_AMOUNT   = 0.18;  // extra scale at the peak of the pulse
 /* ─── NPC tuning ─── */
 const NPC_SCALE           = 0.82;   // smaller than the player
 const NPC_ALPHA           = 0.88;   // subtler than the player
-const NPC_SPEED_MIN       = 46;
-const NPC_SPEED_MAX       = 96;
+const NPC_SPEED_MIN       = 40;
+const NPC_SPEED_MAX       = 100;
 const NPC_ACCEL_TIME      = 0.25;
 const NPC_ARRIVE_DIST     = 6;      // px — close enough to call it "arrived"
 const NPC_LEAN_MAX        = 0.09;
 const NPC_LEAN_SMOOTH     = 0.10;
-const NPC_SPEECH_MIN_GAP  = 7000;   // ms between speech attempts (min)
-const NPC_SPEECH_MAX_GAP  = 16000;  // ms between speech attempts (max)
+const NPC_SPEECH_MIN_GAP  = 7000;   // ms between ONE NPC's own speech attempts (min)
+const NPC_SPEECH_MAX_GAP  = 18000;  // ms between ONE NPC's own speech attempts (max)
 const NPC_SPEECH_DURATION = 3200;   // ms a speech bubble stays visible
-const NPC_SPEECH_CHANCE   = 0.6;    // odds a given attempt actually shows a line
+const NPC_SPEECH_CHANCE   = 0.55;   // odds a given attempt actually shows a line
 
-// Landmarks NPCs spawn around and gather near (fractions of world size)
-const NPC_LANDMARKS: { name: string; fx: number; fy: number; radius: number }[] = [
-  { name: 'fountain', fx: 0.38, fy: 0.58, radius: 70 },
-  { name: 'market',   fx: 0.20, fy: 0.52, radius: 80 },
-  { name: 'bridge',   fx: 0.55, fy: 0.46, radius: 60 },
-  { name: 'road',     fx: 0.46, fy: 0.34, radius: 90 },
-  { name: 'park',     fx: 0.74, fy: 0.56, radius: 90 },
-];
+// Population is randomized once per session, not fixed — see createNpcs().
+const NPC_POPULATION_MIN = 40;
+const NPC_POPULATION_MAX = 60;
 
+// Ambient speech bubbles also get pushed into the city chat panel, but
+// that must NOT scale with population — this is a single GLOBAL cooldown
+// shared by all citizens, independent of how many of them exist.
+const NPC_CHAT_GLOBAL_COOLDOWN = 5500; // ms minimum between any two ambient npc-chat posts
+
+/* ─── RugTown Citizen names ───
+   A large pool so 40-60 citizens can each get a unique one — shuffled
+   and sliced down to the session's population count in createNpcs(). */
 const NPC_NAMES = [
   'JeetBot', 'PumpGoblin', 'LiquidityLarry', 'AlphaAisha', 'ChartChad',
   'BagHolderBen', 'WhaleGhost', 'RugSlayerNPC', 'MoonboyNPC', 'DumpDemon',
-];
-
-const NPC_SPEECH_LINES = [
-  'GM degens',
-  'Liquidity looks healthy',
-  'Whale spotted near tower',
-  'Trust no dev',
-  'Alpha Lounge is busy',
-  'Meme Market is pumping',
+  'DiamondHandDan', 'PaperHandPaula', 'SnipeKing', 'GasFeeGary', 'SlippageSam',
+  'ApeInAndy', 'FudFiona', 'ShillShane', 'RektRicky', 'CopeCarl',
+  'YieldYara', 'StakeSteve', 'FarmerFelix', 'BridgeBetty', 'AirdropAva',
+  'WenLambo', 'ToTheMoonTia', 'BearMarketBob', 'BullRunBella', 'HodlHank',
+  'DexDexter', 'CexCindy', 'OracleOwen', 'ValidatorVic', 'NodeNina',
+  'GweiGwen', 'MempoolMax', 'BlockBlake', 'ChainChloe', 'TokenTara',
+  'NftNeil', 'FloorPriceFay', 'MintMia', 'WhitelistWill', 'PresaleParker',
+  'LaunchLuna', 'VestingVince', 'TreasuryTrent', 'DaoDana', 'GovernanceGus',
+  'PumpAndDumpPete', 'RugPullRita', 'HoneypotHugo', 'ScamSentinel', 'AuditAaron',
+  'KycKyle', 'AnonAlex', 'DegenDave', 'SerSerena', 'FrenFreddy',
+  'GmGabby', 'WagmiWyatt', 'NgmiNoel', 'ProbablyNothingPaz', 'BasedBea',
+  'CopiumCody', 'HopiumHazel', 'MaxiMaya', 'LaserEyesLeo', 'OgOliver',
 ];
 
 const NPC_SKIN_PALETTE = [0xd4a878, 0xc89868, 0xb88858, 0xe0b890];
 
-/* ─── NPC visual variants ───
-   5 named looks (coat + accent recolors of the same shared silhouette,
-   no new shapes/assets) assigned to the 10 NPCs by name below. */
-interface NpcVariant {
-  coatColor: number;
-  coatHighlite: number;
-  coatShade: number;
-  accentColor: number;
-}
+/* ─── Personalities ───
+   Drives which outfit (from the shared CharacterStyles registry) a
+   citizen wears and which slice of the ambient speech pool they draw
+   lines from. Combined with the reaction/district/reply/welcome lines
+   GamePage owns for the chat panel, the full system spans 80+ lines. */
+export type NpcPersonality = 'degen' | 'whale' | 'alpha' | 'trader' | 'informant' | 'builder' | 'memelord';
 
-const NPC_VARIANTS = {
-  degenHoodie: {
-    coatColor: 0x1c1e22, coatHighlite: 0x2e3038, coatShade: 0x101216,
-    accentColor: 0xe8b84b, // gold — the classic look
-  },
-  whaleSuit: {
-    coatColor: 0x16243a, coatHighlite: 0x2a4868, coatShade: 0x0c1622,
-    accentColor: 0x5cb8ec, // icy blue
-  },
-  marketTrader: {
-    coatColor: 0x3a2a18, coatHighlite: 0x5a4228, coatShade: 0x201408,
-    accentColor: 0xe8902a, // warm amber
-  },
-  rugAlleyInformant: {
-    coatColor: 0x241418, coatHighlite: 0x3a1e24, coatShade: 0x140a0c,
-    accentColor: 0xc83838, // red — not the usual gold
-  },
-  alphaAnalyst: {
-    coatColor: 0x24282e, coatHighlite: 0x3c4450, coatShade: 0x141618,
-    accentColor: 0x3ecfc0, // teal
-  },
-} satisfies Record<string, NpcVariant>;
+const NPC_PERSONALITIES: NpcPersonality[] = ['degen', 'whale', 'alpha', 'trader', 'informant', 'builder', 'memelord'];
 
-type NpcVariantKey = keyof typeof NPC_VARIANTS;
-
-const NPC_VARIANT_BY_NAME: Record<string, NpcVariantKey> = {
-  JeetBot:        'degenHoodie',
-  PumpGoblin:     'degenHoodie',
-  MoonboyNPC:     'degenHoodie',
-  LiquidityLarry: 'marketTrader',
-  BagHolderBen:   'marketTrader',
-  AlphaAisha:     'alphaAnalyst',
-  ChartChad:      'alphaAnalyst',
-  WhaleGhost:     'whaleSuit',
-  RugSlayerNPC:   'rugAlleyInformant',
-  DumpDemon:      'rugAlleyInformant',
+const NPC_PERSONALITY_STYLE: Record<NpcPersonality, string> = {
+  degen:     'degenHoodie',
+  whale:     'whaleSuit',
+  alpha:     'alphaAnalyst',
+  trader:    'marketTrader',
+  informant: 'rugAlleyInformant',
+  builder:   'builderJacket',
+  memelord:  'memeLord',
 };
+
+export const NPC_SPEECH_BY_PERSONALITY: Record<NpcPersonality, string[]> = {
+  degen: [
+    'GM degens',
+    'I bought the top again',
+    'Sold the bottom last week',
+    "Red candles don't scare me... much",
+    "I'm not selling until zero",
+    'Diamond hands, paper plans',
+    "It'll come back. It always does",
+    'Buy the dip, theoretically',
+  ],
+  whale: [
+    'Big wallets move quietly',
+    "I've seen things in the mempool",
+    'Watch the wallets, not the charts',
+    'Whale spotted near the tower',
+    "I don't chase, I accumulate",
+    'Liquidity looks healthy today',
+    "Just moved a bag, don't ask",
+    "Whales don't sleep",
+  ],
+  alpha: [
+    'Real alpha is patience',
+    'The best calls are quiet ones',
+    "Don't chase, let it come to you",
+    'That candle looks suspicious',
+    'This pattern never lies',
+    'Alpha Lounge is busy tonight',
+    'Quiet alpha is the best alpha',
+    'Position before the news, not after',
+  ],
+  trader: [
+    'Meme Market is pumping',
+    'Slippage is under control today',
+    'Pools are looking deep tonight',
+    'Spread is tight this morning',
+    'Volume is picking up at the Market',
+    'Liquidity looks healthy today',
+    'Order book looks thin up here',
+    'Buy low, panic sell high — works every time',
+  ],
+  informant: [
+    'Trust no dev',
+    'Always check the liquidity lock',
+    "If it sounds too good, it's a rug",
+    'Rug warning near Rug Alley',
+    'Someone always exits first',
+    'Every pump needs a dump',
+    'Dev wallet just moved, watch out',
+    'Contract looks unverified to me',
+  ],
+  builder: [
+    'Still shipping, still building',
+    'Code compiles, vibes immaculate',
+    'Audits take time, be patient',
+    'Mainnet soon, probably',
+    'Builder Jacket, builder mindset',
+    'Testnet looked good today',
+    'Gas fees optimized this week',
+    'Roadmap update coming soon',
+  ],
+  memelord: [
+    'To the moon, eventually',
+    'We are so back',
+    'This is the way',
+    'Probably nothing',
+    'WAGMI, fren',
+    'Patience is the real rocket fuel',
+    'Number go up technology',
+    'Ser, this whole town is a casino',
+  ],
+};
+
+/* ─── Behavior types ───
+   Tunes the existing idle/walk/pause wander loop per citizen rather
+   than adding a new state machine — "idle"-leaning citizens just pause
+   longer and wander less, "roamers" occasionally pick a brand new
+   landmark as their home instead of always returning to the same one. */
+export type NpcBehaviorType = 'idle' | 'wander' | 'gatherer' | 'roamer';
+
+const NPC_BEHAVIOR_WEIGHTS: { type: NpcBehaviorType; weight: number }[] = [
+  { type: 'idle',     weight: 25 },
+  { type: 'wander',   weight: 40 },
+  { type: 'gatherer', weight: 20 },
+  { type: 'roamer',   weight: 15 },
+];
+
+function pickWeighted<T extends { weight: number }>(items: T[]): T {
+  const total = items.reduce((sum, item) => sum + item.weight, 0);
+  let r = Math.random() * total;
+  for (const item of items) {
+    if (r < item.weight) return item;
+    r -= item.weight;
+  }
+  return items[items.length - 1];
+}
 
 /* ─── Interaction zones ───
    Coordinates, radii, and display names all come from the World Object
@@ -268,11 +343,11 @@ interface NpcData {
   walkMax: number;
   animTick: number;
   lean: number;
-  coatColor: number;
-  coatHighlite: number;
-  coatShade: number;
-  accentColor: number;
+  styleId: string;
   skinColor: number;
+  personality: NpcPersonality;
+  behaviorType: NpcBehaviorType;
+  homeLandmarkIndex: number;
   speechTimerNext: number;
   speechShowUntil: number;
   shadow: Phaser.GameObjects.Graphics;
@@ -298,6 +373,7 @@ export class WorldScene extends Phaser.Scene {
   private playerSpeech!: Phaser.GameObjects.Text;
   private playerSpeechUntil = 0;
   private emotePulseUntil = 0;
+  private outfitId: string = DEFAULT_CHARACTER_STYLE_ID;
 
   // Movement state
   private velX = 0;
@@ -313,6 +389,10 @@ export class WorldScene extends Phaser.Scene {
 
   /* ── NPC citizens ── */
   private npcs: NpcData[] = [];
+  private npcLandmarks: { name: string; fx: number; fy: number; radius: number }[] = [];
+  /** Global cross-citizen cooldown so ambient speech forwarded into the
+   *  city chat panel doesn't scale (and spam) with population size. */
+  private npcChatCooldownRemaining = 0;
 
   /* ── Interaction zones ── */
   private zones: ActiveZone[] = [];
@@ -693,7 +773,10 @@ export class WorldScene extends Phaser.Scene {
     }
     this.playerGlow.setPosition(this.px, this.py);
 
-    /* ── Body — shared humanoid renderer ── */
+    /* ── Body — shared humanoid renderer. Player uses the selected outfit
+       (CharacterStyles.ts) and is drawn at full scale/alpha (no NPC_SCALE/
+       NPC_ALPHA), keeping the player slightly more prominent than citizens. ── */
+    const outfit = getCharacterStyle(this.outfitId);
     this.drawHumanoid(this.playerBody, this.px, this.py, {
       facing: this.facing,
       bodyBob,
@@ -705,6 +788,10 @@ export class WorldScene extends Phaser.Scene {
       headBob: idleHeadBob,
       rotation: this.lean + sway,
       breathScale: breathScale * emotePulse,
+      coatColor: outfit.coatColor,
+      coatHighlite: outfit.coatHighlite,
+      coatShade: outfit.coatShade,
+      goldColor: outfit.accentColor,
     });
 
     /* ── Label / speech bubble — stay upright regardless of body lean ── */
@@ -860,9 +947,33 @@ export class WorldScene extends Phaser.Scene {
      pause), with per-NPC speed/timing so nothing is synchronized.
      ═══════════════════════════════════════════════════════════ */
   private createNpcs() {
-    NPC_NAMES.forEach((name, i) => {
-      const variant = NPC_VARIANTS[NPC_VARIANT_BY_NAME[name] ?? 'degenHoodie'];
-      const landmark = NPC_LANDMARKS[i % NPC_LANDMARKS.length];
+    // Population re-rolled each session — not the same headcount every time.
+    const population = Phaser.Math.Between(NPC_POPULATION_MIN, NPC_POPULATION_MAX);
+    const names = Phaser.Utils.Array.Shuffle(NPC_NAMES.slice()).slice(0, population);
+
+    // Anchor citizens across ALL registered landmarks (not just the 5 with
+    // live interactions), so the population spreads across the whole city
+    // instead of clustering only around the fountain/market/etc.
+    const landmarks = WORLD_OBJECTS.map(o => ({
+      name: o.id,
+      fx: o.x,
+      fy: o.y,
+      radius: Math.max(70, o.interactionRadius * 0.85),
+    }));
+    this.npcLandmarks = landmarks;
+
+    names.forEach((name, i) => {
+      const personality = Phaser.Utils.Array.GetRandom(NPC_PERSONALITIES);
+      const styleId = NPC_PERSONALITY_STYLE[personality];
+      const behaviorType = pickWeighted(NPC_BEHAVIOR_WEIGHTS).type;
+
+      // Round-robin through landmarks first (guarantees every landmark gets
+      // citizens), then random for the remainder once every landmark has one.
+      const homeLandmarkIndex = i < landmarks.length
+        ? i
+        : Phaser.Math.Between(0, landmarks.length - 1);
+      const landmark = landmarks[homeLandmarkIndex];
+
       const homeX = Phaser.Math.Clamp(this.worldW * landmark.fx + Phaser.Math.Between(-20, 20), CHAR_W, this.worldW - CHAR_W);
       const homeY = Phaser.Math.Clamp(this.worldH * landmark.fy + Phaser.Math.Between(-20, 20), CHAR_H, this.worldH - CHAR_H);
 
@@ -890,38 +1001,61 @@ export class WorldScene extends Phaser.Scene {
         align: 'center',
       }).setOrigin(0.5, 1).setDepth(7.4).setVisible(false);
 
+      // Idle-leaning citizens pause longer and wander less; gatherers stay
+      // tighter to their landmark; roamers get a wider radius since they'll
+      // also periodically re-home to a different landmark entirely.
+      const pauseScale = behaviorType === 'idle' ? 1.8 : behaviorType === 'gatherer' ? 1.2 : 1;
+      const radiusScale = behaviorType === 'gatherer' ? 0.55 : behaviorType === 'roamer' ? 1.6 : 1;
+
       this.npcs.push({
         name,
         px, py,
         velX: 0, velY: 0,
         facing: 'down',
         isMoving: false,
-        speed: Phaser.Math.FloatBetween(NPC_SPEED_MIN, NPC_SPEED_MAX),
+        speed: Phaser.Math.FloatBetween(NPC_SPEED_MIN, NPC_SPEED_MAX) * (behaviorType === 'idle' ? 0.8 : 1),
         homeX, homeY,
-        wanderRadius: landmark.radius * Phaser.Math.FloatBetween(0.7, 1.15),
+        wanderRadius: landmark.radius * Phaser.Math.FloatBetween(0.7, 1.15) * radiusScale,
         targetX: px, targetY: py,
         state: 'idle',
         stateTimer: Phaser.Math.Between(200, 2000),          // stagger first decisions
-        pauseMin: Phaser.Math.Between(900, 1800),
-        pauseMax: Phaser.Math.Between(2200, 4500),
+        pauseMin: Phaser.Math.Between(900, 1800) * pauseScale,
+        pauseMax: Phaser.Math.Between(2200, 4500) * pauseScale,
         walkMin: Phaser.Math.Between(900, 1600),
         walkMax: Phaser.Math.Between(1800, 3200),
         animTick: Phaser.Math.Between(0, 4000),               // random phase offset
         lean: 0,
-        coatColor: variant.coatColor,
-        coatHighlite: variant.coatHighlite,
-        coatShade: variant.coatShade,
-        accentColor: variant.accentColor,
+        styleId,
         skinColor: Phaser.Utils.Array.GetRandom(NPC_SKIN_PALETTE),
+        personality,
+        behaviorType,
+        homeLandmarkIndex,
         speechTimerNext: Phaser.Math.Between(NPC_SPEECH_MIN_GAP, NPC_SPEECH_MAX_GAP),
         speechShowUntil: 0,
         shadow, body, label, speech,
       });
     });
+
+    // Published once so React (chat-activity simulator, citizen-count HUD)
+    // can reference real citizen names/count without duplicating this list.
+    this.registry.set('npcNames', this.npcs.map(n => n.name));
+    this.registry.set('npcCount', this.npcs.length);
   }
 
   private updateNpcs(delta: number) {
     const dt = delta / 1000;
+
+    // Camera-view culling bounds (with a margin so characters don't pop
+    // in/out right at the screen edge). Computed once per frame, not
+    // per-NPC, so scaling to 60 citizens stays cheap.
+    const view = this.cameras.main.worldView;
+    const cullMargin = 140;
+    const viewLeft   = view.x - cullMargin;
+    const viewRight  = view.x + view.width + cullMargin;
+    const viewTop    = view.y - cullMargin;
+    const viewBottom = view.y + view.height + cullMargin;
+
+    this.npcChatCooldownRemaining = Math.max(0, this.npcChatCooldownRemaining - delta);
 
     for (const n of this.npcs) {
       n.animTick += delta;
@@ -938,6 +1072,19 @@ export class WorldScene extends Phaser.Scene {
           n.stateTimer = Phaser.Math.Between(n.pauseMin, n.pauseMax);
           // Ambience only — sometimes turn to face whoever's nearby before idling
           if (Math.random() < NPC_FACE_CHANCE) this.faceNearbyNpc(n);
+
+          // Roamers occasionally adopt a different landmark as their new
+          // home so they move between districts instead of staying glued
+          // to their spawn area forever.
+          if (n.behaviorType === 'roamer' && this.npcLandmarks.length > 1 && Math.random() < 0.3) {
+            let idx = n.homeLandmarkIndex;
+            while (idx === n.homeLandmarkIndex) idx = Phaser.Math.Between(0, this.npcLandmarks.length - 1);
+            const lm = this.npcLandmarks[idx];
+            n.homeLandmarkIndex = idx;
+            n.homeX = Phaser.Math.Clamp(this.worldW * lm.fx + Phaser.Math.Between(-20, 20), CHAR_W, this.worldW - CHAR_W);
+            n.homeY = Phaser.Math.Clamp(this.worldH * lm.fy + Phaser.Math.Between(-20, 20), CHAR_H, this.worldH - CHAR_H);
+            n.wanderRadius = lm.radius * Phaser.Math.FloatBetween(0.7, 1.15) * 1.6;
+          }
         } else {
           const accel = Math.min(dt / NPC_ACCEL_TIME, 1);
           n.velX = Phaser.Math.Linear(n.velX, (dx / dist) * n.speed, accel);
@@ -978,7 +1125,29 @@ export class WorldScene extends Phaser.Scene {
       const leanTarget = Phaser.Math.Clamp(n.velX / n.speed, -1, 1) * NPC_LEAN_MAX;
       n.lean = Phaser.Math.Linear(n.lean, leanTarget, NPC_LEAN_SMOOTH);
 
-      /* ── Speech bubbles — occasional, desynchronized per NPC ── */
+      /* ── Viewport culling — citizens far outside the camera view skip
+         redraw + go invisible. Cheap with 10 NPCs, necessary at 40-60. ── */
+      const onScreen = n.px >= viewLeft && n.px <= viewRight && n.py >= viewTop && n.py <= viewBottom;
+      if (!onScreen) {
+        if (n.body.visible) {
+          n.body.setVisible(false);
+          n.shadow.setVisible(false);
+          n.label.setVisible(false);
+          n.speech.setVisible(false);
+        }
+        continue;
+      }
+      if (!n.body.visible) {
+        n.body.setVisible(true);
+        n.shadow.setVisible(true);
+        n.label.setVisible(true);
+      }
+
+      /* ── Speech bubbles — occasional, desynchronized per NPC. The bubble
+         itself is per-NPC and unthrottled (so the city always feels alive
+         up close); forwarding into the city chat panel is rate-limited by
+         a single GLOBAL cooldown so 60 citizens don't spam 6x harder than
+         10 used to. ── */
       if (n.speechShowUntil > 0) {
         n.speechShowUntil -= delta;
         if (n.speechShowUntil <= 0) {
@@ -989,12 +1158,15 @@ export class WorldScene extends Phaser.Scene {
         if (n.speechTimerNext <= 0) {
           n.speechTimerNext = Phaser.Math.Between(NPC_SPEECH_MIN_GAP, NPC_SPEECH_MAX_GAP);
           if (Math.random() < NPC_SPEECH_CHANCE) {
-            const line = Phaser.Utils.Array.GetRandom(NPC_SPEECH_LINES);
+            const pool = NPC_SPEECH_BY_PERSONALITY[n.personality];
+            const line = Phaser.Utils.Array.GetRandom(pool);
             n.speech.setText(line);
             n.speech.setVisible(true);
             n.speechShowUntil = NPC_SPEECH_DURATION;
-            // Same line also appears in the city chat panel
-            this.events.emit('npc-chat', { name: n.name, text: line });
+            if (this.npcChatCooldownRemaining <= 0) {
+              this.npcChatCooldownRemaining = NPC_CHAT_GLOBAL_COOLDOWN;
+              this.events.emit('npc-chat', { name: n.name, text: line });
+            }
           }
         }
       }
@@ -1035,6 +1207,7 @@ export class WorldScene extends Phaser.Scene {
     n.shadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * NPC_SCALE * (1 - bodyBob * 0.05), SHADOW_H * NPC_SCALE);
     n.shadow.setPosition(n.px, n.py);
 
+    const style = getCharacterStyle(n.styleId);
     this.drawHumanoid(n.body, n.px, n.py, {
       facing: n.facing,
       bodyBob,
@@ -1048,10 +1221,10 @@ export class WorldScene extends Phaser.Scene {
       breathScale,
       scale: NPC_SCALE,
       alpha: NPC_ALPHA,
-      coatColor: n.coatColor,
-      coatHighlite: n.coatHighlite,
-      coatShade: n.coatShade,
-      goldColor: n.accentColor,
+      coatColor: style.coatColor,
+      coatHighlite: style.coatHighlite,
+      coatShade: style.coatShade,
+      goldColor: style.accentColor,
       skinColor: n.skinColor,
     });
 
@@ -1186,7 +1359,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     if (nearest && this.consumeInteractPress()) {
-      this.events.emit('npc-interact', { name: nearest.name });
+      this.events.emit('npc-interact', { name: nearest.name, personality: nearest.personality });
     }
   }
 
@@ -1673,6 +1846,18 @@ export class WorldScene extends Phaser.Scene {
     // follow was already active, and recovers it if it somehow wasn't.
     this.cameras.main.startFollow(this.player, true, CAM_LERP, CAM_LERP);
     this.cameras.main.setDeadzone(CAM_DEADZONE_X, CAM_DEADZONE_Y);
+  }
+
+  /**
+   * Player outfit, chosen on the pre-game outfit-select screen. Safe to
+   * call before or after create() — RugTownGame calls it right after
+   * construction, before the Phaser.Game boots, so create()'s first
+   * drawPlayer() already picks it up; also safe to call later (e.g. if
+   * a future settings screen lets the player re-pick).
+   */
+  setOutfit(id: string) {
+    this.outfitId = id;
+    if (this.playerBody) this.drawPlayer();
   }
 
   getPlayerPos() {

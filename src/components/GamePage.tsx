@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { RugTownGame } from '../game/RugTownGame';
-import { WorldScene } from '../game/scenes/WorldScene';
+import { WorldScene, NPC_SPEECH_BY_PERSONALITY, type NpcPersonality } from '../game/scenes/WorldScene';
 import { getWorldObject, WORLD_OBJECTS } from '../game/world/WorldObjects';
 import { soundManager, type SoundChannel } from '../audio/SoundManager';
 
@@ -357,6 +357,47 @@ const CITY_EVENT_MIN_GAP = 10000; // ms
 const CITY_EVENT_MAX_GAP = 20000; // ms
 const CITY_EVENT_NPC_SPEECH_CHANCE = 0.5;
 
+/* ─── RugTown Citizens chat activity — local-only, no backend/AI.
+   Separate from the per-citizen ambient speech bubbles WorldScene already
+   forwards into chat (talking to themselves / reacting to events): this
+   timer covers the other ways citizens keep the chat panel feeling alive
+   — mentioning a nearby district, replying to another named citizen, or
+   welcoming the player. Every line is posted with kind: 'npc', which the
+   chat log always renders with a "[NPC]" tag — never presented as a real
+   player, per the honesty rule. ─── */
+const NPC_CHAT_ACTIVITY_MIN_GAP = 9000;  // ms
+const NPC_CHAT_ACTIVITY_MAX_GAP = 19000; // ms
+
+const NPC_DISTRICT_LINES: ((district: string) => string)[] = [
+  (d) => `Anyone been to ${d} lately?`,
+  (d) => `${d} is looking busy today`,
+  (d) => `Heading toward ${d}, catch you later`,
+  (d) => `Heard something's happening near ${d}`,
+  (d) => `${d} never sleeps, does it`,
+  (d) => `I keep ending up back at ${d}`,
+];
+
+const NPC_REPLY_LINES = [
+  'Real talk.',
+  "Couldn't agree more.",
+  'Hah, classic.',
+  'Not sure about that one, but okay.',
+  'Same energy.',
+  'Lol, fair point.',
+  'I was just thinking that.',
+  'Careful saying that out loud.',
+  'Based take, honestly.',
+  'You always say that.',
+];
+
+const NPC_WELCOME_LINES: ((name: string) => string)[] = [
+  (name) => `Welcome to RugTown, ${name}.`,
+  (name) => `New face in town — hey ${name}.`,
+  (name) => `GM ${name}, watch your step around here.`,
+  (name) => `${name} just walked in, don't mind us.`,
+  (name) => `Don't get rugged on your first day, ${name}.`,
+];
+
 /* ─── Mock Holder tiers — local simulation only, no wallet/Solana calls.
    Toggling a tier just changes the REP multiplier applied to fountain
    and quest rewards. Clearly a devnet/mock preview, not real holdings. ─── */
@@ -372,10 +413,12 @@ const HOLDER_TIERS: { tier: HolderTier; multiplier: number }[] = [
 interface GamePageProps {
   /** Name chosen on the landing page's guest-entry screen */
   playerName?: string;
+  /** Outfit chosen on the pre-game outfit-select screen (CharacterStyles.ts id) */
+  outfitId?: string;
 }
 
 /* ─── Component ─── */
-export function GamePage({ playerName }: GamePageProps) {
+export function GamePage({ playerName, outfitId }: GamePageProps) {
   const mountRef   = useRef<HTMLDivElement>(null);
   const gameRef    = useRef<RugTownGame | null>(null);
   const sceneRef   = useRef<WorldScene | null>(null);
@@ -385,6 +428,12 @@ export function GamePage({ playerName }: GamePageProps) {
   const [worldSize, setWorldSize] = useState({ w: 3840, h: 2160 });
   const [bgMissing, setBgMissing] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
+
+  /* ── RugTown Citizens population — randomized per session by WorldScene
+     (40-60), published once via the registry. Honesty rule: these are
+     NPCs, never presented as real players. ── */
+  const [npcCount, setNpcCount] = useState(0);
+  const [npcNames, setNpcNames] = useState<string[]>([]);
 
   /* ── Interaction zones ── */
   const [nearZone, setNearZone] = useState<NearZone | null>(null);
@@ -598,6 +647,7 @@ export function GamePage({ playerName }: GamePageProps) {
 
     const game = new RugTownGame({
       parentId: 'phaser-mount',
+      outfitId,
       onReady: (scene: WorldScene) => {
         if (cancelled) return;
         sceneRef.current = scene;
@@ -607,6 +657,14 @@ export function GamePage({ playerName }: GamePageProps) {
         // Read bgMissing flag from registry
         const missing = scene.game?.registry?.get('bgMissing') ?? false;
         setBgMissing(missing);
+
+        // RugTown Citizens population is randomized per session by
+        // WorldScene (createNpcs) and published once — read it here so
+        // the HUD/chat-activity simulator never hardcode a fixed count.
+        const count = scene.game?.registry?.get('npcCount') ?? 0;
+        const names: string[] = scene.game?.registry?.get('npcNames') ?? [];
+        setNpcCount(count);
+        setNpcNames(names);
 
         // Phaser-side E press near a zone — open the matching modal.
         // Landmark interactions take priority, so also dismiss any open
@@ -624,9 +682,13 @@ export function GamePage({ playerName }: GamePageProps) {
         // Phaser-side E press near an NPC — open a dialogue line.
         // WorldScene won't emit this while a landmark zone is active, but
         // clear any (stale) open modal too, just in case of a fast switch.
-        scene.events.on('npc-interact', (npc: NearNpc) => {
+        scene.events.on('npc-interact', (npc: NearNpc & { personality?: NpcPersonality }) => {
           if (cancelled) return;
-          const lines = NPC_DIALOGUE[npc.name];
+          // Original 10 citizens keep their hand-written flavor lines;
+          // every other citizen (the expanded 40-60 population) falls
+          // back to their personality's ambient speech pool so everyone
+          // has something to say, not just the original names.
+          const lines = NPC_DIALOGUE[npc.name] ?? (npc.personality ? NPC_SPEECH_BY_PERSONALITY[npc.personality] : null);
           if (!lines || lines.length === 0) return;
           setModalClosing(false);
           setModalZone(null);
@@ -984,6 +1046,49 @@ export function GamePage({ playerName }: GamePageProps) {
     return () => clearTimeout(timer);
   }, [triggerCityEvent]);
 
+  /* ── RugTown Citizens chat activity ──
+     Self-rescheduling timer (9-19s, randomized) drawing on the real,
+     session-randomized citizen names WorldScene published — never a
+     fixed/fake roster. Picks one of: reply to another named citizen,
+     mention a nearby district, or welcome the player. */
+  const triggerNpcChatActivity = useCallback(() => {
+    if (npcNames.length === 0) return;
+    const roll = Math.random();
+
+    if (roll < 0.34 && npcNames.length >= 2) {
+      const a = npcNames[Math.floor(Math.random() * npcNames.length)];
+      let b = a;
+      for (let guard = 0; guard < 5 && b === a; guard++) {
+        b = npcNames[Math.floor(Math.random() * npcNames.length)];
+      }
+      const line = NPC_REPLY_LINES[Math.floor(Math.random() * NPC_REPLY_LINES.length)];
+      appendChatMessage(b, `@${a} ${line}`, 'npc');
+    } else if (roll < 0.67) {
+      const name = npcNames[Math.floor(Math.random() * npcNames.length)];
+      const district = DISTRICTS[Math.floor(Math.random() * DISTRICTS.length)];
+      const lineFn = NPC_DISTRICT_LINES[Math.floor(Math.random() * NPC_DISTRICT_LINES.length)];
+      appendChatMessage(name, lineFn(district.name), 'npc');
+    } else {
+      const name = npcNames[Math.floor(Math.random() * npcNames.length)];
+      const lineFn = NPC_WELCOME_LINES[Math.floor(Math.random() * NPC_WELCOME_LINES.length)];
+      appendChatMessage(name, lineFn(playerName || 'DegenExplorer'), 'npc');
+    }
+  }, [npcNames, playerName, appendChatMessage]);
+
+  useEffect(() => {
+    if (npcNames.length === 0) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      const delay = NPC_CHAT_ACTIVITY_MIN_GAP + Math.random() * (NPC_CHAT_ACTIVITY_MAX_GAP - NPC_CHAT_ACTIVITY_MIN_GAP);
+      timer = setTimeout(() => {
+        triggerNpcChatActivity();
+        scheduleNext();
+      }, delay);
+    };
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, [npcNames, triggerNpcChatActivity]);
+
   const MEDALS = ['🥇', '🥈', '🥉'];
 
   const renderModalBody = (id: string) => {
@@ -1240,8 +1345,8 @@ export function GamePage({ playerName }: GamePageProps) {
               </div>
               <div className="qstat">
                 <span className="qstat__dot" />
-                <span className="qstat__label">NPC Citizens</span>
-                <span className="qstat__value">10</span>
+                <span className="qstat__label">RugTown Citizens</span>
+                <span className="qstat__value">{npcCount || '—'}</span>
               </div>
               <div className={`qstat ${tierJustChanged ? 'qstat--pulse' : ''}`}>
                 <span className={`qstat__dot qstat__dot--holder-${holderTier.toLowerCase()}`} />
@@ -1429,7 +1534,10 @@ export function GamePage({ playerName }: GamePageProps) {
                     key={m.id}
                     className={`chat-message chat-message--${m.kind}`}
                   >
-                    <span className="chat-message__sender">{m.sender}</span>
+                    <span className="chat-message__sender">
+                      {m.sender}
+                      {m.kind === 'npc' && <span className="chat-message__npc-tag">[NPC]</span>}
+                    </span>
                     <span className="chat-message__text">{m.text}</span>
                   </div>
                 ))}

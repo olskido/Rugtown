@@ -16,6 +16,8 @@ import { WorldScene } from './scenes/WorldScene';
 export interface RugTownGameConfig {
   /** DOM element ID to mount the canvas inside */
   parentId: string;
+  /** Outfit chosen on the pre-game outfit-select screen (CharacterStyles.ts id) */
+  outfitId?: string;
   /** Called when the scene is ready */
   onReady?: (scene: WorldScene) => void;
 }
@@ -26,6 +28,10 @@ export class RugTownGame {
 
   constructor(config: RugTownGameConfig) {
     this.worldScene = new WorldScene();
+
+    // Set before the scene's create() ever runs, so the player's first
+    // draw already uses the chosen outfit.
+    if (config.outfitId) this.worldScene.setOutfit(config.outfitId);
 
     this.game = new Phaser.Game({
       type: Phaser.AUTO,            // WebGL with Canvas fallback
