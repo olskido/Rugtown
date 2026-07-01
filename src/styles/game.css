@@ -3069,6 +3069,25 @@
   margin: 4px 0 0;
 }
 
+.outfit-nickname-row {
+  margin-bottom: 12px;
+}
+
+.outfit-nickname-row__label {
+  display: block;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a7a62;
+  margin-bottom: 5px;
+}
+
+.outfit-nickname-input {
+  width: 100%;
+}
+
 /* ── 2-column body: live preview left, slot pickers right ── */
 .outfit-select__body {
   display: flex;

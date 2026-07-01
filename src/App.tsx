@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import './styles/global.css';
 import './styles/landing.css';
 import './styles/game.css';
 import './styles/auth.css';
+import './styles/loading.css';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
 import { OutfitSelectPage } from './components/OutfitSelectPage';
+import { LoadingScreen } from './components/LoadingScreen';
 import { GamePage } from './components/GamePage';
 import { DEFAULT_APPEARANCE, type CharacterAppearance } from './game/world/CharacterAppearance';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -26,27 +28,22 @@ import {
 
     LandingPage
       │
-      ├─ (Supabase configured) → AuthPage ──┐
-      │                                      │
-      └─ (no Supabase / guest)               ▼
-                                        OutfitSelectPage
-                                              │
-                                              ▼
-                                          GamePage
+      ├─ (Supabase configured) → AuthPage
+      │                              │
+      └─ (no Supabase) ──────────────┤
+                                     ▼
+                              OutfitSelectPage (nickname + character)
+                                     │
+                                     ▼
+                              LoadingScreen (3–5 s)
+                                     │
+                                     ▼
+                                 GamePage
 
-  Profile sync — what is loaded before OutfitSelectPage/GamePage mount:
-    ✓  profile.username       → playerName
-    ✓  character_appearance   → appearance (opens creator pre-filled)
-    ✓  profile.rep            → initialRep (GamePage starts with saved REP)
-    ✓  player_badges          → initialBadgeIds (badges already marked unlocked)
-    ✓  player_inventory       → initialOwnedItemIds (items confirmed in DB)
-    ✓  district_unlocks       → initialDistrictIds (districts restored as unlocked)
-  Deferred (not this task):
-    –  quests
-  Guests: local-only, unchanged.
+  Guests: local-only, unchanged when Supabase is not configured.
 */
 
-type Screen = 'landing' | 'auth' | 'outfit' | 'game';
+type Screen = 'landing' | 'auth' | 'outfit' | 'loading' | 'game';
 
 interface AuthUser {
   id: string;
@@ -58,11 +55,22 @@ export default function App() {
   const [playerName, setPlayerName]         = useState('');
   const [appearance, setAppearance]         = useState<CharacterAppearance>(DEFAULT_APPEARANCE);
   const [user, setUser]                     = useState<AuthUser | null>(null);
-  // Loaded from profile before GamePage mounts — guests stay at defaults.
   const [initialRep, setInitialRep]             = useState(0);
   const [initialBadgeIds, setInitialBadgeIds]   = useState<string[]>([]);
   const [initialOwnedItemIds, setInitialOwnedItemIds] = useState<string[]>([]);
   const [initialDistrictIds, setInitialDistrictIds]   = useState<string[]>([]);
+
+  /** True while an explicit sign-in / sign-up / OAuth attempt is in flight. */
+  const authActionPendingRef = useRef(false);
+
+  const resetGuestProgress = useCallback(() => {
+    setPlayerName('');
+    setAppearance(DEFAULT_APPEARANCE);
+    setInitialRep(0);
+    setInitialBadgeIds([]);
+    setInitialOwnedItemIds([]);
+    setInitialDistrictIds([]);
+  }, []);
 
   /* ── Supabase: auth listener + profile sync ──────────────────── */
   useEffect(() => {
@@ -70,10 +78,6 @@ export default function App() {
 
     let cancelled = false;
 
-    /**
-     * Fetch profile, appearance, rep, and badges for `userId` in parallel.
-     * Any failure falls back silently to local defaults.
-     */
     const loadUserData = async (
       userId: string,
       emailFallback: string,
@@ -88,35 +92,39 @@ export default function App() {
         ]);
         if (cancelled) return;
 
-        // Username
         if (profile?.username) setPlayerName(profile.username);
         else setPlayerName(prev => prev || emailFallback);
 
-        // Appearance
         if (savedApp) setAppearance(savedApp);
-
-        // REP — always restore from profile when present (including 0)
         if (profile) setInitialRep(profile.rep);
-
-        // Badges
         if (badgeIds.length) setInitialBadgeIds(badgeIds);
-
-        // Inventory items
         if (itemIds.length) setInitialOwnedItemIds(itemIds);
-
-        // Districts
         if (districtIds.length) setInitialDistrictIds(districtIds);
       } catch {
         if (!cancelled) setPlayerName(prev => prev || emailFallback);
       }
     };
 
-    // Restore existing session on mount — sets state without navigating
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const handleSession = (session: { user: { id: string; email?: string | null } } | null) => {
       if (!session?.user || cancelled) return;
       const { id, email } = session.user;
       setUser({ id, email: email ?? null });
       loadUserData(id, email?.split('@')[0] ?? 'Degen');
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      handleSession(session);
+
+      // OAuth redirect lands with tokens in the URL — open Auth so the
+      // user sees their logged-in state and taps Continue (not a skip).
+      const isOAuthReturn =
+        window.location.hash.includes('access_token') ||
+        window.location.search.includes('code=');
+      if (session?.user && isOAuthReturn) {
+        setScreen('auth');
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -126,25 +134,20 @@ export default function App() {
         if (event === 'SIGNED_IN' && session?.user) {
           const { id, email } = session.user;
           setUser({ id, email: email ?? null });
-          // Load all profile data THEN navigate so OutfitSelectPage/GamePage
-          // mount with the correct initial values already in state.
           loadUserData(id, email?.split('@')[0] ?? 'Degen').then(() => {
             if (cancelled) return;
-            setScreen(prev =>
-              prev === 'landing' || prev === 'auth' ? 'outfit' : prev,
-            );
+            // Only advance after an explicit sign-in action on the Auth page.
+            if (authActionPendingRef.current) {
+              authActionPendingRef.current = false;
+              setScreen('outfit');
+            }
           });
         }
 
         if (event === 'SIGNED_OUT') {
           if (!cancelled) {
             setUser(null);
-            setPlayerName('');
-            setAppearance(DEFAULT_APPEARANCE);
-            setInitialRep(0);
-            setInitialBadgeIds([]);
-            setInitialOwnedItemIds([]);
-            setInitialDistrictIds([]);
+            resetGuestProgress();
           }
         }
       },
@@ -154,47 +157,53 @@ export default function App() {
       cancelled = true;
       subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resetGuestProgress]);
 
   /* ── Handlers ────────────────────────────────────────────────── */
 
-  const handleEnter = useCallback((name: string) => {
-    setPlayerName(name);
+  const handleEnterRugtown = useCallback(() => {
     setScreen(isSupabaseConfigured ? 'auth' : 'outfit');
   }, []);
 
-  /** Guest / auto-skip path from AuthPage (auth paths navigate via onAuthStateChange). */
-  const handleGuestOrSkip = useCallback((name: string) => {
-    if (name) setPlayerName(name);
+  const handleAuthContinue = useCallback(() => {
     setScreen('outfit');
   }, []);
 
+  const handleAuthSignInAttempt = useCallback(() => {
+    authActionPendingRef.current = true;
+  }, []);
+
+  const handleGuestFromAuth = useCallback(async () => {
+    authActionPendingRef.current = false;
+    if (supabase) await supabase.auth.signOut();
+    setUser(null);
+    resetGuestProgress();
+    setScreen('outfit');
+  }, [resetGuestProgress]);
+
   const handleAppearanceSelect = useCallback(
-    (picked: CharacterAppearance) => {
+    (picked: CharacterAppearance, name: string) => {
       setAppearance(picked);
-      setScreen('game');
+      setPlayerName(name);
+      setScreen('loading');
       if (user?.id) {
         saveAppearance(user.id, picked).catch(() => {});
-        if (playerName.trim()) {
-          saveUsername(user.id, playerName.trim()).catch(() => {});
-        }
+        if (name.trim()) saveUsername(user.id, name.trim()).catch(() => {});
       }
     },
-    [user, playerName],
+    [user],
   );
+
+  const handleLoadingComplete = useCallback(() => {
+    setScreen('game');
+  }, []);
 
   const handleLogout = useCallback(async () => {
     await supabase?.auth.signOut();
     setUser(null);
-    setPlayerName('');
-    setAppearance(DEFAULT_APPEARANCE);
-    setInitialRep(0);
-    setInitialBadgeIds([]);
-    setInitialOwnedItemIds([]);
-    setInitialDistrictIds([]);
+    resetGuestProgress();
     setScreen('landing');
-  }, []);
+  }, [resetGuestProgress]);
 
   /* ── Render ──────────────────────────────────────────────────── */
 
@@ -214,6 +223,15 @@ export default function App() {
     );
   }
 
+  if (screen === 'loading') {
+    return (
+      <LoadingScreen
+        playerName={playerName}
+        onComplete={handleLoadingComplete}
+      />
+    );
+  }
+
   if (screen === 'outfit') {
     return (
       <OutfitSelectPage
@@ -227,11 +245,15 @@ export default function App() {
   if (screen === 'auth') {
     return (
       <AuthPage
-        guestName={playerName}
-        onComplete={handleGuestOrSkip}
+        loggedInEmail={user?.email ?? null}
+        loggedInUsername={playerName || null}
+        isLoggedIn={!!user}
+        onContinue={handleAuthContinue}
+        onGuest={handleGuestFromAuth}
+        onSignInAttempt={handleAuthSignInAttempt}
       />
     );
   }
 
-  return <LandingPage onEnter={handleEnter} />;
+  return <LandingPage onEnterRugtown={handleEnterRugtown} />;
 }

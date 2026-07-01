@@ -230,6 +230,44 @@
   letter-spacing: 0.04em;
 }
 
+/* ── Logged-in welcome panel ── */
+.auth-logged-in {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.auth-logged-in__welcome {
+  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: #e8d8c0;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+.auth-logged-in__welcome strong {
+  color: #e8b84b;
+}
+
+.auth-logged-in__email {
+  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  color: #7a6848;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auth-btn-switch {
+  width: 100%;
+  justify-content: center;
+  font-size: 10px;
+}
+
 /* ══════════════════════════════════════════════════════════════
    SETTINGS PANEL — ACCOUNT SECTION
    Added here rather than in game.css to keep auth concerns together.

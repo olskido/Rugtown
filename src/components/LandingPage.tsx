@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FeatureCard } from './FeatureCard';
 import { subscribeCityPresenceCount, type PresenceCountState } from '../lib/presence';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -99,29 +99,19 @@ function useCountUp(target: number, duration: number = 1200, delay: number = 0):
 // Main Component
 // ──────────────────────────────────────────────────────────────
 interface LandingPageProps {
-  /** Called once a guest name is submitted — parent navigates to GamePage */
-  onEnter: (name: string) => void;
+  /** Called when the player taps Enter RugTown on the home card. */
+  onEnterRugtown: () => void;
 }
 
-export function LandingPage({ onEnter }: LandingPageProps) {
-  const [mode, setMode] = useState<'home' | 'guest'>('home');
-  const [guestName, setGuestName] = useState('');
+export function LandingPage({ onEnterRugtown }: LandingPageProps) {
   const [particles] = useState(() => generateParticles(40));
   const [mounted, setMounted] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Stagger mount animation
+  // Focus input when switching to guest mode
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
     return () => clearTimeout(t);
   }, []);
-
-  // Focus input when switching to guest mode
-  useEffect(() => {
-    if (mode === 'guest' && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [mode]);
 
   // Animated stat counters — stagger each one (NPC / alpha only)
   const npcCount      = useCountUp(MOCK_STATS.npcCitizens, 800, 1000);
@@ -139,20 +129,8 @@ export function LandingPage({ onEnter }: LandingPageProps) {
     return '—';
   })();
 
-  // Handle guest entry — hands the chosen (or generated) name to the parent,
-  // which swaps the app over to GamePage.
-  const handleGuestEnter = useCallback(() => {
-    const name = guestName.trim() || `Degen${Math.floor(Math.random() * 9999)}`;
-    onEnter(name);
-  }, [guestName, onEnter]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleGuestEnter();
-    if (e.key === 'Escape') { setMode('home'); setGuestName(''); }
-  }, [handleGuestEnter]);
-
   return (
-    <div className={`landing ${mounted ? 'landing--mounted' : ''}`}>
+    <div className={`landing screen-enter ${mounted ? 'landing--mounted' : ''}`}>
 
       {/* ────────────────────────────────────────────────────────
           BACKGROUND LAYER
@@ -285,21 +263,17 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             </div>
 
             {/* ── BUTTON SECTION ── */}
-            {mode === 'home' ? (
-              <div className="card__actions">
+            <div className="card__actions">
 
-                {/* Primary CTA — "ENTER THE CITY" from Image 2 */}
-                {/* Gold filled button, most prominent element */}
-                <button
-                  className="btn btn--primary"
-                  onClick={() => setMode('guest')}
-                  aria-label="Enter RugTown as guest"
-                >
-                  {/* Shimmer sweep on hover */}
-                  <span className="btn__shimmer" aria-hidden />
-                  <span className="btn__arrow" aria-hidden>▶</span>
-                  <span className="btn__label">Enter as Guest</span>
-                </button>
+              <button
+                className="btn btn--primary"
+                onClick={onEnterRugtown}
+                aria-label="Enter RugTown"
+              >
+                <span className="btn__shimmer" aria-hidden />
+                <span className="btn__arrow" aria-hidden>▶</span>
+                <span className="btn__label">Enter RugTown</span>
+              </button>
 
                 {/* Secondary row — "Live Players" + "Connect Wallet" from Image 2 */}
                 <div className="card__btn-row">
@@ -369,51 +343,6 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                 </div>
 
               </div>
-            ) : (
-              /* ── GUEST MODE ── */
-              <div className="card__guest-mode" role="form" aria-label="Enter your degen name">
-                <button
-                  className="btn btn--back"
-                  onClick={() => { setMode('home'); setGuestName(''); }}
-                  aria-label="Go back"
-                >
-                  ← Back
-                </button>
-
-                <p className="guest__prompt">Choose your degen name</p>
-
-                <input
-                  ref={inputRef}
-                  className="guest__input"
-                  type="text"
-                  placeholder="GuestDegen420"
-                  maxLength={20}
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  aria-label="Degen name"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-
-                <button
-                  className="btn btn--primary"
-                  onClick={handleGuestEnter}
-                  aria-label="Enter RugTown"
-                >
-                  <span className="btn__shimmer" aria-hidden />
-                  <span className="btn__arrow" aria-hidden>▶</span>
-                  <span className="btn__label">ENTER RUGTOWN</span>
-                </button>
-
-                <ul className="guest__warnings" aria-label="Guest mode limitations">
-                  <li><span aria-hidden>⚡</span> Session-only reputation</li>
-                  <li><span aria-hidden>🚫</span> No leaderboard access</li>
-                  <li><span aria-hidden>🔒</span> No vault access</li>
-                </ul>
-              </div>
-            )}
 
           </div>
 

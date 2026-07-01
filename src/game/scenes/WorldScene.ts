@@ -35,7 +35,7 @@ const DEFAULT_WORLD_W   = 3840;
 const DEFAULT_WORLD_H   = 2160;
 
 // Player movement
-const PLAYER_SPEED      = 330;          // px/sec at full run
+const PLAYER_SPEED      = 264;          // px/sec at full run (20% slower than 330)
 const PLAYER_DECEL_TIME = 0.10;         // smooth stop without slipperiness
 const PLAYER_DIAG       = 0.7071;       // diagonal normalization
 

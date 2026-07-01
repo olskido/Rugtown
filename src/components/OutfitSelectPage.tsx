@@ -68,7 +68,7 @@ const SLOTS: SlotConfig[] = [
 
 interface OutfitSelectPageProps {
   playerName: string;
-  onSelect: (appearance: CharacterAppearance) => void;
+  onSelect: (appearance: CharacterAppearance, playerName: string) => void;
   /**
    * Pre-filled appearance loaded from the user's Supabase profile.
    * Guests receive undefined here and start with DEFAULT_APPEARANCE.
@@ -82,6 +82,7 @@ export function OutfitSelectPage({ playerName, onSelect, initialAppearance }: Ou
   const [appearance, setAppearance] = useState<CharacterAppearance>(
     initialAppearance ?? DEFAULT_APPEARANCE,
   );
+  const [nickname, setNickname] = useState(playerName || '');
   const previewGameRef = useRef<CharacterPreviewGame | null>(null);
   const mountedRef = useRef(false);
 
@@ -139,8 +140,17 @@ export function OutfitSelectPage({ playerName, onSelect, initialAppearance }: Ou
     });
   }, []);
 
+  useEffect(() => {
+    if (playerName) setNickname(playerName);
+  }, [playerName]);
+
+  const handleEnter = useCallback(() => {
+    const name = nickname.trim() || `Degen${Math.floor(Math.random() * 9999)}`;
+    onSelect(appearance, name);
+  }, [appearance, nickname, onSelect]);
+
   return (
-    <div className="landing outfit-select landing--mounted">
+    <div className="landing outfit-select landing--mounted screen-enter">
       <div className="landing__bg" aria-hidden>
         <div className="landing__bg-city" />
         <div className="landing__vignette-warm" />
@@ -163,8 +173,28 @@ export function OutfitSelectPage({ playerName, onSelect, initialAppearance }: Ou
                 <span className="card__logo-text">CHARACTER</span>
               </h1>
               <p className="outfit-select__subtitle">
-                {playerName}, build your look before entering RugTown.
+                Choose your degen name and build your look.
               </p>
+            </div>
+
+            <div className="outfit-nickname-row">
+              <label className="outfit-nickname-row__label" htmlFor="outfit-nickname">
+                Degen Name
+              </label>
+              <input
+                id="outfit-nickname"
+                className="guest__input outfit-nickname-input"
+                type="text"
+                placeholder="GuestDegen420"
+                maxLength={20}
+                value={nickname}
+                onChange={e => setNickname(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleEnter()}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-label="Degen name"
+              />
             </div>
 
             <div className="outfit-select__body">
@@ -209,7 +239,7 @@ export function OutfitSelectPage({ playerName, onSelect, initialAppearance }: Ou
 
             <button
               className="btn btn--primary outfit-select__enter"
-              onClick={() => onSelect(appearance)}
+              onClick={handleEnter}
               aria-label="Confirm look and enter RugTown"
             >
               <span className="btn__shimmer" aria-hidden />
