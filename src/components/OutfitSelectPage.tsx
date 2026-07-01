@@ -69,10 +69,19 @@ const SLOTS: SlotConfig[] = [
 interface OutfitSelectPageProps {
   playerName: string;
   onSelect: (appearance: CharacterAppearance) => void;
+  /**
+   * Pre-filled appearance loaded from the user's Supabase profile.
+   * Guests receive undefined here and start with DEFAULT_APPEARANCE.
+   * App.tsx guarantees this is set before the component mounts (data is
+   * fetched before the screen transition), so no async update is needed.
+   */
+  initialAppearance?: CharacterAppearance;
 }
 
-export function OutfitSelectPage({ playerName, onSelect }: OutfitSelectPageProps) {
-  const [appearance, setAppearance] = useState<CharacterAppearance>(DEFAULT_APPEARANCE);
+export function OutfitSelectPage({ playerName, onSelect, initialAppearance }: OutfitSelectPageProps) {
+  const [appearance, setAppearance] = useState<CharacterAppearance>(
+    initialAppearance ?? DEFAULT_APPEARANCE,
+  );
   const previewGameRef = useRef<CharacterPreviewGame | null>(null);
   const mountedRef = useRef(false);
 

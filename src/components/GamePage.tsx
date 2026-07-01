@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { RugTownGame } from '../game/RugTownGame';
 import { WorldScene, NPC_SPEECH_BY_PERSONALITY, type NpcPersonality } from '../game/scenes/WorldScene';
 import { getWorldObject, WORLD_OBJECTS } from '../game/world/WorldObjects';
-import type { CharacterAppearance } from '../game/world/CharacterAppearance';
+import { JACKET_OPTIONS, type CharacterAppearance } from '../game/world/CharacterAppearance';
 import { soundManager, type SoundChannel } from '../audio/SoundManager';
 import type { EventRarity, EventReward, EventLocation, EventPhase as EnginePhase } from '../game/events/EventTypes';
 import { EVENT_DEFINITIONS } from '../game/events/EventDefinitions';
@@ -10,6 +10,8 @@ import { MarketPanel } from './MarketPanel';
 import { NoticeBoardPanel } from './NoticeBoardPanel';
 import { AlphaLoungePanel } from './AlphaLoungePanel';
 import { fetchTrendingSolanaTokens, type MarketToken } from '../services/dexscreener';
+import { saveRep, saveBadge, saveInventoryItem, saveDistrictUnlock } from '../lib/profile';
+import { createCityChannel, type PresencePayload } from '../lib/presence';
 
 /*
   GamePage.tsx
@@ -608,10 +610,24 @@ interface GamePageProps {
   playerName?: string;
   /** Modular appearance chosen on the pre-game character-creator screen */
   appearance?: CharacterAppearance;
+  /** Signed-in user's email, or null for guests.  Shown in Settings. */
+  userEmail?: string | null;
+  /** Supabase user id — null for guests. Enables profile sync. */
+  userId?: string | null;
+  /** REP loaded from profiles.rep on login; 0 for guests/new users. */
+  initialRep?: number;
+  /** Badge IDs already earned, loaded from player_badges on login. */
+  initialBadgeIds?: string[];
+  /** Item IDs already in player_inventory on login; used to skip re-saving defaults. */
+  initialOwnedItemIds?: string[];
+  /** District IDs already unlocked, loaded from district_unlocks on login. */
+  initialDistrictIds?: string[];
+  /** Called by the Settings sign-out button; only rendered when provided. */
+  onLogout?: () => void;
 }
 
 /* ─── Component ─── */
-export function GamePage({ playerName, appearance }: GamePageProps) {
+export function GamePage({ playerName, appearance, userEmail, userId, initialRep, initialBadgeIds, initialOwnedItemIds, initialDistrictIds, onLogout }: GamePageProps) {
   const mountRef   = useRef<HTMLDivElement>(null);
   const gameRef    = useRef<RugTownGame | null>(null);
   const sceneRef   = useRef<WorldScene | null>(null);
@@ -628,11 +644,32 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
   const [npcCount, setNpcCount] = useState(0);
   const [npcNames, setNpcNames] = useState<string[]>([]);
 
+  /* ── Realtime Presence — live online player count ──────────────
+     null means "not yet connected / Supabase not configured".
+     Shows '—' in the HUD until first sync arrives. ── */
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+
+  /* Stable per-session presence id: Supabase uid if logged in, else
+     a random guest token that lasts the lifetime of the GamePage. */
+  const presenceIdRef = useRef<string>(
+    userId ?? `guest_${Math.random().toString(36).slice(2, 10)}`
+  );
+  /* Latest-value refs for the presence broadcast closure — avoids stale
+     state captures inside the 150ms setInterval. */
+  const repRef        = useRef(initialRep ?? 0);
+  const holderTierRef = useRef<string>('None');
+  const playerNameRef = useRef(playerName || 'DegenExplorer');
+  // Holds the active Realtime channel so sendChatMessage / triggerEmote
+  // can broadcast without needing to reach into the presence useEffect's closure.
+  const cityChannelRef = useRef<ReturnType<typeof createCityChannel>>(null);
+  // Dedup set for received emote broadcasts — key: `${senderId}:${timestamp}`
+  const receivedEmoteKeysRef = useRef<Set<string>>(new Set());
+
   /* ── Interaction zones ── */
   const [nearZone, setNearZone] = useState<NearZone | null>(null);
   const [modalZone, setModalZone] = useState<string | null>(null);
   const [modalClosing, setModalClosing] = useState(false);
-  const [rep, setRep] = useState(0);
+  const [rep, setRep] = useState(initialRep ?? 0);
   const [fountainClaimed, setFountainClaimed] = useState(false);
   const [rewardFlash, setRewardFlash] = useState(0);
 
@@ -652,6 +689,12 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
   const [eventTimeRemaining, setEventTimeRemaining] = useState(0);
   const lastEventChatKeyRef = useRef<string | null>(null);
   const lastChainAnnouncedKeyRef = useRef<string | null>(null);
+
+  /* ── Event alert dismissal — banner/mayor-card can be dismissed without
+     stopping the underlying event. Both reset automatically whenever the
+     event id or phase changes (handled in the useEffect below). ── */
+  const [eventBannerDismissed, setEventBannerDismissed] = useState(false);
+  const [mayorCardDismissed, setMayorCardDismissed] = useState(false);
 
   /* ── "Today's Story" log (Phase 4 Event Chain System) — a rolling
      window of the last 5 notable moments (event phase starts + player
@@ -690,6 +733,11 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
   const [nearStatue, setNearStatue] = useState<{ rank: number; name: string } | null>(null);
   const [statueModal, setStatueModal] = useState<{ rank: number; name: string; rep: number; isPlayer: boolean } | null>(null);
   const [statueModalClosing, setStatueModalClosing] = useState(false);
+
+  /* ── Remote player profile card ── */
+  const [remoteProfile, setRemoteProfile] = useState<PresencePayload | null>(null);
+  const [remoteProfileClosing, setRemoteProfileClosing] = useState(false);
+  const [followedPlayerIds, setFollowedPlayerIds] = useState<Set<string>>(new Set());
 
   /* ── Local city chat (frontend-only, no backend) ── */
   const chatInputRef = useRef<HTMLInputElement>(null);
@@ -836,39 +884,61 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
   /* ── Inventory: badges + mock items ── */
   const isInventoryOpen = activeAction === 'Inventory';
   const [inventoryTab, setInventoryTab] = useState<InventoryTab>('Items');
-  const announcedBadgesRef = useRef<Set<string>>(new Set());
+  // Pre-populate with already-earned badges so they don't fire toasts again
+  // and any DB insert for them is skipped (idempotent but saves a write).
+  const announcedBadgesRef = useRef<Set<string>>(new Set(initialBadgeIds ?? []));
   const [badgeStatus, setBadgeStatus] = useState<Record<string, 'locked' | 'unlocked'>>(
-    () => Object.fromEntries(BADGES.map(b => [b.id, 'locked' as const]))
+    () => Object.fromEntries(
+      BADGES.map(b => [
+        b.id,
+        (initialBadgeIds ?? []).includes(b.id) ? 'unlocked' as const : 'locked' as const,
+      ])
+    )
   );
 
   // Idempotent — safe to call repeatedly, same pattern as markQuestReady.
+  // For logged-in users, also persists the badge to player_badges.
   const unlockBadge = useCallback((id: string) => {
     setBadgeStatus(prev => (prev[id] === 'locked' ? { ...prev, [id]: 'unlocked' } : prev));
     if (!announcedBadgesRef.current.has(id)) {
       announcedBadgesRef.current.add(id);
       const badge = BADGES.find(b => b.id === id);
       if (badge) showToast(`🏅 Badge unlocked: ${badge.name}`);
+      // Persist for logged-in users — fire-and-forget, guests are skipped.
+      if (userId) saveBadge(userId, id).catch(() => {});
     }
-  }, [showToast]);
+  }, [showToast, userId]);
 
   /* ── District progression ── */
   const isMapOpen = activeAction === 'Map';
-  const announcedDistrictsRef = useRef<Set<string>>(new Set());
+  // Pre-populate with already-unlocked districts (loaded from DB) + spawn-plaza
+  // (always unlocked) so returning users don't get re-toasted on re-trigger.
+  const announcedDistrictsRef = useRef<Set<string>>(
+    new Set(['spawn-plaza', ...(initialDistrictIds ?? [])])
+  );
   const wasGoldRef = useRef(false);
   const [districtUnlocked, setDistrictUnlocked] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(DISTRICTS.map(d => [d.id, d.id === 'spawn-plaza']))
+    () => Object.fromEntries(
+      DISTRICTS.map(d => [
+        d.id,
+        d.id === 'spawn-plaza' || (initialDistrictIds ?? []).includes(d.id),
+      ])
+    )
   );
 
   // Sticky — once unlocked, stays unlocked (same idempotent pattern as
   // quests/badges). Holder Vault is the one exception, handled below.
+  // For logged-in users, persists the unlock to district_unlocks.
   const unlockDistrict = useCallback((id: string) => {
     setDistrictUnlocked(prev => (prev[id] ? prev : { ...prev, [id]: true }));
     if (!announcedDistrictsRef.current.has(id)) {
       announcedDistrictsRef.current.add(id);
       const district = DISTRICTS.find(d => d.id === id);
       if (district) showToast(`🗺️ District unlocked: ${district.name}`);
+      // Persist for logged-in users — fire-and-forget, guests are skipped.
+      if (userId) saveDistrictUnlock(userId, id).catch(() => {});
     }
-  }, [showToast]);
+  }, [showToast, userId]);
 
   const setHolderTierAndNotify = useCallback((tier: HolderTier) => {
     if (tier === holderTier) return;
@@ -1042,6 +1112,13 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
         // permanent fixture, not a one-shot event pickup), just opens the
         // inspect modal and posts a chat message. Clears every other
         // overlay first, same exclusivity rule as the others above.
+        // Remote player clicked in Phaser — open the profile card
+        scene.events.on('remote-player-interact', (payload: PresencePayload) => {
+          if (cancelled) return;
+          setRemoteProfile(payload);
+          setRemoteProfileClosing(false);
+        });
+
         scene.events.on('statue-interact', (payload: { rank: number; name: string; rep: number; isPlayer: boolean }) => {
           if (cancelled) return;
           setDialogueClosing(false);
@@ -1349,6 +1426,19 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
      the others. Nothing to grant on close (or open) — statues have no
      reward, just a flavor inspect + chat message, already fired the
      moment the scene event arrived. ── */
+  const closeRemoteProfile = useCallback(() => {
+    setRemoteProfileClosing(true);
+    setTimeout(() => { setRemoteProfile(null); setRemoteProfileClosing(false); }, 200);
+  }, []);
+
+  const toggleFollowRemotePlayer = useCallback((id: string) => {
+    setFollowedPlayerIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
   const requestCloseStatueModal = useCallback(() => {
     setStatueModalClosing(true);
   }, []);
@@ -1380,6 +1470,14 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
     setChatInput('');
     sceneRef.current?.showPlayerSpeech(text);
     soundManager.play('chatSend');
+    // Broadcast to other real players — NPC and event messages are
+    // never sent here so they stay local.  cityChannelRef is null when
+    // Supabase is not configured, making this a safe no-op for guests.
+    cityChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'chat',
+      payload: { sender: playerName || 'DegenExplorer', text },
+    }).catch(() => {});
   }, [chatInput, playerName, appendChatMessage]);
 
   const handleChatInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1390,10 +1488,29 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
   const isEmotesOpen = activeAction === 'Emotes';
 
   const triggerEmote = useCallback((emote: Emote) => {
+    // Local player — unchanged
     sceneRef.current?.showPlayerSpeech(`${emote.icon} ${emote.label}`, EMOTE_BUBBLE_DURATION);
     sceneRef.current?.playEmoteAnimation();
     appendChatMessage(playerName || 'DegenExplorer', `used ${emote.label}`, 'player');
+    // Broadcast to other real players — no-op for guests (cityChannelRef is null)
+    cityChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'emote',
+      payload: {
+        senderId:  presenceIdRef.current,
+        sender:    playerName || 'DegenExplorer',
+        emoteId:   emote.id,
+        timestamp: Date.now(),
+      },
+    }).catch(() => {});
   }, [playerName, appendChatMessage]);
+
+  // Declared after triggerEmote so the dependency is satisfied
+  const waveAtRemotePlayer = useCallback(() => {
+    const waveEmote = EMOTES.find(e => e.id === 'wave');
+    if (waveEmote) triggerEmote(waveEmote);
+    closeRemoteProfile();
+  }, [triggerEmote, closeRemoteProfile]);
 
   // ESC closes whichever action-bar panel is open — Chat, Quests, Holder,
   // Leaderboard, Settings, Inventory, and Emotes all share `activeAction`.
@@ -1483,6 +1600,130 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
     if (nearZone?.id === 'whale') unlockBadge('whale-watcher');
   }, [nearZone, unlockBadge]);
 
+  /* ── Debounced REP sync for logged-in users ──────────────────────
+     Saves profiles.rep to Supabase 3 s after the last REP change.
+     Guests (userId null/undefined) are never touched.
+     The cleanup cancels any pending save; if the value settles the
+     write fires once, not on every increment. ── */
+  const repSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    if (repSaveTimerRef.current) clearTimeout(repSaveTimerRef.current);
+    repSaveTimerRef.current = setTimeout(() => {
+      saveRep(userId, rep).catch(() => {});
+    }, 3000);
+    return () => {
+      if (repSaveTimerRef.current) clearTimeout(repSaveTimerRef.current);
+    };
+  }, [rep, userId]);
+
+  /* ── Presence broadcast refs — keep latest mutable values in sync ──
+     setInterval closures can't read React state directly (stale closure),
+     so we mirror the values we need into refs on every render they change. */
+  useEffect(() => { repRef.current = rep; }, [rep]);
+  useEffect(() => { holderTierRef.current = holderTier; }, [holderTier]);
+  useEffect(() => { playerNameRef.current = playerName || 'DegenExplorer'; }, [playerName]);
+
+  /* ── Realtime Presence — city channel subscription ───────────────
+     Guests get a random guest id, logged-in users use their Supabase
+     user id. Position is broadcast at ~150ms rate; the sync callback
+     updates onlineCount and pushes the remote player list to WorldScene.
+     Gracefully skipped if Supabase is not configured. ── */
+  useEffect(() => {
+    const channel = createCityChannel();
+    if (!channel) return; // Supabase not configured — guest-only mode
+
+    cityChannelRef.current = channel;
+    let subscribed = false;
+
+    channel
+      .on('broadcast', { event: 'chat' }, ({ payload }: { payload: { sender: string; text: string } }) => {
+        // Supabase broadcast does NOT echo back to the sender, so no
+        // self-filtering is needed — just append as a player message.
+        if (payload?.sender && payload?.text) {
+          appendChatMessage(payload.sender, payload.text, 'player');
+        }
+      })
+      .on('broadcast', { event: 'emote' }, ({ payload }: {
+        payload: { senderId: string; sender: string; emoteId: string; timestamp: number };
+      }) => {
+        if (!payload?.senderId || !payload?.emoteId) return;
+        // Dedup — ignore duplicate network deliveries of the same emote
+        const key = `${payload.senderId}:${payload.timestamp}`;
+        if (receivedEmoteKeysRef.current.has(key)) return;
+        if (receivedEmoteKeysRef.current.size > 500) receivedEmoteKeysRef.current.clear();
+        receivedEmoteKeysRef.current.add(key);
+        const emote = EMOTES.find(e => e.id === payload.emoteId);
+        if (!emote) return;
+        sceneRef.current?.showRemotePlayerEmote(
+          payload.senderId,
+          `${emote.icon} ${emote.label}`,
+          EMOTE_BUBBLE_DURATION,
+        );
+      })
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<PresencePayload>();
+        const all: PresencePayload[] = Object.values(state).flat() as PresencePayload[];
+        setOnlineCount(all.length);
+        sceneRef.current?.setRemotePlayers(all, presenceIdRef.current);
+      })
+      .subscribe(async (status) => {
+        if (status !== 'SUBSCRIBED') return;
+        subscribed = true;
+        const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
+        await channel.track({
+          id:         presenceIdRef.current,
+          username:   playerNameRef.current,
+          x:          Math.round(pos.x),
+          y:          Math.round(pos.y),
+          appearance,
+          rep:        repRef.current,
+          holderTier: holderTierRef.current,
+        } as Record<string, unknown>).catch(() => {});
+      });
+
+    // Throttled position + state broadcast — ~150ms matches the requirement.
+    // `subscribed` guard avoids calling track() before the channel is ready.
+    const broadcastTimer = setInterval(() => {
+      if (!subscribed) return;
+      const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
+      channel.track({
+        id:         presenceIdRef.current,
+        username:   playerNameRef.current,
+        x:          Math.round(pos.x),
+        y:          Math.round(pos.y),
+        appearance,
+        rep:        repRef.current,
+        holderTier: holderTierRef.current,
+      } as Record<string, unknown>).catch(() => {});
+    }, 150);
+
+    return () => {
+      clearInterval(broadcastTimer);
+      channel.unsubscribe();
+      cityChannelRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ── Inventory sync for logged-in users ─────────────────────────
+     On first login (initialOwnedItemIds is empty) all MOCK_ITEMS are saved
+     to player_inventory as the player's "starting kit".  On subsequent
+     logins only items not yet in the DB are upserted (idempotent on
+     UNIQUE(user_id, item_id)).  Guests are skipped. ── */
+  useEffect(() => {
+    if (!userId) return;
+    const owned = new Set(initialOwnedItemIds ?? []);
+    MOCK_ITEMS.forEach(item => {
+      if (!owned.has(item.id)) {
+        saveInventoryItem(userId, item.id).catch(() => {});
+      }
+    });
+  // Run once per login session — userId and initialOwnedItemIds are stable
+  // after the component mounts (both come from App.tsx's loadUserData).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
   /* ── Treasure Hunt claim — fires once per claimId (WorldScene already
      guarantees a chest can only ever be claimed once, by destroying it
      synchronously before emitting 'treasure-interact'). Lives in an
@@ -1554,6 +1795,14 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
     }
     wasGoldRef.current = isGold;
   }, [holderTier, showToast]);
+
+  /* ── Reset event alert dismissals whenever the event phase changes.
+     A new phase means genuinely new information worth showing again. ── */
+  useEffect(() => {
+    setEventBannerDismissed(false);
+    setMayorCardDismissed(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEvent?.id, eventPhase]);
 
   /* ── Simulated Live City Events ──
      Self-rescheduling timer (10-20s, randomized each time so it never
@@ -1911,7 +2160,9 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
               <div className="qstat">
                 <span className="qstat__dot qstat__dot--live" />
                 <span className="qstat__label">Real Players</span>
-                <span className="qstat__value">—</span>
+                <span className="qstat__value">
+                  {onlineCount !== null ? onlineCount : '—'}
+                </span>
               </div>
               <div className="qstat">
                 <span className="qstat__dot" />
@@ -2503,6 +2754,24 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
                 <button className="settings-action-btn" onClick={resetView}>
                   🎯 Reset Camera
                 </button>
+
+                {/* ── Account ── shown only when signed in via Supabase ── */}
+                {userEmail && (
+                  <div className="settings-mute-row settings-account-row">
+                    <span className="settings-account-email" title={userEmail}>
+                      {userEmail}
+                    </span>
+                    {onLogout && (
+                      <button
+                        className="settings-mute-btn settings-mute-btn--muted"
+                        onClick={onLogout}
+                        aria-label="Sign out of your account"
+                      >
+                        Sign Out
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2941,6 +3210,81 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
           data the Leaderboard panel uses; title/flavor are rank-based
           (req. 12: no real users, nothing tied to a specific identity).
           ══════════════════════════════════════════════════════════ */}
+      {/* ── Remote player profile card ────────────────────────────── */}
+      {remoteProfile && (
+        <div
+          className={`modal-overlay ${remoteProfileClosing ? 'modal-overlay--closing' : ''}`}
+          onClick={closeRemoteProfile}
+        >
+          <div
+            className="modal-panel player-profile-card"
+            onClick={e => e.stopPropagation()}
+          >
+            <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+            <span className="modal-panel__shimmer" aria-hidden />
+
+            <div className="modal-header">
+              <span className="modal-header__icon" aria-hidden>👤</span>
+              <div className="modal-header__titles">
+                <span className="modal-header__title">{remoteProfile.username}</span>
+                <span className="modal-header__sub player-real-badge">● REAL PLAYER</span>
+              </div>
+              <button className="modal-close" onClick={closeRemoteProfile} aria-label="Close">✕</button>
+            </div>
+
+            <div className="modal-body">
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Status</span>
+                <span className="player-online-badge">🟢 Online</span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">REP</span>
+                <span className="whale-alert-row__value whale-alert-row__value--gold">
+                  {remoteProfile.rep.toLocaleString()}
+                </span>
+              </div>
+              <div className="whale-alert-row">
+                <span className="whale-alert-row__label">Tier</span>
+                <span className="whale-alert-row__value">
+                  <span
+                    className={`qstat__dot qstat__dot--holder-${remoteProfile.holderTier.toLowerCase()}`}
+                    style={{ display: 'inline-block', marginRight: 5, verticalAlign: 'middle' }}
+                  />
+                  {remoteProfile.holderTier}
+                </span>
+              </div>
+              {remoteProfile.appearance?.jacket && (
+                <div className="whale-alert-row">
+                  <span className="whale-alert-row__label">Look</span>
+                  <span className="whale-alert-row__value">
+                    {JACKET_OPTIONS.find(j => j.id === remoteProfile.appearance.jacket)?.name
+                      ?? remoteProfile.appearance.jacket}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="player-profile-actions">
+              <button className="profile-action-btn" onClick={waveAtRemotePlayer}>
+                👋 Wave
+              </button>
+              <button
+                className={`profile-action-btn${followedPlayerIds.has(remoteProfile.id) ? ' profile-action-btn--followed' : ''}`}
+                onClick={() => toggleFollowRemotePlayer(remoteProfile.id)}
+              >
+                {followedPlayerIds.has(remoteProfile.id) ? '✓ Following' : '+ Follow'}
+              </button>
+              <button className="profile-action-btn profile-action-btn--close" onClick={closeRemoteProfile}>
+                ✕ Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {statueModal && (
         <div
           className={`modal-overlay ${statueModalClosing ? 'modal-overlay--closing' : ''}`}
@@ -3022,7 +3366,7 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
           the registry into the banner/pin below. Visible across every
           non-idle phase (countdown/announcement/live/completed/cooldown).
           ══════════════════════════════════════════════════════════ */}
-      {currentEvent && eventPhase !== 'idle' && (
+      {currentEvent && eventPhase !== 'idle' && !eventBannerDismissed && (
         <div className="event-hud" aria-live="polite">
           <div
             className={`event-banner ${
@@ -3035,6 +3379,12 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
               </span>
               <span className="event-banner__title">{currentEvent.title}</span>
               <span className="event-banner__phase">{EVENT_PHASE_LABELS[eventPhase]}</span>
+              <button
+                className="event-banner__close"
+                onClick={() => setEventBannerDismissed(true)}
+                aria-label="Dismiss event banner"
+                title="Dismiss"
+              >✕</button>
             </div>
             <div className="event-banner__row event-banner__row--meta">
               <span className="event-banner__meta">📍 {currentEvent.location.displayName}</span>
@@ -3066,16 +3416,20 @@ export function GamePage({ playerName, appearance }: GamePageProps) {
         </div>
       )}
 
-      {/* Mayor announcement — a non-blocking card, deliberately without a
-          full-screen backdrop so it never interrupts movement or competes
-          with the modal/dialogue "only one overlay open at a time" rule
-          those use. Auto-clears the moment Announcement phase ends. */}
-      {eventPhase === 'announcement' && currentEvent && (
+      {/* Mayor announcement — non-blocking card; can be dismissed without
+          stopping the event. Auto-reappears if the phase changes. */}
+      {eventPhase === 'announcement' && currentEvent && !mayorCardDismissed && (
         <div className="mayor-card" role="status" aria-live="polite">
           <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
           <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
           <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
           <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+          <button
+            className="mayor-card__close"
+            onClick={() => setMayorCardDismissed(true)}
+            aria-label="Dismiss announcement"
+            title="Dismiss"
+          >✕</button>
           <div className="mayor-card__header">
             <span className="mayor-card__icon" aria-hidden>📯</span>
             <span className="mayor-card__title">Mayor of RugTown</span>

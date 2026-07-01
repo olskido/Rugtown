@@ -3261,6 +3261,32 @@
   flex-wrap: wrap;
 }
 
+/* Close button inside the event banner — dismisses the visual without
+   stopping the event. pointer-events: all overrides the parent's none. */
+.event-banner__close {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(200, 144, 42, 0.3);
+  border-radius: 50%;
+  color: #7a6040;
+  font-size: 8px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: all;
+  transition: border-color 0.13s, color 0.13s;
+}
+
+.event-banner__close:hover {
+  border-color: rgba(200, 144, 42, 0.65);
+  color: #e8b84b;
+}
+
 .event-banner__title {
   font-family: 'Cinzel', serif;
   font-size: 13px;
@@ -3392,6 +3418,32 @@
 }
 
 .mayor-card .panel-corner { font-size: 11px; color: #c8902a; }
+
+/* Close button on the Mayor card — dismisses without stopping the event. */
+.mayor-card__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(200, 144, 42, 0.28);
+  border-radius: 50%;
+  color: #7a6040;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: all;
+  transition: border-color 0.13s, color 0.13s;
+}
+
+.mayor-card__close:hover {
+  border-color: rgba(200, 144, 42, 0.65);
+  color: #e8b84b;
+}
 
 .mayor-card__header {
   display: flex;
@@ -4679,5 +4731,79 @@
     font-size: 8.5px;
     padding: 6px 12px;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   REMOTE PLAYER PROFILE CARD
+   Reuses .modal-overlay / .modal-panel chrome; only adds the
+   three action buttons and two inline text badges below.
+   ══════════════════════════════════════════════════════════════ */
+
+/* "● REAL PLAYER" badge in the header subtitle — cyan to match
+   the in-world remote-player label colour. */
+.player-real-badge {
+  color: #40e8f8 !important;
+  letter-spacing: 0.1em;
+}
+
+/* "🟢 Online" inline status */
+.player-online-badge {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: #48d848;
+  letter-spacing: 0.02em;
+}
+
+/* Row of Wave / Follow / Close action buttons */
+.player-profile-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 16px;
+}
+
+.profile-action-btn {
+  flex: 1;
+  padding: 7px 6px;
+  background: rgba(200, 144, 42, 0.07);
+  border: 1px solid rgba(200, 144, 42, 0.28);
+  border-radius: 3px;
+  color: #c8b89a;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.profile-action-btn:hover {
+  background: rgba(200, 144, 42, 0.18);
+  color: #e8b84b;
+  border-color: rgba(200, 144, 42, 0.5);
+}
+
+/* Active "Following" state — cyan accent mirrors the player label */
+.profile-action-btn--followed {
+  background: rgba(64, 232, 248, 0.09);
+  border-color: rgba(64, 232, 248, 0.35);
+  color: #40e8f8;
+}
+
+.profile-action-btn--followed:hover {
+  background: rgba(64, 232, 248, 0.18);
+  border-color: rgba(64, 232, 248, 0.55);
+  color: #70f0ff;
+}
+
+/* Close button — slightly narrower, no flex-grow */
+.profile-action-btn--close {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+}
+
+@media (max-width: 480px) {
+  .player-profile-actions { gap: 4px; }
+  .profile-action-btn { font-size: 9px; padding: 6px 4px; }
+  .profile-action-btn--close { padding: 6px 8px; }
 }
 

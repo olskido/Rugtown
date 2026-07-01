@@ -10,6 +10,7 @@ import { EVENT_DEFINITIONS } from '../events/EventDefinitions';
 import type { EventDefinition, EventInstance, EventPhase } from '../events/EventTypes';
 import { soundManager } from '../../audio/SoundManager';
 import { drawHumanoid, CHAR_W, CHAR_H, SHADOW_W, SHADOW_H, type HumanoidPose, type Direction } from '../render/HumanoidRenderer';
+import type { PresencePayload } from '../../lib/presence';
 
 /*
   WorldScene.ts — Player Movement + NPC Citizens Edition
@@ -43,6 +44,10 @@ const PLAYER_DIAG       = 0.7071;       // diagonal normalization
 const CAM_LERP          = 0.10;         // 0=instant, 1=never catches up
 const CAM_DEADZONE_X    = 80;           // px of camera deadzone around player
 const CAM_DEADZONE_Y    = 60;
+
+// World-edge safe zone: player can't walk closer than this to any world
+// boundary, giving the camera room to stay centred near the edges.
+const WORLD_PAD = 120;
 
 // Zoom
 const ZOOM_MIN          = 0.35;        // absolute floor; the dynamic per-frame zoomMin (see computeZoomMin) is usually the binding constraint and is normally higher than this
@@ -394,6 +399,31 @@ interface NpcData {
   speech: Phaser.GameObjects.Text;
 }
 
+/** Phaser graphics + interpolation state for one remote real player. */
+interface RemotePlayerEntry {
+  glow:    Phaser.GameObjects.Graphics;
+  shadow:  Phaser.GameObjects.Graphics;
+  body:    Phaser.GameObjects.Graphics;
+  label:   Phaser.GameObjects.Text;
+  speech:  Phaser.GameObjects.Text;   // emote bubble (hidden when idle)
+  px:      number;     // current lerped world-pixel x
+  py:      number;     // current lerped world-pixel y
+  targetX: number;
+  targetY: number;
+  animTick: number;
+  facing:  Direction;
+  isMoving: boolean;
+  resolvedAppearance: ResolvedAppearance;
+  username: string;
+  speechUntil:    number;   // ms until emote bubble hides
+  emotePulseUntil: number;  // ms until emote pulse ends
+  // Cached presence data — exposed via click event for the profile card
+  presenceId:    string;
+  rep:           number;
+  holderTier:    string;
+  rawAppearance: CharacterAppearance;
+}
+
 export class WorldScene extends Phaser.Scene {
 
   /* ── Background ── */
@@ -432,6 +462,9 @@ export class WorldScene extends Phaser.Scene {
   /* ── NPC citizens ── */
   private npcs: NpcData[] = [];
   private npcLandmarks: { name: string; fx: number; fy: number; radius: number }[] = [];
+
+  /* ── Remote real players (Realtime Presence) ── */
+  private remotePlayerEntries = new Map<string, RemotePlayerEntry>();
   /** Global cross-citizen cooldown so ambient speech forwarded into the
    *  city chat panel doesn't scale (and spam) with population size. */
   private npcChatCooldownRemaining = 0;
@@ -475,7 +508,7 @@ export class WorldScene extends Phaser.Scene {
   private keyZoomOut!:   Phaser.Input.Keyboard.Key;
   private keyZoomReset!: Phaser.Input.Keyboard.Key;
   private keyE!:         Phaser.Input.Keyboard.Key;
-  private keyC!:         Phaser.Input.Keyboard.Key;
+  // keyC removed — collision debug is Settings-only in public demo
 
   /* ── Zoom ── */
   private targetZoom  = ZOOM_DEFAULT;
@@ -671,6 +704,30 @@ export class WorldScene extends Phaser.Scene {
       );
     });
 
+    /* ── Remote player click-to-profile ──────────────────────────────
+       pointer.worldX/Y accounts for camera scroll + zoom, so the hit
+       test works at any zoom level. Uses a generous radius (CHAR_H * 0.65)
+       so small pixel-art figures are tappable on mobile too. ── */
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const hitR2 = (CHAR_H * 0.65) ** 2;
+      for (const entry of this.remotePlayerEntries.values()) {
+        const dx = pointer.worldX - entry.px;
+        const dy = pointer.worldY - entry.py;
+        if (dx * dx + dy * dy <= hitR2) {
+          this.events.emit('remote-player-interact', {
+            id:         entry.presenceId,
+            username:   entry.username,
+            x:          entry.px,
+            y:          entry.py,
+            appearance: entry.rawAppearance,
+            rep:        entry.rep,
+            holderTier: entry.holderTier,
+          });
+          break; // only one card at a time
+        }
+      }
+    });
+
     /* ── Interaction zones ── */
     this.createZones();
 
@@ -774,22 +831,19 @@ export class WorldScene extends Phaser.Scene {
     this.velX = Phaser.Math.Linear(this.velX, tvx, Math.min(accel, 1));
     this.velY = Phaser.Math.Linear(this.velY, tvy, Math.min(accel, 1));
 
-    /* ── Apply movement — clamp to world bounds, then resolve collisions.
-       X and Y are resolved separately so the player slides along a
-       wall/canal edge instead of stopping dead on a diagonal approach. ── */
-    const rawX = Phaser.Math.Clamp(
+    /* ── Apply movement — world-boundary clamp only (no building collision
+       in public demo mode). WORLD_PAD keeps the player away from the
+       absolute edge so the camera always has room to stay centred. ── */
+    const newX = Phaser.Math.Clamp(
       this.px + this.velX * dt,
-      CHAR_W / 2,
-      this.worldW - CHAR_W / 2
+      WORLD_PAD,
+      this.worldW - WORLD_PAD
     );
-    const rawY = Phaser.Math.Clamp(
+    const newY = Phaser.Math.Clamp(
       this.py + this.velY * dt,
-      CHAR_H / 2,
-      this.worldH - CHAR_H / 2
+      WORLD_PAD,
+      this.worldH - WORLD_PAD
     );
-
-    const newX = this.isBlockedAt(rawX, this.py) ? this.px : rawX;
-    const newY = this.isBlockedAt(newX, rawY) ? this.py : rawY;
 
     const moved = Math.abs(newX - this.px) > 0.1 || Math.abs(newY - this.py) > 0.1;
     this.px = newX;
@@ -817,6 +871,9 @@ export class WorldScene extends Phaser.Scene {
 
     /* ── NPC citizens ── */
     this.updateNpcs(delta);
+
+    /* ── Remote real players (Realtime Presence) ── */
+    this.updateRemotePlayers(delta);
 
     /* ── Event Engine weather overlay (purely cosmetic, additive layer) ── */
     this.updateWeatherEffect(delta);
@@ -883,11 +940,6 @@ export class WorldScene extends Phaser.Scene {
     }
     if (Phaser.Input.Keyboard.JustDown(this.keyZoomReset)) {
       this.targetZoom = ZOOM_DEFAULT;
-    }
-
-    /* ── Debug: C toggles the collision-zone overlay ── */
-    if (Phaser.Input.Keyboard.JustDown(this.keyC)) {
-      this.setCollisionDebug(!this.collisionDebugVisible);
     }
 
     /* ── Smooth zoom ── */
@@ -2865,7 +2917,7 @@ export class WorldScene extends Phaser.Scene {
     this.keyZoomOut   = kb.addKey(Phaser.Input.Keyboard.KeyCodes.MINUS);
     this.keyZoomReset = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ZERO);
     this.keyE         = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    this.keyC         = kb.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    // C key collision-debug shortcut removed for public demo (use Settings panel)
 
     kb.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_ADD).on('down', () => {
       this.targetZoom = Phaser.Math.Clamp(this.targetZoom + ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
@@ -2987,5 +3039,213 @@ export class WorldScene extends Phaser.Scene {
   /** Mobile interact button — same effect as a single E key press. */
   requestInteract() {
     this.virtualInteractRequested = true;
+  }
+
+  /**
+   * Show an emote bubble + pop animation on a specific remote player.
+   * Called from GamePage when a broadcast emote is received.
+   * No-op if the entry doesn't exist yet (player not yet in presence state).
+   */
+  showRemotePlayerEmote(presenceId: string, text: string, duration: number) {
+    const entry = this.remotePlayerEntries.get(presenceId);
+    if (!entry) return;
+    entry.speech.setText(text);
+    entry.speech.setVisible(true);
+    entry.speechUntil    = duration;
+    entry.emotePulseUntil = EMOTE_PULSE_DURATION;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     REALTIME PRESENCE — REMOTE PLAYER RENDERING
+     Called from React (GamePage) on every presence sync event.
+     ═══════════════════════════════════════════════════════════ */
+
+  /**
+   * Update the set of remote real players rendered in-scene.
+   * Creates, updates, or destroys Phaser graphics objects as needed.
+   * The local player (localId) is always excluded from rendering.
+   * Safe to call before create() — returns immediately in that case.
+   */
+  setRemotePlayers(players: PresencePayload[], localId: string) {
+    if (!this.playerBody) return; // scene not yet initialised
+
+    const activeIds = new Set(
+      players.filter(p => p.id !== localId).map(p => p.id)
+    );
+
+    // Remove entries whose owner disconnected
+    this.remotePlayerEntries.forEach((entry, id) => {
+      if (!activeIds.has(id)) {
+        entry.glow.destroy();
+        entry.shadow.destroy();
+        entry.body.destroy();
+        entry.label.destroy();
+        entry.speech.destroy();
+        this.remotePlayerEntries.delete(id);
+      }
+    });
+
+    // Create or update entries for every present remote player
+    for (const p of players) {
+      if (p.id === localId) continue;
+
+      const existing = this.remotePlayerEntries.get(p.id);
+      if (existing) {
+        existing.targetX          = p.x;
+        existing.targetY          = p.y;
+        existing.resolvedAppearance = resolveAppearance(p.appearance);
+        existing.rep              = p.rep;
+        existing.holderTier       = p.holderTier;
+        existing.rawAppearance    = p.appearance;
+        if (existing.username !== p.username) {
+          existing.username = p.username;
+          existing.label.setText(p.username);
+        }
+      } else {
+        const glow   = this.add.graphics().setDepth(8);
+        const shadow = this.add.graphics().setDepth(9);
+        const body   = this.add.graphics().setDepth(10);
+        // Cyan label — visually distinct from Citizens (grey) and the
+        // local player's label (gold), so anyone glancing can instantly
+        // tell this is another real human.
+        const label  = this.add.text(0, 0, p.username, {
+          fontFamily: '"Cinzel", serif',
+          fontSize:   '8px',
+          color:      '#40e8f8',
+          backgroundColor: 'rgba(0,12,20,0.92)',
+          padding: { x: 4, y: 2 },
+          stroke: '#001828',
+          strokeThickness: 3,
+          resolution: Math.max(2, window.devicePixelRatio || 1),
+        }).setOrigin(0.5, 1).setDepth(11);
+
+        const speech = this.add.text(0, 0, '', {
+          fontFamily: '"Cinzel", serif',
+          fontSize:   '9px',
+          color:      '#e8d8c0',
+          backgroundColor: 'rgba(10,14,18,0.92)',
+          padding: { x: 5, y: 3 },
+          align: 'center',
+        }).setOrigin(0.5, 1).setDepth(12).setVisible(false);
+
+        this.remotePlayerEntries.set(p.id, {
+          glow, shadow, body, label, speech,
+          px: p.x, py: p.y,
+          targetX: p.x, targetY: p.y,
+          animTick: 0,
+          facing: 'down',
+          isMoving: false,
+          resolvedAppearance: resolveAppearance(p.appearance),
+          username: p.username,
+          speechUntil: 0,
+          emotePulseUntil: 0,
+          presenceId:    p.id,
+          rep:           p.rep,
+          holderTier:    p.holderTier,
+          rawAppearance: p.appearance,
+        });
+      }
+    }
+  }
+
+  private updateRemotePlayers(delta: number) {
+    this.remotePlayerEntries.forEach(entry => {
+      entry.animTick += delta;
+
+      const dx = entry.targetX - entry.px;
+      const dy = entry.targetY - entry.py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > 0.5) {
+        // Network-smooth lerp: closes ~half the gap every ~80ms at 60fps.
+        const factor = Math.min(1, (delta / 1000) * 12);
+        entry.px += dx * factor;
+        entry.py += dy * factor;
+        entry.isMoving = dist > 6;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          entry.facing = dx > 0 ? 'right' : 'left';
+        } else {
+          entry.facing = dy > 0 ? 'down' : 'up';
+        }
+      } else {
+        entry.isMoving = false;
+      }
+
+      // Speech bubble countdown
+      if (entry.speechUntil > 0) {
+        entry.speechUntil -= delta;
+        if (entry.speechUntil <= 0) entry.speech.setVisible(false);
+      }
+
+      // Emote pulse countdown
+      if (entry.emotePulseUntil > 0) {
+        entry.emotePulseUntil = Math.max(0, entry.emotePulseUntil - delta);
+      }
+
+      this.drawRemotePlayer(entry);
+    });
+  }
+
+  private drawRemotePlayer(entry: RemotePlayerEntry) {
+    const t = entry.animTick / 1000;
+    const breathPhase  = t * IDLE_BREATH_SPEED;
+    const breathe       = Math.sin(breathPhase);
+    const idleBob        = Math.abs(breathe) * IDLE_BOB;
+    const breathScale    = entry.isMoving ? 1 : 1 + breathe * IDLE_BREATH_SCALE;
+
+    const walkPhase = t * WALK_CYCLE_SPEED * Math.PI;
+    const stepL      = Math.sin(walkPhase);
+    const stepR       = -stepL;
+    const legLiftL      = entry.isMoving ? Math.max(0, stepL) * LEG_LIFT : 0;
+    const legLiftR       = entry.isMoving ? Math.max(0, stepR) * LEG_LIFT : 0;
+    const legStagger        = entry.isMoving ? stepL * LEG_STAGGER_Y : 0;
+    const legSwingX           = entry.isMoving ? stepL * LEG_SWING_X : 0;
+    const walkBob             = entry.isMoving ? Math.abs(stepL) * BODY_BOB_WALK : 0;
+    const armSwing              = entry.isMoving
+      ? stepL * ARM_SWING_WALK
+      : Math.sin(breathPhase * 0.55) * IDLE_ARM_SWAY;
+    const bodyBob = entry.isMoving ? walkBob : idleBob;
+
+    // Emote pop — same math as the local player's emotePulse
+    const emoteProgress = entry.emotePulseUntil / EMOTE_PULSE_DURATION;
+    const emotePulse = emoteProgress > 0
+      ? 1 + Math.sin(emoteProgress * Math.PI) * EMOTE_PULSE_AMOUNT
+      : 1;
+
+    // Cyan glow (gold = local player, nothing = NPC citizens)
+    entry.glow.clear();
+    for (let r = 28; r >= 10; r -= 9) {
+      entry.glow.fillStyle(0x00c8e8, 0.042 * (1 - (r - 10) / 18));
+      entry.glow.fillCircle(0, CHAR_H / 4, r);
+    }
+    entry.glow.setPosition(entry.px, entry.py);
+
+    entry.shadow.clear();
+    entry.shadow.fillStyle(0x000000, 0.20);
+    entry.shadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 5) * (1 - bodyBob * 0.05), SHADOW_H + 2);
+    entry.shadow.fillStyle(0x000000, 0.42);
+    entry.shadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * (1 - bodyBob * 0.05), SHADOW_H);
+    entry.shadow.setPosition(entry.px, entry.py);
+
+    drawHumanoid(entry.body, entry.px, entry.py, {
+      facing:     entry.facing,
+      bodyBob,
+      legStagger,
+      legLiftL,
+      legLiftR,
+      armSwing,
+      legSwingX,
+      headBob:    entry.isMoving ? 0 : Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB,
+      rotation:   0,
+      breathScale,
+      scale:      emotePulse,   // 1 normally; brief squash/stretch on emote
+      alpha:      1,
+      appearance: entry.resolvedAppearance,
+      blink:      0,
+    });
+
+    const headYLocal = -bodyBob - CHAR_H * 0.5;
+    entry.label.setPosition(Math.round(entry.px), Math.round(entry.py + headYLocal - 6));
+    entry.speech.setPosition(entry.px, entry.py + headYLocal - 18);
   }
 }

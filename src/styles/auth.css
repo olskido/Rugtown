@@ -1,0 +1,274 @@
+/*
+  auth.css
+  ────────
+  Styles for AuthPage.tsx and the Settings-panel account section.
+  Reuses landing.css + game.css conventions throughout (black/gold,
+  Cinzel font, same card chrome).  Imported in App.tsx.
+*/
+
+/* ══════════════════════════════════════════════════════════════
+   AUTH PAGE LAYOUT
+   ══════════════════════════════════════════════════════════════ */
+
+/* Full-screen centering wrapper — same structure as OutfitSelectPage */
+.auth-page__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  overflow-y: auto;
+}
+
+/* Narrower card than the outfit creator — auth is form-focused */
+.auth-page__card {
+  position: static;
+  width: min(420px, 100%);
+  max-width: 420px;
+}
+
+.auth-page__inner {
+  align-items: stretch;
+  gap: 0;
+}
+
+/* ── Header ── */
+.auth-page__header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.auth-page__logo {
+  font-family: 'Cinzel Decorative', 'Cinzel', serif;
+  font-size: clamp(22px, 5vw, 30px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #e8b84b;
+  text-shadow:
+    0 0 16px rgba(232, 184, 75, 0.35),
+    0 0 40px rgba(200, 144, 42, 0.18);
+  margin-bottom: 6px;
+}
+
+.auth-page__subtitle {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: #8a7a62;
+  letter-spacing: 0.04em;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MODE TABS (Sign In / Create Account)
+   ══════════════════════════════════════════════════════════════ */
+
+.auth-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.2);
+  margin-bottom: 16px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 9px 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6a5a42;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.auth-tab:hover {
+  color: #c8b89a;
+}
+
+.auth-tab--active {
+  color: #e8b84b;
+  border-bottom-color: #c8902a;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FEEDBACK MESSAGES
+   ══════════════════════════════════════════════════════════════ */
+
+.auth-feedback {
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  line-height: 1.5;
+  border-radius: 3px;
+}
+
+.auth-feedback--error {
+  color: #e8a080;
+  background: rgba(232, 80, 60, 0.10);
+  border: 1px solid rgba(232, 80, 60, 0.28);
+}
+
+.auth-feedback--notice {
+  color: #80d8a0;
+  background: rgba(62, 207, 110, 0.08);
+  border: 1px solid rgba(62, 207, 110, 0.25);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   EMAIL / PASSWORD FORM
+   ══════════════════════════════════════════════════════════════ */
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+/* Inherits guest__input base, just adds explicit width */
+.auth-input {
+  width: 100%;
+}
+
+/* Full-width primary submit button */
+.auth-btn-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DIVIDER ("or")
+   ══════════════════════════════════════════════════════════════ */
+
+/* Reuses .card__divider chrome — just adds the text node style */
+.auth-divider {
+  margin: 12px 0;
+  gap: 10px;
+}
+
+.auth-divider-text {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: #4a3e2e;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GOOGLE BUTTON
+   ══════════════════════════════════════════════════════════════ */
+
+.auth-btn-google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 20px;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #c8b89a;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(200, 144, 42, 0.35);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.auth-btn-google:hover:not(:disabled) {
+  background: rgba(200, 144, 42, 0.10);
+  border-color: rgba(200, 144, 42, 0.6);
+  color: #e8d8c0;
+}
+
+.auth-btn-google:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* "G" badge inside the Google button */
+.auth-google-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  background: #4285F4;
+  color: #fff;
+  font-family: 'Arial', 'Helvetica', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GUEST BUTTON + DISCLAIMER
+   ══════════════════════════════════════════════════════════════ */
+
+.auth-btn-guest {
+  width: 100%;
+  justify-content: center;
+}
+
+.auth-disclaimer {
+  margin-top: 10px;
+  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  color: #4a3e2e;
+  letter-spacing: 0.04em;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SETTINGS PANEL — ACCOUNT SECTION
+   Added here rather than in game.css to keep auth concerns together.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Separator above the account row */
+.settings-account-row {
+  border-top: 1px solid rgba(200, 144, 42, 0.12);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+/* Truncated email label */
+.settings-account-email {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: #7a6848;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 460px) {
+  .auth-page__card {
+    width: 96vw;
+  }
+
+  .auth-page__logo {
+    font-size: 20px;
+  }
+
+  .auth-tab {
+    font-size: 9px;
+    padding: 8px 6px;
+  }
+}

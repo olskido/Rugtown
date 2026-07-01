@@ -16,14 +16,15 @@ in-session state. The UI clearly labels mock/devnet content.
 
 ## Tech stack
 
-| Layer       | Technology |
-|-------------|------------|
-| UI / HUD    | React 18 + TypeScript |
-| Game engine | Phaser 3.90 (WebGL / Canvas) |
-| Bundler     | Vite 5 |
-| Styling     | Plain CSS (no Tailwind) |
-| Sound       | Web Audio API (synthesized, no audio files) |
-| Market data | DexScreener public API (no key required) |
+| Layer         | Technology |
+|---------------|------------|
+| UI / HUD      | React 18 + TypeScript |
+| Game engine   | Phaser 3.90 (WebGL / Canvas) |
+| Bundler       | Vite 5 |
+| Styling       | Plain CSS (no Tailwind) |
+| Sound         | Web Audio API (synthesized, no audio files) |
+| Market data   | DexScreener public API (no key required) |
+| Auth + DB     | Supabase (optional — see setup below) |
 
 ---
 
@@ -36,6 +37,10 @@ npm run build      # tsc + vite production build → dist/
 npm run preview    # serve dist/ locally
 ```
 
+**RugTown works without any configuration.**  Without a Supabase project, it
+runs in guest-only mode — all gameplay, live market data, and events work
+normally; progress just isn't saved between sessions.
+
 ### City background
 
 Drop your city artwork at `public/assets/backgrounds/rugtown-city.png`.
@@ -44,9 +49,61 @@ world — all systems still work.
 
 ---
 
-## Deploying
+## Supabase setup (optional — enables accounts & saved progress)
 
-Static Vite app, no server-side code, no environment variables.
+### 1. Create a project
+
+Sign in at [supabase.com](https://supabase.com) and create a new project.
+Wait for it to finish provisioning.
+
+### 2. Run the database schema
+
+Open **SQL Editor → New query** in the Supabase dashboard, paste the full
+contents of [`database/schema.sql`](database/schema.sql) and click **Run**.
+
+This creates all tables, RLS policies, indexes, and the signup trigger in one
+pass.  The file is idempotent — safe to re-run.
+
+### 3. Configure environment variables
+
+```bash
+cp .env.example .env.local
+```
+
+Open `.env.local` and paste the two values from  
+**Supabase dashboard → Settings → API**:
+
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-public-key-here
+```
+
+> **Never commit `.env.local`** — it is already listed in `.gitignore`.  
+> The anon key is safe to expose in the browser because every table has
+> Row-Level Security enabled; users can only read and write their own rows.
+
+### 4. (Optional) Enable Google OAuth
+
+In the Supabase dashboard: **Authentication → Providers → Google** → toggle on.
+Follow the guide to create Google OAuth credentials and paste the Client ID /
+Secret back into Supabase.  No code changes needed on the frontend — the auth
+client in `src/lib/supabase.ts` already handles it.
+
+### 5. Vercel deployment
+
+Add the same two env vars in  
+**Vercel → Project → Settings → Environment Variables**:
+
+```
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
+
+---
+
+## Deploying (without accounts)
+
+Static Vite app — no server-side code, no env vars required for basic gameplay.
 
 **Vercel** (recommended):
 - Framework preset: **Vite**
@@ -201,12 +258,15 @@ No wallet, no trading, no swaps — display only.
 
 ## Known limitations / MVP scope
 
-- **No persistence.** All state (REP, quests, badges, appearance, leaderboard
-  standing) lives in React memory and resets on page refresh.
+- **Persistence is in progress.** Supabase tables and the client are ready
+  (see `database/schema.sql` and `src/lib/supabase.ts`); the Auth UI and
+  state-sync layer are next.  Without a configured Supabase project, all state
+  still lives in React memory and resets on page refresh.
 - **No real wallet.** Holder tier is a local simulation; no real tokens or
   on-chain data are involved.
-- **No multiplayer.** The "Real Players" HUD stat is intentionally unavailable.
-  Every other character is an NPC.
+- **No multiplayer yet.** The "Real Players" HUD stat is intentionally
+  unavailable.  Every other character is an NPC.  Supabase Realtime presence
+  is planned for a future phase.
 - **No audio files.** All sound is synthesized via WebAudio oscillators —
   placeholder until real audio is produced.
 - **Collision is intentionally light** — water canals, map edges, one large
