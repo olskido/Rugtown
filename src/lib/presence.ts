@@ -22,6 +22,12 @@ export interface PresencePayload {
   holderTier: string;    // 'None' | 'Bronze' | 'Silver' | 'Gold'
 }
 
+/** Live online-count state for landing page / HUD. */
+export type PresenceCountState =
+  | { status: 'unavailable' }
+  | { status: 'connecting' }
+  | { status: 'connected'; count: number };
+
 /**
  * Create the Supabase Realtime channel for city-wide presence.
  * Returns null if Supabase is not configured — callers must guard on null.
@@ -31,4 +37,42 @@ export interface PresencePayload {
 export function createCityChannel(): RealtimeChannel | null {
   if (!isSupabaseConfigured || !supabase) return null;
   return supabase.channel('rugtown:city');
+}
+
+/**
+ * Subscribe to the city presence channel and report the live player count.
+ * Does not track a player — read-only listener for landing page stats.
+ * Returns an unsubscribe function.
+ */
+export function subscribeCityPresenceCount(
+  onUpdate: (state: PresenceCountState) => void,
+): () => void {
+  if (!isSupabaseConfigured || !supabase) {
+    onUpdate({ status: 'unavailable' });
+    return () => {};
+  }
+
+  const channel = createCityChannel();
+  if (!channel) {
+    onUpdate({ status: 'unavailable' });
+    return () => {};
+  }
+
+  onUpdate({ status: 'connecting' });
+
+  channel
+    .on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState<PresencePayload>();
+      const all = Object.values(state).flat() as PresencePayload[];
+      onUpdate({ status: 'connected', count: all.length });
+    })
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        onUpdate({ status: 'unavailable' });
+      }
+    });
+
+  return () => {
+    channel.unsubscribe();
+  };
 }

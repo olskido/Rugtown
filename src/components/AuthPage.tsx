@@ -130,7 +130,13 @@ export function AuthPage({ guestName, onComplete }: AuthPageProps) {
   const canSubmit    = email.trim().length > 0 && password.length >= 6 && !loading;
 
   // Safety guard — App.tsx should never render this without Supabase
-  if (!isSupabaseConfigured) { handleGuest(); return null; }
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      onComplete(guestName || 'DegenExplorer');
+    }
+  }, [guestName, onComplete]);
+
+  if (!isSupabaseConfigured) return null;
 
   return (
     <div className="landing auth-page landing--mounted">

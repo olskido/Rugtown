@@ -30,6 +30,20 @@ export async function fetchProfile(userId: string): Promise<DbProfile | null> {
   return data as DbProfile;
 }
 
+/**
+ * Persist the player's chosen display handle to profiles.username.
+ * Silently no-ops on conflict or network errors so gameplay is unaffected.
+ */
+export async function saveUsername(userId: string, username: string): Promise<void> {
+  if (!supabase) return;
+  const trimmed = username.trim();
+  if (!trimmed) return;
+  await supabase
+    .from('profiles')
+    .update({ username: trimmed, display_name: trimmed })
+    .eq('id', userId);
+}
+
 /* ─── character_appearance ────────────────────────────────────── */
 
 /**

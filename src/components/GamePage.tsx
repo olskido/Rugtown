@@ -2,16 +2,18 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { RugTownGame } from '../game/RugTownGame';
 import { WorldScene, NPC_SPEECH_BY_PERSONALITY, type NpcPersonality } from '../game/scenes/WorldScene';
 import { getWorldObject, WORLD_OBJECTS } from '../game/world/WorldObjects';
-import { JACKET_OPTIONS, type CharacterAppearance } from '../game/world/CharacterAppearance';
+import { JACKET_OPTIONS, DEFAULT_APPEARANCE, type CharacterAppearance } from '../game/world/CharacterAppearance';
 import { soundManager, type SoundChannel } from '../audio/SoundManager';
 import type { EventRarity, EventReward, EventLocation, EventPhase as EnginePhase } from '../game/events/EventTypes';
 import { EVENT_DEFINITIONS } from '../game/events/EventDefinitions';
 import { MarketPanel } from './MarketPanel';
 import { NoticeBoardPanel } from './NoticeBoardPanel';
 import { AlphaLoungePanel } from './AlphaLoungePanel';
+import { HudCharacterPortrait } from './HudCharacterPortrait';
 import { fetchTrendingSolanaTokens, type MarketToken } from '../services/dexscreener';
 import { saveRep, saveBadge, saveInventoryItem, saveDistrictUnlock } from '../lib/profile';
 import { createCityChannel, type PresencePayload } from '../lib/presence';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 /*
   GamePage.tsx
@@ -648,6 +650,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
      null means "not yet connected / Supabase not configured".
      Shows '—' in the HUD until first sync arrives. ── */
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  const [presenceFailed, setPresenceFailed] = useState(false);
 
   /* Stable per-session presence id: Supabase uid if logged in, else
      a random guest token that lasts the lifetime of the GamePage. */
@@ -659,6 +662,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const repRef        = useRef(initialRep ?? 0);
   const holderTierRef = useRef<string>('None');
   const playerNameRef = useRef(playerName || 'DegenExplorer');
+  const appearanceRef = useRef<CharacterAppearance>(appearance ?? DEFAULT_APPEARANCE);
   // Holds the active Realtime channel so sendChatMessage / triggerEmote
   // can broadcast without needing to reach into the presence useEffect's closure.
   const cityChannelRef = useRef<ReturnType<typeof createCityChannel>>(null);
@@ -1623,6 +1627,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   useEffect(() => { repRef.current = rep; }, [rep]);
   useEffect(() => { holderTierRef.current = holderTier; }, [holderTier]);
   useEffect(() => { playerNameRef.current = playerName || 'DegenExplorer'; }, [playerName]);
+  useEffect(() => { appearanceRef.current = appearance ?? DEFAULT_APPEARANCE; }, [appearance]);
 
   /* ── Realtime Presence — city channel subscription ───────────────
      Guests get a random guest id, logged-in users use their Supabase
@@ -1668,6 +1673,10 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         sceneRef.current?.setRemotePlayers(all, presenceIdRef.current);
       })
       .subscribe(async (status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setPresenceFailed(true);
+          return;
+        }
         if (status !== 'SUBSCRIBED') return;
         subscribed = true;
         const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
@@ -1676,7 +1685,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           username:   playerNameRef.current,
           x:          Math.round(pos.x),
           y:          Math.round(pos.y),
-          appearance,
+          appearance: appearanceRef.current,
           rep:        repRef.current,
           holderTier: holderTierRef.current,
         } as Record<string, unknown>).catch(() => {});
@@ -1692,7 +1701,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         username:   playerNameRef.current,
         x:          Math.round(pos.x),
         y:          Math.round(pos.y),
-        appearance,
+        appearance: appearanceRef.current,
         rep:        repRef.current,
         holderTier: holderTierRef.current,
       } as Record<string, unknown>).catch(() => {});
@@ -2137,14 +2146,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
             {/* Player card */}
             <div className="player-card">
-              <div className="player-avatar">
-                {/* Placeholder avatar circle */}
-                <svg viewBox="0 0 40 40" fill="none" aria-hidden>
-                  <circle cx="20" cy="20" r="19" stroke="#c8902a" strokeWidth="2" fill="#0d1117"/>
-                  <circle cx="20" cy="16" r="7" fill="#c8902a" opacity="0.6"/>
-                  <path d="M6 36c0-8 6-13 14-13s14 5 14 13" fill="#c8902a" opacity="0.4"/>
-                </svg>
-              </div>
+              <HudCharacterPortrait appearance={appearance ?? DEFAULT_APPEARANCE} />
               <div className="player-info">
                 <div className="player-name">{playerName || 'DegenExplorer'}</div>
                 <div className="player-title">Wandering Degen</div>
@@ -2161,7 +2163,13 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                 <span className="qstat__dot qstat__dot--live" />
                 <span className="qstat__label">Real Players</span>
                 <span className="qstat__value">
-                  {onlineCount !== null ? onlineCount : '—'}
+                  {onlineCount !== null
+                    ? onlineCount
+                    : presenceFailed
+                      ? '—'
+                      : isSupabaseConfigured
+                        ? 'Connecting…'
+                        : '—'}
                 </span>
               </div>
               <div className="qstat">

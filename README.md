@@ -6,11 +6,12 @@ RugTown is a browser-based, top-down isometric "degen city" world built with
 React + Phaser 3 + TypeScript. Walk around a hand-illustrated Solana-flavored
 city, interact with live DexScreener market data, complete starter quests, watch
 a dynamic event engine unfold, and discover secrets — all running entirely in
-the browser with no backend required.
+the browser.
 
-**Frontend-only demo.** No backend, no real wallet connection. Live market data
-comes from DexScreener's public API (read-only). Everything else is local
-in-session state. The UI clearly labels mock/devnet content.
+**Works out of the box with no configuration.** Optional Supabase integration
+enables accounts, saved progress, and real-time multiplayer presence. No real
+wallet connection. Live market data comes from DexScreener's public API
+(read-only). Mock/devnet content is clearly labeled in the UI.
 
 ---
 
@@ -124,8 +125,9 @@ Static Vite app — no server-side code, no env vars required for basic gameplay
 - Desktop and mobile responsive layout
 
 ### World & Movement
-- WASD / arrow-key movement with smooth acceleration, camera follow with
-  deadzone and momentum, scroll-wheel + button zoom
+- WASD / arrow-key movement with immediate full-speed response, smooth
+  deceleration on release, camera follow with deadzone and momentum, scroll-wheel
+  + button zoom
 - Default zoom 60% shows a comfortable city overview
 - Dynamic minimum zoom prevents showing empty space outside the map
 - Collision system (water canals, building edges) with optional debug overlay
@@ -225,15 +227,24 @@ No wallet, no trading, no swaps — display only.
 
 ### Sound
 - Web Audio API throughout — zero audio files, no network requests
+- Audio unlocks only after the first user click, tap, or key press
 - **3 background beat loops** that shuffle every 45–90 seconds:
-  - *Dark City* — slow atmospheric bass
-  - *Market Pulse* — medium-tempo rhythmic with melodic hints
-  - *Event Tension* — faster, tense minor-chord feel
-- City ambience loop
+  - *Dark City* — soft mid-range atmospheric pulses
+  - *Market Pulse* — medium-tempo rhythmic hints
+  - *Event Tension* — faster, tense minor feel
 - UI sound effects: click, modal open, reward chime, quest complete, event
   bell, chat send
 - Mute toggle + per-channel volume sliders (music / ambience / effects)
 - "Test Sound" button in Settings to verify audio is working
+
+### Accounts & Multiplayer (Supabase optional)
+- Email/password and Google OAuth sign-in; Continue as Guest always available
+- Saved across sessions: username, character appearance, REP, badges,
+  inventory, district unlocks
+- Real-time presence: live Real Players count, remote avatars in-world, city
+  chat broadcast, emote broadcast, click-to-view profile cards
+- NPC citizens are always separate from real players and never counted in the
+  online total
 
 ### HUD & Settings
 - Left sidebar: player card, quick stats (REP, citizen count, holder tier)
@@ -258,15 +269,16 @@ No wallet, no trading, no swaps — display only.
 
 ## Known limitations / MVP scope
 
-- **Persistence is in progress.** Supabase tables and the client are ready
-  (see `database/schema.sql` and `src/lib/supabase.ts`); the Auth UI and
-  state-sync layer are next.  Without a configured Supabase project, all state
-  still lives in React memory and resets on page refresh.
+- **Persistence requires Supabase.** With env vars configured, accounts save
+  username, appearance, REP, badges, inventory, and district unlocks across
+  sessions. Without a configured Supabase project, all state lives in React
+  memory and resets on page refresh (guest mode).
 - **No real wallet.** Holder tier is a local simulation; no real tokens or
   on-chain data are involved.
-- **No multiplayer yet.** The "Real Players" HUD stat is intentionally
-  unavailable.  Every other character is an NPC.  Supabase Realtime presence
-  is planned for a future phase.
+- **Multiplayer is presence-based.** Real Players count, remote avatars, city
+  chat, emotes, and click-to-view profile cards work via Supabase Realtime
+  when configured. NPC citizens are always labelled separately and never
+  counted as real players.
 - **No audio files.** All sound is synthesized via WebAudio oscillators —
   placeholder until real audio is produced.
 - **Collision is intentionally light** — water canals, map edges, one large

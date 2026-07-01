@@ -25,6 +25,8 @@ export interface CharacterPreviewConfig {
   initialAppearance: CharacterAppearance;
   /** Called once when the preview scene is fully ready to render. */
   onReady?: () => void;
+  /** Lower update rate for small HUD embeds so the main game stays smooth. */
+  lowPower?: boolean;
 }
 
 export class CharacterPreviewGame {
@@ -51,7 +53,10 @@ export class CharacterPreviewGame {
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       scene: [this.previewScene],
-      // Physics disabled entirely.
+      // Throttle HUD-sized previews — full rate in the outfit creator.
+      ...(config.lowPower
+        ? { fps: { target: 12, forceSetTimeOut: true } }
+        : {}),
     });
 
     if (config.onReady) {

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FeatureCard } from './FeatureCard';
+import { subscribeCityPresenceCount, type PresenceCountState } from '../lib/presence';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 /*
   LandingPage — matches Image 2 (05-homepage.png) as source of truth
@@ -24,13 +26,11 @@ import { FeatureCard } from './FeatureCard';
   └─────────────────────────────────────────────────────────────┘
 */
 
-// Live stats — would come from socket in game version
-// Using animated counters for demo
+// Live stats — NPC count is session-local; real player count comes from
+// Supabase presence when configured (never faked).
 const MOCK_STATS = {
-  realPlayers: 247,
   npcCitizens: 10,
   alphaCalls: 38,
-  latestActivity: 12,   // minutes ago
 };
 
 // Feature cards matching Image 2 bottom bar exactly
@@ -123,11 +123,21 @@ export function LandingPage({ onEnter }: LandingPageProps) {
     }
   }, [mode]);
 
-  // Animated stat counters — stagger each one
-  const playerCount   = useCountUp(MOCK_STATS.realPlayers, 1400, 800);
+  // Animated stat counters — stagger each one (NPC / alpha only)
   const npcCount      = useCountUp(MOCK_STATS.npcCitizens, 800, 1000);
   const alphaCount    = useCountUp(MOCK_STATS.alphaCalls, 1000, 1100);
-  const activityMins  = useCountUp(MOCK_STATS.latestActivity, 600, 1200);
+
+  /* ── Real player count from Supabase presence (never faked) ── */
+  const [presenceState, setPresenceState] = useState<PresenceCountState>(() =>
+    isSupabaseConfigured ? { status: 'connecting' } : { status: 'unavailable' },
+  );
+  useEffect(() => subscribeCityPresenceCount(setPresenceState), []);
+
+  const realPlayersLabel = (() => {
+    if (presenceState.status === 'connected') return presenceState.count.toLocaleString();
+    if (presenceState.status === 'connecting') return 'Connecting…';
+    return '—';
+  })();
 
   // Handle guest entry — hands the chosen (or generated) name to the parent,
   // which swaps the app over to GamePage.
@@ -335,7 +345,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                 <div className="card__stats" role="status" aria-live="polite" aria-label="Live city stats">
                   <div className="stat">
                     <span className="stat__dot stat__dot--live" aria-hidden />
-                    <span className="stat__value">{playerCount.toLocaleString()}</span>
+                    <span className="stat__value">{realPlayersLabel}</span>
                     <span className="stat__label">Real Players</span>
                   </div>
                   <div className="stat__divider" aria-hidden>·</div>

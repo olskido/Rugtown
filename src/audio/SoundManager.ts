@@ -51,46 +51,46 @@ interface BeatTrack {
 }
 
 const BEAT_TRACKS: BeatTrack[] = [
-  // Track 0: Dark City Ambience — slow, minor, atmospheric
+  // Track 0: Dark City — soft mid-range pulses (no sub-bass drone)
   {
     stepMs: 600,
     steps: [
-      { freq: 55.0,  type: 'sine', dur: 0.44, vol: 0.45 },
+      { freq: 220.0, type: 'sine', dur: 0.30, vol: 0.22 },
       null,
-      { freq: 82.4,  type: 'sine', dur: 0.22, vol: 0.28 },
+      { freq: 261.6, type: 'sine', dur: 0.18, vol: 0.16 },
       null,
-      { freq: 55.0,  type: 'sine', dur: 0.38, vol: 0.40 },
-      { freq: 110.0, type: 'sine', dur: 0.10, vol: 0.18 },
+      { freq: 196.0, type: 'sine', dur: 0.26, vol: 0.20 },
+      { freq: 329.6, type: 'sine', dur: 0.08, vol: 0.12 },
       null,
-      { freq: 69.3,  type: 'sine', dur: 0.28, vol: 0.30 },
+      { freq: 246.9, type: 'sine', dur: 0.20, vol: 0.14 },
     ],
   },
-  // Track 1: Market Pulse — medium tempo, rhythmic bass + melodic hints
+  // Track 1: Market Pulse — medium tempo, soft rhythmic hints
   {
     stepMs: 375,
     steps: [
-      { freq: 110.0, type: 'square',   dur: 0.12, vol: 0.30 },
-      { freq: 261.6, type: 'sine',     dur: 0.08, vol: 0.16 },
-      { freq: 82.4,  type: 'square',   dur: 0.16, vol: 0.28 },
-      { freq: 329.6, type: 'sine',     dur: 0.07, vol: 0.14 },
-      { freq: 110.0, type: 'square',   dur: 0.12, vol: 0.30 },
-      { freq: 293.7, type: 'sine',     dur: 0.08, vol: 0.14 },
-      { freq: 82.4,  type: 'square',   dur: 0.12, vol: 0.26 },
+      { freq: 220.0, type: 'sine', dur: 0.10, vol: 0.18 },
+      { freq: 329.6, type: 'sine', dur: 0.07, vol: 0.12 },
+      { freq: 196.0, type: 'sine', dur: 0.12, vol: 0.16 },
+      { freq: 392.0, type: 'sine', dur: 0.06, vol: 0.10 },
+      { freq: 220.0, type: 'sine', dur: 0.10, vol: 0.18 },
+      { freq: 349.2, type: 'sine', dur: 0.07, vol: 0.11 },
+      { freq: 196.0, type: 'sine', dur: 0.10, vol: 0.15 },
       null,
     ],
   },
-  // Track 2: Event Tension — faster, tense, minor feel
+  // Track 2: Event Tension — faster, tense, minor feel (sine only — no buzz)
   {
     stepMs: 300,
     steps: [
-      { freq: 146.8, type: 'sawtooth', dur: 0.18, vol: 0.26 },
-      { freq: 185.0, type: 'sine',     dur: 0.08, vol: 0.16 },
-      { freq: 174.6, type: 'sawtooth', dur: 0.18, vol: 0.24 },
+      { freq: 293.7, type: 'sine', dur: 0.16, vol: 0.20 },
+      { freq: 349.2, type: 'sine', dur: 0.08, vol: 0.14 },
+      { freq: 329.6, type: 'sine', dur: 0.16, vol: 0.18 },
       null,
-      { freq: 146.8, type: 'sawtooth', dur: 0.22, vol: 0.30 },
-      { freq: 220.0, type: 'sine',     dur: 0.09, vol: 0.14 },
-      { freq: 196.0, type: 'sawtooth', dur: 0.14, vol: 0.22 },
-      { freq: 185.0, type: 'sine',     dur: 0.08, vol: 0.14 },
+      { freq: 293.7, type: 'sine', dur: 0.20, vol: 0.22 },
+      { freq: 392.0, type: 'sine', dur: 0.09, vol: 0.12 },
+      { freq: 349.2, type: 'sine', dur: 0.12, vol: 0.16 },
+      { freq: 311.1, type: 'sine', dur: 0.08, vol: 0.12 },
     ],
   },
 ];
@@ -102,13 +102,12 @@ class SoundManager {
 
   private muted = false;
   private volumes: Record<SoundChannel, number> = {
-    music:    0.18,
-    ambience: 0.22,
+    music:    0.12,
+    ambience: 0.08,
     effects:  0.35,
   };
 
   private unlocked = false;
-  private ambienceStarted = false;
   private musicStarted = false;
 
   /* ── Beat track state ── */
@@ -117,16 +116,13 @@ class SoundManager {
   private beatTimer: ReturnType<typeof setInterval> | null = null;
   private beatShuffleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /* ── Ambience ── */
-  private ambienceOscillators: OscillatorNode[] = [];
-
   /** Call once on the first user gesture. Safe to call repeatedly. */
   unlock() {
     if (this.unlocked) return;
     this.unlocked = true;
     this.ensureContext();
     this.ctx?.resume().catch(() => {});
-    this.startAmbience();
+    // Background music only — no continuous low-frequency ambience drone.
     this.startMusic();
   }
 
@@ -208,34 +204,6 @@ class SoundManager {
     osc.stop(now + duration + 0.02);
   }
 
-  /** Soft, continuous two-tone hum — city ambience placeholder. */
-  private startAmbience() {
-    if (this.ambienceStarted) return;
-    const ctx = this.ctx;
-    const destination = this.channelGains.ambience;
-    if (!ctx || !destination) return;
-    this.ambienceStarted = true;
-
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc1.type = 'sine';
-    osc2.type = 'sine';
-    osc1.frequency.value = 110;
-    osc2.frequency.value = 110 * 1.5;
-
-    gain.gain.value = 0.0001;
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(destination);
-
-    osc1.start();
-    osc2.start();
-    gain.gain.exponentialRampToValueAtTime(0.5, ctx.currentTime + 2.5);
-
-    this.ambienceOscillators = [osc1, osc2];
-  }
-
   /* ─── Music: 3 shuffling beat tracks ─── */
 
   private startMusic() {
@@ -265,7 +233,8 @@ class SoundManager {
       this.beatStepIdx++;
     };
 
-    tick(); // play first step immediately
+    // Wait for the first interval — avoids a loud low note the instant
+    // audio unlocks on the user's first click/tap.
     this.beatTimer = setInterval(tick, track.stepMs);
   }
 

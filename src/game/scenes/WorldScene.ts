@@ -36,7 +36,6 @@ const DEFAULT_WORLD_H   = 2160;
 
 // Player movement
 const PLAYER_SPEED      = 330;          // px/sec at full run
-const PLAYER_ACCEL_TIME = 0.02;         // effectively instant — reaches ~80% speed in first frame at 60fps, feels constant/responsive
 const PLAYER_DECEL_TIME = 0.10;         // smooth stop without slipperiness
 const PLAYER_DIAG       = 0.7071;       // diagonal normalization
 
@@ -823,13 +822,15 @@ export class WorldScene extends Phaser.Scene {
       tvy = this.virtualMoveY * PLAYER_SPEED;
     }
 
-    /* ── Smooth acceleration / deceleration ── */
-    const accel = tvx !== 0 || tvy !== 0
-      ? dt / PLAYER_ACCEL_TIME
-      : dt / PLAYER_DECEL_TIME;
-
-    this.velX = Phaser.Math.Linear(this.velX, tvx, Math.min(accel, 1));
-    this.velY = Phaser.Math.Linear(this.velY, tvy, Math.min(accel, 1));
+    /* ── Instant start at full speed; smooth deceleration on release ── */
+    if (tvx !== 0 || tvy !== 0) {
+      this.velX = tvx;
+      this.velY = tvy;
+    } else {
+      const decel = Math.min(dt / PLAYER_DECEL_TIME, 1);
+      this.velX = Phaser.Math.Linear(this.velX, 0, decel);
+      this.velY = Phaser.Math.Linear(this.velY, 0, decel);
+    }
 
     /* ── Apply movement — world-boundary clamp only (no building collision
        in public demo mode). WORLD_PAD keeps the player away from the

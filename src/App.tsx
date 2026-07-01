@@ -16,6 +16,7 @@ import {
   fetchInventoryItemIds,
   fetchDistrictUnlockIds,
   saveAppearance,
+  saveUsername,
 } from './lib/profile';
 
 /*
@@ -94,8 +95,8 @@ export default function App() {
         // Appearance
         if (savedApp) setAppearance(savedApp);
 
-        // REP (profile.rep is 0 for new users, which is the correct default)
-        if (profile?.rep) setInitialRep(profile.rep);
+        // REP — always restore from profile when present (including 0)
+        if (profile) setInitialRep(profile.rep);
 
         // Badges
         if (badgeIds.length) setInitialBadgeIds(badgeIds);
@@ -175,9 +176,12 @@ export default function App() {
       setScreen('game');
       if (user?.id) {
         saveAppearance(user.id, picked).catch(() => {});
+        if (playerName.trim()) {
+          saveUsername(user.id, playerName.trim()).catch(() => {});
+        }
       }
     },
-    [user],
+    [user, playerName],
   );
 
   const handleLogout = useCallback(async () => {
