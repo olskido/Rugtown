@@ -1,11 +1,15 @@
 import Phaser from 'phaser';
 import { getLiveWorldObjects, getWorldObject, toWorldPosition, WORLD_OBJECTS } from '../world/WorldObjects';
 import { COLLISION_RECTS, toWorldRect } from '../world/CollisionZones';
-import { CHARACTER_STYLES, getCharacterStyle, DEFAULT_CHARACTER_STYLE_ID } from '../world/CharacterStyles';
+import {
+  generateRandomAppearance, resolveAppearance, DEFAULT_APPEARANCE,
+  type CharacterAppearance, type ResolvedAppearance,
+} from '../world/CharacterAppearance';
 import { EventManager } from '../events/EventManager';
 import { EVENT_DEFINITIONS } from '../events/EventDefinitions';
 import type { EventDefinition, EventInstance, EventPhase } from '../events/EventTypes';
 import { soundManager } from '../../audio/SoundManager';
+import { drawHumanoid, CHAR_W, CHAR_H, SHADOW_W, SHADOW_H, type HumanoidPose, type Direction } from '../render/HumanoidRenderer';
 
 /*
   WorldScene.ts — Player Movement + NPC Citizens Edition
@@ -29,10 +33,10 @@ import { soundManager } from '../../audio/SoundManager';
 const DEFAULT_WORLD_W   = 3840;
 const DEFAULT_WORLD_H   = 2160;
 
-// Player movement — feels like Stardew Valley / Pokemon
-const PLAYER_SPEED      = 330;          // px/sec at full run (reduced from 420)
-const PLAYER_ACCEL_TIME = 0.12;         // seconds to reach full speed — unchanged, keeps the ramp feel/smoothness identical
-const PLAYER_DECEL_TIME = 0.08;         // seconds to stop — unchanged, keeps stops snappy (not slippery)
+// Player movement
+const PLAYER_SPEED      = 330;          // px/sec at full run
+const PLAYER_ACCEL_TIME = 0.02;         // effectively instant — reaches ~80% speed in first frame at 60fps, feels constant/responsive
+const PLAYER_DECEL_TIME = 0.10;         // smooth stop without slipperiness
 const PLAYER_DIAG       = 0.7071;       // diagonal normalization
 
 // Camera follow
@@ -45,25 +49,23 @@ const ZOOM_MIN          = 0.35;        // absolute floor; the dynamic per-frame 
 const ZOOM_MAX          = 2.2;
 const ZOOM_STEP         = 0.08;
 const ZOOM_LERP         = 0.10;
-const ZOOM_DEFAULT      = 1.0;          // Start zoomed in more — player is tiny
+const ZOOM_DEFAULT      = 0.6;          // 60% zoom — shows a comfortable amount of the city around the player
 
 // Spawn — fountain area (~38% x, 58% y of the city image)
 const SPAWN_FX          = 0.38;
 const SPAWN_FY          = 0.58;
 
-// Player/NPC visual footprint (world px) — unchanged so clamps stay correct
-const CHAR_W            = 22;
-const CHAR_H            = 34;
-const SHADOW_W          = 18;
-const SHADOW_H          = 7;
+// Player/NPC visual footprint — CHAR_W/CHAR_H/SHADOW_W/SHADOW_H now live in
+// HumanoidRenderer.ts (imported above) since they're render geometry, not
+// gameplay state; re-used here for movement clamps/NPC spawn math.
 
 // Walk animation (shared by player + NPCs)
 const WALK_CYCLE_SPEED   = 8;     // step frequency
-const LEG_STAGGER_Y       = 4;     // alternating vertical leg offset while walking (was 3 — more visible)
-const LEG_LIFT            = 5;     // how much the forward leg shortens/lifts while stepping (was 3.5)
-const LEG_SWING_X         = 2.2;   // alternating fore/aft leg offset — reads as an actual stride, not just marching in place
-const BODY_BOB_WALK       = 2;     // torso bob amplitude while walking (was 1.8 — kept subtle per spec)
-const ARM_SWING_WALK      = 3.6;   // arm swing amplitude while walking (was 3.2)
+const LEG_STAGGER_Y       = 4;     // alternating vertical leg offset while walking
+const LEG_LIFT            = 6;     // forward-leg lift — increased from 5 for more natural stride
+const LEG_SWING_X         = 2.8;   // fore/aft leg swing — increased from 2.2 for better foot placement
+const BODY_BOB_WALK       = 2.4;   // torso bob — slightly more than 2 for less robotic walk
+const ARM_SWING_WALK      = 4.2;   // arm swing — increased from 3.6 for more natural counter-swing
 
 // Idle animation (shared) — always running, so characters never look frozen
 const IDLE_BREATH_SPEED   = 1.7;    // breathing cycle speed
@@ -95,10 +97,12 @@ const NPC_SPEECH_MIN_GAP  = 7000;   // ms between ONE NPC's own speech attempts 
 const NPC_SPEECH_MAX_GAP  = 18000;  // ms between ONE NPC's own speech attempts (max)
 const NPC_SPEECH_DURATION = 3200;   // ms a speech bubble stays visible
 const NPC_SPEECH_CHANCE   = 0.55;   // odds a given attempt actually shows a line
+const NPC_SPEECH_MAX_VISIBLE = 4;   // hard cap on simultaneous citizen speech bubbles (any source)
+const NPC_LABEL_NEAR_RADIUS = 70;   // px — close-encounter radius; names are hidden by default (see updateNpcs)
 
-// Population is randomized once per session, not fixed — see createNpcs().
-const NPC_POPULATION_MIN = 40;
-const NPC_POPULATION_MAX = 60;
+// Population is randomized once per session — small enough for solid FPS.
+const NPC_POPULATION_MIN = 15;
+const NPC_POPULATION_MAX = 20;
 
 // Ambient speech bubbles also get pushed into the city chat panel, but
 // that must NOT scale with population — this is a single GLOBAL cooldown
@@ -125,7 +129,8 @@ const NPC_NAMES = [
   'CopiumCody', 'HopiumHazel', 'MaxiMaya', 'LaserEyesLeo', 'OgOliver',
 ];
 
-const NPC_SKIN_PALETTE = [0xd4a878, 0xc89868, 0xb88858, 0xe0b890];
+// Skin tone now lives in CharacterAppearance.ts's SKIN_TONES — picked as
+// part of generateRandomAppearance() below, not a separate palette here.
 
 /* ─── Personalities ───
    Drives which outfit (from the shared CharacterStyles registry) a
@@ -333,29 +338,7 @@ const CROWD_REACTION_LINES = [
   'This city is alive.',
 ];
 
-/* ─── Direction enum ─── */
-type Direction = 'down' | 'up' | 'left' | 'right';
-
-/* ─── Shared humanoid pose params (player + NPC) ─── */
-interface HumanoidPose {
-  facing: Direction;
-  bodyBob: number;
-  legStagger: number;
-  legLiftL: number;
-  legLiftR: number;
-  armSwing: number;
-  legSwingX?: number;
-  headBob?: number;
-  rotation?: number;
-  breathScale?: number;
-  scale?: number;
-  alpha?: number;
-  coatColor?: number;
-  coatHighlite?: number;
-  coatShade?: number;
-  goldColor?: number;
-  skinColor?: number;
-}
+// Direction and HumanoidPose now live in HumanoidRenderer.ts (imported above).
 
 /* ─── NPC state ─── */
 type NpcState = 'idle' | 'walk' | 'pause';
@@ -382,13 +365,29 @@ interface NpcData {
   walkMax: number;
   animTick: number;
   lean: number;
-  styleId: string;
-  skinColor: number;
+  /** Procedurally generated once at spawn — see generateRandomAppearance()
+   *  in CharacterAppearance.ts. `resolvedAppearance` is the same data
+   *  pre-resolved to concrete draw values so drawNpc() never re-resolves
+   *  per frame. */
+  appearance: CharacterAppearance;
+  resolvedAppearance: ResolvedAppearance;
   personality: NpcPersonality;
   behaviorType: NpcBehaviorType;
   homeLandmarkIndex: number;
   speechTimerNext: number;
   speechShowUntil: number;
+  /** Small per-citizen jitter applied to speech-bubble position so
+   *  several bubbles near each other don't perfectly overlap (req. D3). */
+  speechOffsetX: number;
+  speechOffsetY: number;
+  /** Whether the player is currently within NPC_LABEL_NEAR_RADIUS —
+   *  cached so the label's setText() only runs on actual state changes,
+   *  not every frame (req. C). */
+  labelNear: boolean;
+  /** Blink timing — mirrors the speechTimerNext/speechShowUntil pattern
+   *  already used above. */
+  blinkTimerNext: number;
+  blinkUntil: number;
   shadow: Phaser.GameObjects.Graphics;
   body: Phaser.GameObjects.Graphics;
   label: Phaser.GameObjects.Text;
@@ -412,7 +411,11 @@ export class WorldScene extends Phaser.Scene {
   private playerSpeech!: Phaser.GameObjects.Text;
   private playerSpeechUntil = 0;
   private emotePulseUntil = 0;
-  private outfitId: string = DEFAULT_CHARACTER_STYLE_ID;
+  private appearance: CharacterAppearance = DEFAULT_APPEARANCE;
+  private resolvedAppearance: ResolvedAppearance = resolveAppearance(DEFAULT_APPEARANCE);
+  /** Blink timing — same shape as the per-NPC fields. */
+  private playerBlinkTimerNext = Phaser.Math.Between(2000, 6000);
+  private playerBlinkUntil = 0;
 
   // Movement state
   private velX = 0;
@@ -534,6 +537,10 @@ export class WorldScene extends Phaser.Scene {
     lineIndex: number;
     lineTimer: number;
     animTick: number;
+    /** Resolved once at spawn — gold jacket, otherwise the default look
+     *  (no hat/glasses/accessory), matching the crier's existing
+     *  pre-creator appearance exactly. */
+    resolvedAppearance: ResolvedAppearance;
   } | null = null;
 
   /* ── Hall of Fame statues — a permanent (not event-driven) fixture
@@ -561,6 +568,13 @@ export class WorldScene extends Phaser.Scene {
      triggerCrowdReaction() always samples from NPCs NOT already in
      eventGatherSnapshot. ── */
   private crowdReactionSnapshot: { npc: NpcData; homeX: number; homeY: number; wanderRadius: number }[] | null = null;
+
+  /* ── Landmark labels (Part D) — created 80ms after world is visible ── */
+  private landmarkLabels: Phaser.GameObjects.Text[] = [];
+
+  /* ── Fountain onboarding guide — pulsing glow until player claims REP ── */
+  private fountainGuide: Phaser.GameObjects.Graphics | null = null;
+  private fountainGuideAnimTick = 0;
 
   constructor() { super({ key: 'WorldScene' }); }
 
@@ -616,9 +630,12 @@ export class WorldScene extends Phaser.Scene {
     this.playerLabel = this.add.text(0, 0, 'You', {
       fontFamily: '"Cinzel", serif',
       fontSize:   '8px',
-      color:      '#e8b84b',
-      backgroundColor: 'rgba(4,8,12,0.85)',
+      color:      '#f0e0b8',
+      backgroundColor: 'rgba(4,8,12,0.92)',
       padding: { x: 4, y: 2 },
+      stroke: '#000000',
+      strokeThickness: 3,
+      resolution: Math.max(2, window.devicePixelRatio || 1),
     }).setOrigin(0.5, 1).setDepth(11);
 
     this.playerSpeech = this.add.text(0, 0, '', {
@@ -654,20 +671,17 @@ export class WorldScene extends Phaser.Scene {
       );
     });
 
-    /* ── NPC citizens ── */
-    this.createNpcs();
-
     /* ── Interaction zones ── */
     this.createZones();
 
     /* ── Collision (player-only walkable boundaries) ── */
     this.createCollision();
 
-    /* ── Spawn Plaza ambience ── */
-    this.createPlazaAmbience();
-
-    /* ── Event Engine (Phase 2) ── */
+    /* ── Weather graphics — must exist before update() runs ── */
     this.weatherGraphics = this.add.graphics().setDepth(40).setVisible(false);
+
+    /* ── Event Engine — subscribe immediately so city events work from the
+         first frame; scheduleNext() is lightweight (just starts a timer) ── */
     this.eventManagerUnsubscribe = this.eventManager.onChange((instance, prevPhase) => {
       this.handleEventPhaseChange(instance, prevPhase);
     });
@@ -680,7 +694,8 @@ export class WorldScene extends Phaser.Scene {
     /* ── Initial draw ── */
     this.drawPlayer();
 
-    /* ── Publish initial state ── */
+    /* ── Publish initial state — fires onReady in GamePage so HUD appears
+         and the city is visible before citizens/ambience finish loading ── */
     this.registry.set('worldW',    this.worldW);
     this.registry.set('worldH',    this.worldH);
     this.registry.set('playerX',   this.px);
@@ -690,6 +705,20 @@ export class WorldScene extends Phaser.Scene {
     this.registry.set('nearZone',  null);
     this.registry.set('nearNpc',   null);
     this.registry.set('collisionDebug', false);
+
+    /* ── Part A: Defer NPC citizens — one frame later so the first render
+         shows the background immediately before citizens are created ── */
+    this.time.delayedCall(1, () => {
+      this.createNpcs();
+    });
+
+    /* ── Part A: Defer plaza ambience + landmark labels — purely decorative,
+         safe to arrive 80ms after the city is already visible ── */
+    this.time.delayedCall(80, () => {
+      this.createPlazaAmbience();
+      this.createLandmarkLabels();
+      this.createFountainGuide();
+    });
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -699,6 +728,17 @@ export class WorldScene extends Phaser.Scene {
     const dt = delta / 1000;  // seconds
     this.tick += delta;
     this.animTick += delta;
+
+    /* ── Player blink timer — purely cosmetic, never touches movement ── */
+    if (this.playerBlinkUntil > 0) {
+      this.playerBlinkUntil -= delta;
+    } else {
+      this.playerBlinkTimerNext -= delta;
+      if (this.playerBlinkTimerNext <= 0) {
+        this.playerBlinkUntil = 120;
+        this.playerBlinkTimerNext = Phaser.Math.Between(2000, 6000);
+      }
+    }
 
     /* ── Read input direction ── */
     const left  = this.keyA.isDown    || this.keyLeft.isDown;
@@ -784,6 +824,14 @@ export class WorldScene extends Phaser.Scene {
     this.updateWhaleMarker();
     this.updateTownCrier(delta);
     this.updateHallOfFameStatues();
+    this.updateFountainGuide(delta);
+
+    /* ── Landmark label visibility — fade out when zoomed far out ── */
+    if (this.landmarkLabels.length > 0) {
+      const z = this.currentZoom;
+      const a = z >= 0.55 ? 0.88 : z >= 0.30 ? (z - 0.30) / 0.25 * 0.88 : 0;
+      for (const lbl of this.landmarkLabels) lbl.setAlpha(a);
+    }
 
     /* ── Interaction zones ── */
     this.updateZoneProximity();
@@ -917,11 +965,12 @@ export class WorldScene extends Phaser.Scene {
     }
     this.playerGlow.setPosition(this.px, this.py);
 
-    /* ── Body — shared humanoid renderer. Player uses the selected outfit
-       (CharacterStyles.ts) and is drawn at full scale/alpha (no NPC_SCALE/
-       NPC_ALPHA), keeping the player slightly more prominent than citizens. ── */
-    const outfit = getCharacterStyle(this.outfitId);
-    this.drawHumanoid(this.playerBody, this.px, this.py, {
+    /* ── Body — shared humanoid renderer. Player uses the modular
+       appearance picked on the character-creator screen (see
+       CharacterAppearance.ts) and is drawn at full scale/alpha (no
+       NPC_SCALE/NPC_ALPHA), keeping the player slightly more prominent
+       than citizens. ── */
+    drawHumanoid(this.playerBody, this.px, this.py, {
       facing: this.facing,
       bodyBob,
       legStagger,
@@ -930,159 +979,25 @@ export class WorldScene extends Phaser.Scene {
       armSwing,
       legSwingX,
       headBob: idleHeadBob,
-      rotation: this.lean + sway,
+      // slowSway: a very slow (35s period) sine layered onto the idle
+      // lean — simulates a subtle weight shift without any extra state or
+      // timers. Vanishes while walking (same as regular sway).
+      rotation: this.lean + sway + (this.isMoving ? 0 : Math.sin((this.animTick / 1000) * 0.18) * 0.06),
       breathScale: breathScale * emotePulse,
-      coatColor: outfit.coatColor,
-      coatHighlite: outfit.coatHighlite,
-      coatShade: outfit.coatShade,
-      goldColor: outfit.accentColor,
+      appearance: this.resolvedAppearance,
+      blink: this.playerBlinkUntil > 0 ? 1 : 0,
     });
 
     /* ── Label / speech bubble — stay upright regardless of body lean ── */
     const headYLocal = -bodyBob - CHAR_H * 0.5;
-    this.playerLabel.setPosition(this.px, this.py + headYLocal - 6);
+    this.playerLabel.setPosition(Math.round(this.px), Math.round(this.py + headYLocal - 6));
     this.playerSpeech.setPosition(this.px, this.py + headYLocal - 18);
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     DRAW HUMANOID — shared pixel-art degen renderer.
-     Used by both the player and NPCs so NPCs visually match the
-     player's style. Shapes are drawn relative to a local origin
-     (0,0) at the character's center; the Graphics object itself is
-     then positioned/rotated/scaled, so lean and breathing pivot
-     naturally and `scale`/`alpha` can shrink + soften NPCs.
-     ═══════════════════════════════════════════════════════════ */
-  private drawHumanoid(g: Phaser.GameObjects.Graphics, x: number, y: number, p: HumanoidPose) {
-    const scale       = p.scale ?? 1;
-    const breathScale = p.breathScale ?? 1;
-    const alpha       = p.alpha ?? 1;
-    const coatColor    = p.coatColor    ?? 0x1a1c20;
-    const coatHighlite = p.coatHighlite ?? 0x2c2e36;
-    const coatShade    = p.coatShade    ?? 0x101216;
-    const accentColor  = p.goldColor    ?? 0xe8b84b;
-    const skinColor    = p.skinColor    ?? 0xd4a878;
-    const legSwingX    = p.legSwingX    ?? 0;
-    const headBob      = p.headBob      ?? 0;
-
-    const isLeft  = p.facing === 'left';
-    const isRight = p.facing === 'right';
-    const isBack  = p.facing === 'up';
-
-    const by = -p.bodyBob;   // local vertical offset for bob (up = negative)
-
-    g.clear();
-
-    // ── Legs + feet ── (wider stance, fore/aft swing so steps actually
-    // alternate forward/back instead of just bobbing up and down)
-    const legColors = [0x2a2018, 0x1e1810];
-    const shoeColor = 0x0c0c0e;
-    const lx1  = -6;
-    const lx2  = 6;
-    const legY = by + CHAR_H * 0.30;
-    const legH = CHAR_H * 0.28;
-    const legH1 = Math.max(4, legH - p.legLiftL);
-    const legH2 = Math.max(4, legH - p.legLiftR);
-
-    g.fillStyle(legColors[0]);
-    g.fillRoundedRect(lx1 - 3 + legSwingX, legY + p.legStagger, 6, legH1, 1.5);
-    g.fillStyle(legColors[1]);
-    g.fillRoundedRect(lx2 - 3 - legSwingX, legY - p.legStagger, 6, legH2, 1.5);
-
-    // Shoes — small distinct blocks at each foot, clearer than a tint strip
-    g.fillStyle(shoeColor);
-    g.fillRoundedRect(lx1 - 4 + legSwingX, legY + legH1 - 2.5 + p.legStagger, 8, 4, 1.5);
-    g.fillRoundedRect(lx2 - 4 - legSwingX, legY + legH2 - 2.5 - p.legStagger, 8, 4, 1.5);
-    g.fillStyle(0x4a3a24, 0.55);
-    g.fillRect(lx1 - 3 + legSwingX, legY + legH1 - 1.5 + p.legStagger, 6, 1.5);
-    g.fillRect(lx2 - 3 - legSwingX, legY + legH2 - 1.5 - p.legStagger, 6, 1.5);
-
-    // ── Coat / hoodie ── (tapered waist instead of one flat box, a bit
-    // less boxy/robotic)
-    const bodyY = by - CHAR_H * 0.06;
-    const bodyW = CHAR_W;
-    const bodyH = CHAR_H * 0.40;
-
-    g.fillStyle(0x05060a, 0.55);
-    g.fillRoundedRect(-bodyW / 2 - 1, bodyY - 1, bodyW + 2, bodyH + 2, 5);
-
-    g.fillStyle(coatColor);
-    g.fillRoundedRect(-bodyW / 2, bodyY, bodyW, bodyH * 0.65, 4);
-    g.fillRoundedRect(-bodyW / 2 + 1.5, bodyY + bodyH * 0.55, bodyW - 3, bodyH * 0.45, 4);
-
-    g.fillStyle(coatShade, 0.55);
-    g.fillRect(bodyW / 2 - 3, bodyY + 2, 3, bodyH - 4);
-    g.fillStyle(coatHighlite, 0.6);
-    g.fillRect(-bodyW / 2,     bodyY + 2, 2, bodyH - 4);
-
-    if (!isBack) {
-      // Collar + zipper — the per-variant accent color (gold by default)
-      g.fillStyle(accentColor, 0.95);
-      g.fillRoundedRect(-3, bodyY + 1, 6, 3, 1);
-      g.fillRect(-1, bodyY + bodyH * 0.32, 2, bodyH * 0.55);
-    } else {
-      // From behind: a thin accent stripe across the shoulders instead
-      g.fillStyle(accentColor, 0.55);
-      g.fillRect(-bodyW / 2 + 2, bodyY + 2, bodyW - 4, 1.5);
-    }
-
-    // ── Arms + hands ──
-    const armColor = 0x14161c;
-    const armY = bodyY + 2;
-    const armH = CHAR_H * 0.27;
-
-    g.fillStyle(armColor);
-    g.fillRoundedRect(-bodyW / 2 - 4, armY + p.armSwing,  4, armH, 2);
-    g.fillRoundedRect( bodyW / 2,     armY - p.armSwing,  4, armH, 2);
-    g.fillStyle(skinColor, 0.95);
-    g.fillCircle(-bodyW / 2 - 2, armY + p.armSwing + armH, 2);
-    g.fillCircle( bodyW / 2 + 2, armY - p.armSwing + armH, 2);
-
-    // ── Head ── (bigger and rounder so it reads clearly at small scale)
-    const headColor = isBack ? 0x1a1c20 : skinColor;
-    const headY  = by - CHAR_H * 0.50 + headBob;
-    const headW  = CHAR_W - 2;
-    const headH  = CHAR_H * 0.32;
-    const lookOX = isLeft ? -2.2 : isRight ? 2.2 : 0;
-
-    g.fillStyle(0x05060a, 0.55);
-    g.fillRoundedRect(-headW / 2 - 2 + lookOX, headY - 5, headW + 4, headH + 9, 5);
-
-    g.fillStyle(headColor);
-    g.fillRoundedRect(-headW / 2 + lookOX, headY, headW, headH, 5);
-
-    // ── Hood ──
-    const hairColor = 0x171720;
-    g.fillStyle(hairColor);
-    g.fillRoundedRect(-headW / 2 - 1 + lookOX, headY - 5, headW + 2, 9, 4);
-    g.fillRoundedRect(-headW / 2 - 2 + lookOX, headY,     4, headH * 0.75, 2);
-    g.fillRoundedRect( headW / 2 - 2 + lookOX, headY,     4, headH * 0.75, 2);
-
-    // Drawstring tips — per-variant accent color
-    g.fillStyle(accentColor, 0.9);
-    g.fillCircle(-headW / 2 + lookOX, headY + headH * 0.68, 1.3);
-    g.fillCircle( headW / 2 + lookOX, headY + headH * 0.68, 1.3);
-
-    // ── Face details (front/side only — back view stays a plain hood) ──
-    if (!isBack) {
-      const eyeY  = headY + headH * 0.4;
-      const eyeOX = lookOX * 1.3;
-
-      g.fillStyle(0x0a0a0a);
-      g.fillRect(-4.5 + eyeOX, eyeY, 2.5, 2.5);
-      g.fillRect( 2 + eyeOX,   eyeY, 2.5, 2.5);
-
-      g.fillStyle(0x0a2030, 0.92);
-      g.fillRoundedRect(-5.5 + eyeOX, eyeY - 1, 6, 3.5, 1);
-      g.fillRoundedRect( 0.5 + eyeOX, eyeY - 1, 6, 3.5, 1);
-      g.fillStyle(0x303030);
-      g.fillRect(-0.5 + eyeOX, eyeY + 0.5, 2, 1.5);
-    }
-
-    g.setPosition(x, y);
-    g.setRotation(p.rotation ?? 0);
-    g.setScale(scale, scale * breathScale);
-    g.setAlpha(alpha);
-  }
+  // drawHumanoid() now lives in HumanoidRenderer.ts (imported above) — the
+  // extraction lets the character-creator preview render through the
+  // literal same function. This call site and the NPC/Town Crier ones
+  // below just call the imported `drawHumanoid(...)` instead.
 
   /* ═══════════════════════════════════════════════════════════
      NPC CITIZENS
@@ -1108,7 +1023,12 @@ export class WorldScene extends Phaser.Scene {
 
     names.forEach((name, i) => {
       const personality = Phaser.Utils.Array.GetRandom(NPC_PERSONALITIES);
-      const styleId = NPC_PERSONALITY_STYLE[personality];
+      // Jacket stays personality-biased (preserves "alpha analysts wear
+      // teal" flavor); every other slot is independently randomized —
+      // see generateRandomAppearance()'s doc comment for why no
+      // dedup/uniqueness bookkeeping is needed across 40-60 citizens.
+      const appearance = generateRandomAppearance(NPC_PERSONALITY_STYLE[personality]);
+      const resolvedAppearance = resolveAppearance(appearance);
       const behaviorType = pickWeighted(NPC_BEHAVIOR_WEIGHTS).type;
 
       // Round-robin through landmarks first (guarantees every landmark gets
@@ -1128,12 +1048,20 @@ export class WorldScene extends Phaser.Scene {
 
       const shadow = this.add.graphics().setDepth(6);
       const body   = this.add.graphics().setDepth(7);
-      const label  = this.add.text(0, 0, `${name} [NPC]`, {
+      // Just the short name by default — the honesty rule ("RugTown
+      // Citizens, never real users") is still satisfied via the "·
+      // Citizen" suffix shown up close (see updateNpcs()) and the
+      // existing [NPC] tags in chat/dialogue, without cluttering every
+      // citizen's head with text all the time (req. C).
+      const label  = this.add.text(0, 0, name, {
         fontFamily: '"Cinzel", serif',
         fontSize:   '7px',
-        color:      '#8a9aa0',
-        backgroundColor: 'rgba(4,8,12,0.78)',
+        color:      '#b8c8d0',
+        backgroundColor: 'rgba(4,8,12,0.88)',
         padding: { x: 3, y: 1 },
+        stroke: '#000000',
+        strokeThickness: 2,
+        resolution: Math.max(2, window.devicePixelRatio || 1),
       }).setOrigin(0.5, 1).setDepth(7.2);
 
       const speech = this.add.text(0, 0, '', {
@@ -1169,13 +1097,18 @@ export class WorldScene extends Phaser.Scene {
         walkMax: Phaser.Math.Between(1800, 3200),
         animTick: Phaser.Math.Between(0, 4000),               // random phase offset
         lean: 0,
-        styleId,
-        skinColor: Phaser.Utils.Array.GetRandom(NPC_SKIN_PALETTE),
+        appearance,
+        resolvedAppearance,
         personality,
         behaviorType,
         homeLandmarkIndex,
         speechTimerNext: Phaser.Math.Between(NPC_SPEECH_MIN_GAP, NPC_SPEECH_MAX_GAP),
         speechShowUntil: 0,
+        speechOffsetX: Phaser.Math.Between(-7, 7),
+        speechOffsetY: Phaser.Math.Between(-9, 0),
+        labelNear: false,
+        blinkTimerNext: Phaser.Math.Between(2000, 6000),
+        blinkUntil: 0,
         shadow, body, label, speech,
       });
     });
@@ -1287,11 +1220,12 @@ export class WorldScene extends Phaser.Scene {
         n.label.setVisible(true);
       }
 
-      /* ── Speech bubbles — occasional, desynchronized per NPC. The bubble
-         itself is per-NPC and unthrottled (so the city always feels alive
-         up close); forwarding into the city chat panel is rate-limited by
-         a single GLOBAL cooldown so 60 citizens don't spam 6x harder than
-         10 used to. ── */
+      /* ── Speech bubbles — occasional, desynchronized per NPC, capped at
+         NPC_SPEECH_MAX_VISIBLE simultaneous bubbles city-wide so crowds
+         and event moments can't paper the screen in text. Forwarding
+         into the city chat panel is separately rate-limited by a single
+         GLOBAL cooldown so 60 citizens don't spam 6x harder than 10
+         used to. ── */
       if (n.speechShowUntil > 0) {
         n.speechShowUntil -= delta;
         if (n.speechShowUntil <= 0) {
@@ -1301,7 +1235,7 @@ export class WorldScene extends Phaser.Scene {
         n.speechTimerNext -= delta;
         if (n.speechTimerNext <= 0) {
           n.speechTimerNext = Phaser.Math.Between(NPC_SPEECH_MIN_GAP, NPC_SPEECH_MAX_GAP);
-          if (Math.random() < NPC_SPEECH_CHANCE) {
+          if (Math.random() < NPC_SPEECH_CHANCE && this.countVisibleNpcSpeechBubbles() < NPC_SPEECH_MAX_VISIBLE) {
             const pool = NPC_SPEECH_BY_PERSONALITY[n.personality];
             const line = Phaser.Utils.Array.GetRandom(pool);
             n.speech.setText(line);
@@ -1312,6 +1246,30 @@ export class WorldScene extends Phaser.Scene {
               this.events.emit('npc-chat', { name: n.name, text: line });
             }
           }
+        }
+      }
+
+      /* ── Name label — hidden by default to keep the screen clean;
+         only shown when the player is very close (NPC_LABEL_NEAR_RADIUS)
+         OR the citizen is actively speaking (so you know who said it).
+         setText() only runs on an actual near/far transition. ── */
+      const dxLabel = this.px - n.px;
+      const dyLabel = this.py - n.py;
+      const nearPlayer = (dxLabel * dxLabel + dyLabel * dyLabel) <= NPC_LABEL_NEAR_RADIUS * NPC_LABEL_NEAR_RADIUS;
+      if (nearPlayer !== n.labelNear) {
+        n.labelNear = nearPlayer;
+        n.label.setText(nearPlayer ? `${n.name} · Citizen` : n.name);
+      }
+      n.label.setVisible(nearPlayer || n.speechShowUntil > 0);
+
+      /* ── Blink timer — purely cosmetic, no movement/state impact ── */
+      if (n.blinkUntil > 0) {
+        n.blinkUntil -= delta;
+      } else {
+        n.blinkTimerNext -= delta;
+        if (n.blinkTimerNext <= 0) {
+          n.blinkUntil = 120;
+          n.blinkTimerNext = Phaser.Math.Between(2000, 6000);
         }
       }
 
@@ -1351,8 +1309,7 @@ export class WorldScene extends Phaser.Scene {
     n.shadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * NPC_SCALE * (1 - bodyBob * 0.05), SHADOW_H * NPC_SCALE);
     n.shadow.setPosition(n.px, n.py);
 
-    const style = getCharacterStyle(n.styleId);
-    this.drawHumanoid(n.body, n.px, n.py, {
+    drawHumanoid(n.body, n.px, n.py, {
       facing: n.facing,
       bodyBob,
       legStagger,
@@ -1361,21 +1318,20 @@ export class WorldScene extends Phaser.Scene {
       armSwing,
       legSwingX,
       headBob: idleHeadBob,
-      rotation: n.lean + sway,
+      rotation: n.lean + sway + (n.isMoving ? 0 : Math.sin((n.animTick / 1000) * 0.18) * 0.06),
       breathScale,
       scale: NPC_SCALE,
       alpha: NPC_ALPHA,
-      coatColor: style.coatColor,
-      coatHighlite: style.coatHighlite,
-      coatShade: style.coatShade,
-      goldColor: style.accentColor,
-      skinColor: n.skinColor,
+      appearance: n.resolvedAppearance,
+      blink: n.blinkUntil > 0 ? 1 : 0,
     });
 
     const headYLocal = -bodyBob - CHAR_H * 0.5;
     const labelY = n.py + headYLocal * NPC_SCALE - 5;
-    n.label.setPosition(n.px, labelY);
-    n.speech.setPosition(n.px, labelY - 12);
+    n.label.setPosition(Math.round(n.px), Math.round(labelY));
+    // Small fixed-per-citizen jitter (assigned once at spawn) so two
+    // bubbles above nearby citizens don't perfectly overlap (req. D3).
+    n.speech.setPosition(n.px + n.speechOffsetX, labelY - 12 + n.speechOffsetY);
   }
 
   /**
@@ -1629,14 +1585,26 @@ export class WorldScene extends Phaser.Scene {
     this.emotePulseUntil = EMOTE_PULSE_DURATION;
   }
 
+  /** How many citizens currently have a visible speech bubble, city-wide
+   *  — the single source of truth NPC_SPEECH_MAX_VISIBLE is enforced
+   *  against (req. D1). Cheap: a flat scan of speechShowUntil, no
+   *  GameObject property reads. */
+  private countVisibleNpcSpeechBubbles(): number {
+    let count = 0;
+    for (const n of this.npcs) if (n.speechShowUntil > 0) count++;
+    return count;
+  }
+
   /**
    * Shows `text` in a random NPC's existing speech bubble (same fields
    * the NPC's own ambient chatter already uses). Used by simulated city
    * events that want to surface "from" a citizen — doesn't touch NPC
-   * movement/behavior, just borrows the bubble for a moment.
+   * movement/behavior, just borrows the bubble for a moment. Respects
+   * the same global visible-bubble cap as everything else.
    */
   showNpcEventSpeech(text: string) {
     if (this.npcs.length === 0) return;
+    if (this.countVisibleNpcSpeechBubbles() >= NPC_SPEECH_MAX_VISIBLE) return;
     const n = Phaser.Utils.Array.GetRandom(this.npcs);
     n.speech.setText(text);
     n.speech.setVisible(true);
@@ -1768,9 +1736,17 @@ export class WorldScene extends Phaser.Scene {
       npc, homeX: npc.homeX, homeY: npc.homeY, wanderRadius: npc.wanderRadius,
     }));
 
-    sample.forEach(npc => {
-      npc.homeX = Phaser.Math.Clamp(wx + Phaser.Math.Between(-40, 40), CHAR_W, this.worldW - CHAR_W);
-      npc.homeY = Phaser.Math.Clamp(wy + Phaser.Math.Between(-40, 40), CHAR_H, this.worldH - CHAR_H);
+    // Evenly-sloted ring (+ small per-slot jitter that's mathematically
+    // capped at well under one slot-width, so neighboring citizens can
+    // never land on each other) instead of pure independent random x/y
+    // offsets — spreads the gather out and avoids stacking (req. E),
+    // while still looking organic rather than a perfect circle.
+    const slotWidth = (Math.PI * 2) / sample.length;
+    sample.forEach((npc, i) => {
+      const angle = i * slotWidth + Phaser.Math.FloatBetween(-slotWidth * 0.35, slotWidth * 0.35);
+      const dist = Phaser.Math.Between(35, 95);
+      npc.homeX = Phaser.Math.Clamp(wx + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
+      npc.homeY = Phaser.Math.Clamp(wy + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
       npc.wanderRadius = 60;
       npc.state = 'walk';
       npc.targetX = npc.homeX;
@@ -2145,8 +2121,11 @@ export class WorldScene extends Phaser.Scene {
       fontSize: '7px',
       fontStyle: 'bold',
       color: '#1a1408',
-      backgroundColor: 'rgba(232,184,75,0.92)',
+      backgroundColor: 'rgba(232,184,75,0.96)',
       padding: { x: 4, y: 2 },
+      stroke: '#5a3800',
+      strokeThickness: 2,
+      resolution: Math.max(2, window.devicePixelRatio || 1),
     }).setOrigin(0.5, 1).setDepth(14.2);
     const speech = this.add.text(wx, wy, '', {
       fontFamily: '"Cinzel", serif',
@@ -2168,6 +2147,7 @@ export class WorldScene extends Phaser.Scene {
       lineIndex: 0,
       lineTimer: 0,
       animTick: 0,
+      resolvedAppearance: resolveAppearance({ ...DEFAULT_APPEARANCE, jacket: 'goldHolderCoat' }),
     };
     this.registry.set('townCrier', { wx, wy });
 
@@ -2175,8 +2155,9 @@ export class WorldScene extends Phaser.Scene {
     this.faceNpcsTowardTownCrier(wx, wy);
     // Nearby citizens don't just turn to face him — a crowd actually
     // gathers closer for the announcement (req. 1), tighter/closer than
-    // the bigger Live-phase crowd reactions below.
-    this.triggerCrowdReaction(wx, wy, 10, 15, 55);
+    // the bigger Live-phase crowd reactions below, but still spread out
+    // (req. E) rather than stacking on his exact position.
+    this.triggerCrowdReaction(wx, wy, 10, 25, 75);
 
     soundManager.play('bell');
     this.events.emit('town-crier-announce', { title: def.title });
@@ -2236,8 +2217,7 @@ export class WorldScene extends Phaser.Scene {
     tc.shadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 4) * (1 - idleBob * 0.05), SHADOW_H + 2);
     tc.shadow.setPosition(tc.wx, tc.wy);
 
-    const goldOutfit = getCharacterStyle('goldHolderCoat');
-    this.drawHumanoid(tc.body, tc.wx, tc.wy, {
+    drawHumanoid(tc.body, tc.wx, tc.wy, {
       facing: 'down',
       bodyBob: idleBob,
       legStagger: 0,
@@ -2247,15 +2227,12 @@ export class WorldScene extends Phaser.Scene {
       headBob: idleHeadBob,
       rotation: idleSway,
       breathScale,
-      coatColor: goldOutfit.coatColor,
-      coatHighlite: goldOutfit.coatHighlite,
-      coatShade: goldOutfit.coatShade,
-      goldColor: goldOutfit.accentColor,
+      appearance: tc.resolvedAppearance,
     });
 
     const headYLocal = -idleBob - CHAR_H * 0.5;
     const labelY = tc.wy + headYLocal - 6;
-    tc.label.setPosition(tc.wx, labelY);
+    tc.label.setPosition(Math.round(tc.wx), Math.round(labelY));
     tc.bell.setPosition(tc.wx, labelY - 14);
     tc.speech.setPosition(tc.wx, labelY - 26);
 
@@ -2442,7 +2419,7 @@ export class WorldScene extends Phaser.Scene {
    * Always reverts any previous crowd reaction first — only one is ever
    * active at a time.
    */
-  private triggerCrowdReaction(wx: number, wy: number, count: number, spreadMin = 20, spreadMax = 100) {
+  private triggerCrowdReaction(wx: number, wy: number, count: number, spreadMin = 35, spreadMax = 150) {
     this.revertCrowdReaction();
     if (this.npcs.length === 0) return;
 
@@ -2455,8 +2432,12 @@ export class WorldScene extends Phaser.Scene {
       npc, homeX: npc.homeX, homeY: npc.homeY, wanderRadius: npc.wanderRadius,
     }));
 
-    sample.forEach(npc => {
-      const angle = Math.random() * Math.PI * 2;
+    // Same evenly-sloted-ring-plus-jitter technique as
+    // applyEventCitizenGather() — wider radius here since this is the
+    // bigger "whole crowd" reaction, not the tight inner circle (req. E).
+    const slotWidth = (Math.PI * 2) / sample.length;
+    sample.forEach((npc, i) => {
+      const angle = i * slotWidth + Phaser.Math.FloatBetween(-slotWidth * 0.35, slotWidth * 0.35);
       const dist = Phaser.Math.Between(spreadMin, spreadMax);
       npc.homeX = Phaser.Math.Clamp(wx + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
       npc.homeY = Phaser.Math.Clamp(wy + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
@@ -2469,12 +2450,19 @@ export class WorldScene extends Phaser.Scene {
       // enough to naturally vary who gets there first.
       npc.stateTimer = Phaser.Math.Between(7000, 14000);
 
-      this.time.delayedCall(Phaser.Math.Between(300, 3500), () => {
-        const line = Phaser.Utils.Array.GetRandom(CROWD_REACTION_LINES);
-        npc.speech.setText(line);
-        npc.speech.setVisible(true);
-        npc.speechShowUntil = NPC_SPEECH_DURATION;
-      });
+      // Only some of the crowd actually gets a scheduled speech bubble
+      // (req. D4 — reduce crowd/event bubble spam); the global
+      // NPC_SPEECH_MAX_VISIBLE cap is re-checked when the timer actually
+      // fires, since visible-bubble counts shift during the stagger window.
+      if (Math.random() < 0.45) {
+        this.time.delayedCall(Phaser.Math.Between(300, 4000), () => {
+          if (this.countVisibleNpcSpeechBubbles() >= NPC_SPEECH_MAX_VISIBLE) return;
+          const line = Phaser.Utils.Array.GetRandom(CROWD_REACTION_LINES);
+          npc.speech.setText(line);
+          npc.speech.setVisible(true);
+          npc.speechShowUntil = NPC_SPEECH_DURATION;
+        });
+      }
     });
   }
 
@@ -2514,6 +2502,86 @@ export class WorldScene extends Phaser.Scene {
         break;
       default:
         break;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     FOUNTAIN ONBOARDING GUIDE
+     Pulsing glow around the Spawn Fountain to guide new players.
+     Disappears as soon as GamePage publishes 'fountainClaimed' to
+     the registry. Depth 3.5 — above background, below characters.
+     ═══════════════════════════════════════════════════════════ */
+  private createFountainGuide() {
+    const obj = getWorldObject('fountain');
+    if (!obj) return;
+    this.fountainGuide = this.add.graphics().setDepth(3.5);
+  }
+
+  private updateFountainGuide(delta: number) {
+    if (!this.fountainGuide) return;
+
+    // Hide permanently once the player has claimed the fountain reward.
+    if (this.registry.get('fountainClaimed') === true) {
+      if (this.fountainGuide.visible) this.fountainGuide.setVisible(false);
+      return;
+    }
+
+    const obj = getWorldObject('fountain');
+    if (!obj) return;
+    const wx = obj.x * this.worldW;
+    const wy = obj.y * this.worldH;
+
+    this.fountainGuideAnimTick += delta;
+    const t = this.fountainGuideAnimTick / 1000;
+    const pulse = (Math.sin(t * 2.6) + 1) / 2; // 0..1, ~2.6 rad/s ≈ nice pulse
+
+    // Brighten the glow when the player is standing nearby (inside interaction radius).
+    const dx = this.px - wx;
+    const dy = this.py - wy;
+    const distSq = dx * dx + dy * dy;
+    const isNear = distSq < 160 * 160;
+
+    const baseAlpha = isNear ? 0.55 + pulse * 0.40 : 0.18 + pulse * 0.14;
+
+    this.fountainGuide.clear();
+    // Draw concentric rings that expand/contract with the pulse.
+    for (let r = 80; r >= 8; r -= 18) {
+      const a = baseAlpha * (1 - r / 80) * 0.9;
+      this.fountainGuide.fillStyle(0xe8c840, a);
+      this.fountainGuide.fillCircle(wx, wy, r * (0.88 + pulse * 0.22));
+    }
+    // Bright inner core.
+    this.fountainGuide.fillStyle(0xfff0a0, Math.min(baseAlpha * 1.6, 0.85));
+    this.fountainGuide.fillCircle(wx, wy, 10 * (0.8 + pulse * 0.5));
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     LANDMARK LABELS (Part D)
+     Floating signboards above key landmarks — created 80ms after the
+     world is visible so they don't block the first frame. Fade out
+     when zoomed far out so they don't clutter the minimap-level view.
+     Pure visual, no gameplay effect — depth 4.5 (above background,
+     below everything else).
+     ═══════════════════════════════════════════════════════════ */
+  private createLandmarkLabels() {
+    const LABEL_IDS = ['fountain', 'market', 'fame', 'whale', 'alpha', 'notice', 'bridge'];
+    for (const id of LABEL_IDS) {
+      const obj = WORLD_OBJECTS.find(o => o.id === id);
+      if (!obj) continue;
+      const wx = obj.x * this.worldW;
+      const wy = obj.y * this.worldH - 50; // float above the landmark area
+      const lbl = this.add.text(wx, wy, `${obj.futureIcon}  ${obj.displayName}`, {
+        fontFamily: '"Cinzel", serif',
+        fontSize:   '11px',
+        fontStyle:  'bold',
+        color:      '#e8c878',
+        backgroundColor: 'rgba(4,8,12,0.78)',
+        padding: { x: 7, y: 4 },
+        stroke: '#000000',
+        strokeThickness: 3,
+        resolution: 2,
+      }).setOrigin(0.5, 1).setDepth(4.5).setAlpha(0);
+      this.landmarkLabels.push(lbl);
     }
   }
 
@@ -2867,14 +2935,15 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /**
-   * Player outfit, chosen on the pre-game outfit-select screen. Safe to
-   * call before or after create() — RugTownGame calls it right after
-   * construction, before the Phaser.Game boots, so create()'s first
-   * drawPlayer() already picks it up; also safe to call later (e.g. if
-   * a future settings screen lets the player re-pick).
+   * Player appearance, chosen on the pre-game character-creator screen.
+   * Safe to call before or after create() — RugTownGame calls it right
+   * after construction, before the Phaser.Game boots, so create()'s
+   * first drawPlayer() already picks it up; also safe to call later
+   * (e.g. if a future settings screen lets the player re-pick).
    */
-  setOutfit(id: string) {
-    this.outfitId = id;
+  setAppearance(appearance: CharacterAppearance) {
+    this.appearance = appearance;
+    this.resolvedAppearance = resolveAppearance(appearance);
     if (this.playerBody) this.drawPlayer();
   }
 

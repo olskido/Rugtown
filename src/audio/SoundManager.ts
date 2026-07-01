@@ -3,14 +3,12 @@
   ───────────────
   Lightweight, local-only sound system built entirely on the Web Audio
   API — no audio files, no network requests, no external dependencies.
-  Every sound (UI tones, the ambience loop, the music loop) is a
-  synthesized oscillator tone. Swapping in real audio files later would
-  only mean changing the bodies of play()/startAmbience()/startMusic();
-  the public API (unlock/setMuted/setVolume/play) would stay the same.
+  Every sound is a synthesized oscillator tone.
 
-  Browser autoplay policies block audio until a user gesture anyway, so
-  `unlock()` doubles as both "satisfy the browser" and "start muted/low
-  until the player actually interacts" (this module defaults to muted).
+  Part F: Three background beat tracks that shuffle every 45-90 seconds:
+  0 = Dark City  (slow, minor, atmospheric bass)
+  1 = Market Pulse (medium-tempo rhythmic with melody)
+  2 = Event Tension (faster, tense, minor feel)
 */
 
 export type SoundChannel = 'music' | 'ambience' | 'effects';
@@ -32,36 +30,94 @@ interface TonePreset {
 }
 
 const EFFECT_PRESETS: Record<SoundEffectName, TonePreset> = {
-  click:    { freq: 660, duration: 0.05, type: 'square' },
-  modal:    { freq: 440, freq2: 660, duration: 0.16, type: 'sine' },
-  reward:   { freq: 523, freq2: 784, duration: 0.22, type: 'triangle' },
-  quest:    { freq: 392, freq2: 587, duration: 0.28, type: 'triangle' },
-  event:    { freq: 330, duration: 0.14, type: 'sine' },
-  chatSend: { freq: 880, duration: 0.06, type: 'square' },
-  // Town Crier's bell — a bright two-tone "ding-dong" ring (play() already
-  // sequences freq then freq2 with a short delay between them).
-  bell:     { freq: 988, freq2: 1318.5, duration: 0.4, type: 'triangle' },
+  click:    { freq: 660,    duration: 0.05, type: 'square' },
+  modal:    { freq: 440,    freq2: 660,   duration: 0.16, type: 'sine' },
+  reward:   { freq: 523,    freq2: 784,   duration: 0.22, type: 'triangle' },
+  quest:    { freq: 392,    freq2: 587,   duration: 0.28, type: 'triangle' },
+  event:    { freq: 330,    duration: 0.14, type: 'sine' },
+  chatSend: { freq: 880,    duration: 0.06, type: 'square' },
+  bell:     { freq: 988,    freq2: 1318.5, duration: 0.4, type: 'triangle' },
 };
 
-const MUSIC_NOTES = [261.63, 329.63, 392.0, 523.25]; // soft C-major arpeggio
-const MUSIC_STEP_MS = 2600;
+/* ─── Background beat track definitions ───
+   Each track is a looping sequence of steps.
+   null = silence step; vol defaults to 0.35 if omitted. */
+interface BeatStep { freq: number; type: OscillatorType; dur: number; vol?: number; }
+
+interface BeatTrack {
+  /** ms between steps */
+  stepMs: number;
+  steps: (BeatStep | null)[];
+}
+
+const BEAT_TRACKS: BeatTrack[] = [
+  // Track 0: Dark City Ambience — slow, minor, atmospheric
+  {
+    stepMs: 600,
+    steps: [
+      { freq: 55.0,  type: 'sine', dur: 0.44, vol: 0.45 },
+      null,
+      { freq: 82.4,  type: 'sine', dur: 0.22, vol: 0.28 },
+      null,
+      { freq: 55.0,  type: 'sine', dur: 0.38, vol: 0.40 },
+      { freq: 110.0, type: 'sine', dur: 0.10, vol: 0.18 },
+      null,
+      { freq: 69.3,  type: 'sine', dur: 0.28, vol: 0.30 },
+    ],
+  },
+  // Track 1: Market Pulse — medium tempo, rhythmic bass + melodic hints
+  {
+    stepMs: 375,
+    steps: [
+      { freq: 110.0, type: 'square',   dur: 0.12, vol: 0.30 },
+      { freq: 261.6, type: 'sine',     dur: 0.08, vol: 0.16 },
+      { freq: 82.4,  type: 'square',   dur: 0.16, vol: 0.28 },
+      { freq: 329.6, type: 'sine',     dur: 0.07, vol: 0.14 },
+      { freq: 110.0, type: 'square',   dur: 0.12, vol: 0.30 },
+      { freq: 293.7, type: 'sine',     dur: 0.08, vol: 0.14 },
+      { freq: 82.4,  type: 'square',   dur: 0.12, vol: 0.26 },
+      null,
+    ],
+  },
+  // Track 2: Event Tension — faster, tense, minor feel
+  {
+    stepMs: 300,
+    steps: [
+      { freq: 146.8, type: 'sawtooth', dur: 0.18, vol: 0.26 },
+      { freq: 185.0, type: 'sine',     dur: 0.08, vol: 0.16 },
+      { freq: 174.6, type: 'sawtooth', dur: 0.18, vol: 0.24 },
+      null,
+      { freq: 146.8, type: 'sawtooth', dur: 0.22, vol: 0.30 },
+      { freq: 220.0, type: 'sine',     dur: 0.09, vol: 0.14 },
+      { freq: 196.0, type: 'sawtooth', dur: 0.14, vol: 0.22 },
+      { freq: 185.0, type: 'sine',     dur: 0.08, vol: 0.14 },
+    ],
+  },
+];
 
 class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private channelGains: Partial<Record<SoundChannel, GainNode>> = {};
 
-  private muted = true;
+  private muted = false;
   private volumes: Record<SoundChannel, number> = {
-    music: 0.25,
-    ambience: 0.2,
-    effects: 0.35,
+    music:    0.18,
+    ambience: 0.22,
+    effects:  0.35,
   };
 
   private unlocked = false;
   private ambienceStarted = false;
   private musicStarted = false;
-  private musicTimer: ReturnType<typeof setInterval> | null = null;
+
+  /* ── Beat track state ── */
+  private beatTrackIdx = 0;
+  private beatStepIdx = 0;
+  private beatTimer: ReturnType<typeof setInterval> | null = null;
+  private beatShuffleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /* ── Ambience ── */
   private ambienceOscillators: OscillatorNode[] = [];
 
   /** Call once on the first user gesture. Safe to call repeatedly. */
@@ -74,9 +130,9 @@ class SoundManager {
     this.startMusic();
   }
 
-  isMuted(): boolean {
-    return this.muted;
-  }
+  isMuted(): boolean { return this.muted; }
+
+  isUnlocked(): boolean { return this.unlocked; }
 
   setMuted(muted: boolean) {
     this.muted = muted;
@@ -85,9 +141,7 @@ class SoundManager {
     }
   }
 
-  getVolume(channel: SoundChannel): number {
-    return this.volumes[channel];
-  }
+  getVolume(channel: SoundChannel): number { return this.volumes[channel]; }
 
   setVolume(channel: SoundChannel, volume: number) {
     this.volumes[channel] = volume;
@@ -97,9 +151,8 @@ class SoundManager {
     }
   }
 
-  /** Plays a short synthesized one-shot tone for a named UI sound. */
   play(name: SoundEffectName) {
-    if (!this.unlocked) return; // never make sound before a user gesture
+    if (!this.unlocked) return;
     this.ensureContext();
     const ctx = this.ctx;
     const destination = this.channelGains.effects;
@@ -136,7 +189,7 @@ class SoundManager {
     });
   }
 
-  private playTone(freq: number, duration: number, type: OscillatorType, destination: GainNode) {
+  private playTone(freq: number, duration: number, type: OscillatorType, destination: GainNode, vol = 0.55) {
     const ctx = this.ctx;
     if (!ctx) return;
     const osc = ctx.createOscillator();
@@ -146,7 +199,7 @@ class SoundManager {
 
     const now = ctx.currentTime;
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.6, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(vol, now + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
     osc.connect(gain);
@@ -155,7 +208,7 @@ class SoundManager {
     osc.stop(now + duration + 0.02);
   }
 
-  /** Soft, continuous two-tone hum — the "city ambience" placeholder loop. */
+  /** Soft, continuous two-tone hum — city ambience placeholder. */
   private startAmbience() {
     if (this.ambienceStarted) return;
     const ctx = this.ctx;
@@ -169,7 +222,7 @@ class SoundManager {
     osc1.type = 'sine';
     osc2.type = 'sine';
     osc1.frequency.value = 110;
-    osc2.frequency.value = 110 * 1.5; // gentle, slightly-detuned fifth
+    osc2.frequency.value = 110 * 1.5;
 
     gain.gain.value = 0.0001;
     osc1.connect(gain);
@@ -183,22 +236,57 @@ class SoundManager {
     this.ambienceOscillators = [osc1, osc2];
   }
 
-  /** Very simple, slow arpeggio loop — the "music" placeholder. */
+  /* ─── Music: 3 shuffling beat tracks ─── */
+
   private startMusic() {
     if (this.musicStarted) return;
-    const destination = this.channelGains.music;
-    if (!this.ctx || !destination) return;
     this.musicStarted = true;
+    // Random starting track
+    this.beatTrackIdx = Math.floor(Math.random() * BEAT_TRACKS.length);
+    this.runBeatTrack();
+    this.scheduleNextShuffle();
+  }
 
-    let i = 0;
-    const playNext = () => {
-      if (this.channelGains.music) {
-        this.playTone(MUSIC_NOTES[i % MUSIC_NOTES.length], 0.9, 'sine', this.channelGains.music);
+  private runBeatTrack() {
+    if (this.beatTimer) {
+      clearInterval(this.beatTimer);
+      this.beatTimer = null;
+    }
+    this.beatStepIdx = 0;
+    const track = BEAT_TRACKS[this.beatTrackIdx];
+
+    const tick = () => {
+      const dest = this.channelGains.music;
+      if (!dest || !this.ctx) return;
+      const step = track.steps[this.beatStepIdx % track.steps.length];
+      if (step) {
+        this.playTone(step.freq, step.dur, step.type, dest, step.vol ?? 0.35);
       }
-      i++;
+      this.beatStepIdx++;
     };
-    playNext();
-    this.musicTimer = setInterval(playNext, MUSIC_STEP_MS);
+
+    tick(); // play first step immediately
+    this.beatTimer = setInterval(tick, track.stepMs);
+  }
+
+  private scheduleNextShuffle() {
+    if (this.beatShuffleTimer) clearTimeout(this.beatShuffleTimer);
+    const delay = 45_000 + Math.random() * 45_000; // 45-90 seconds
+    this.beatShuffleTimer = setTimeout(() => {
+      this.shuffleToNextTrack();
+      this.scheduleNextShuffle();
+    }, delay);
+  }
+
+  private shuffleToNextTrack() {
+    // Pick any track that's different from the current one
+    const count = BEAT_TRACKS.length;
+    let next = this.beatTrackIdx;
+    for (let attempts = 0; attempts < 5 && next === this.beatTrackIdx; attempts++) {
+      next = Math.floor(Math.random() * count);
+    }
+    this.beatTrackIdx = next;
+    this.runBeatTrack();
   }
 }
 

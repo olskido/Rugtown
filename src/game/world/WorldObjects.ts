@@ -159,7 +159,7 @@ export function toWorldPosition(obj: WorldObject, worldW: number, worldH: number
    future quests/NPCs/sounds/animations to reference, but isn't triggered
    by the player yet. Expanding a landmark's interaction later means
    adding its id here — no coordinate or detection-logic changes needed. */
-const LIVE_INTERACTION_IDS = new Set(['fountain', 'market', 'fame', 'bridge', 'whale']);
+const LIVE_INTERACTION_IDS = new Set(['fountain', 'market', 'fame', 'bridge', 'whale', 'notice', 'alpha']);
 
 export function isInteractionLive(obj: WorldObject): boolean {
   return LIVE_INTERACTION_IDS.has(obj.id);

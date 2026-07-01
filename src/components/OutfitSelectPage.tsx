@@ -1,38 +1,134 @@
-import React, { useState } from 'react';
-import { CHARACTER_STYLES, DEFAULT_CHARACTER_STYLE_ID } from '../game/world/CharacterStyles';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CharacterPreviewGame } from '../game/CharacterPreviewGame';
+import {
+  SKIN_TONES,
+  HAIRSTYLE_OPTIONS,
+  FACIAL_HAIR_OPTIONS,
+  HAT_OPTIONS,
+  GLASSES_OPTIONS,
+  ACCESSORY_OPTIONS,
+  JACKET_OPTIONS,
+  PANTS_OPTIONS,
+  SHOES_OPTIONS,
+  BACKPACK_OPTIONS,
+  HANDHELD_OPTIONS,
+  DEFAULT_APPEARANCE,
+  type CharacterAppearance,
+} from '../game/world/CharacterAppearance';
 
 /*
   OutfitSelectPage.tsx
   ─────────────────────
-  New step between LandingPage and GamePage: choose an outfit before
-  entering the city. Reuses the landing screen's background/particle
-  classes (landing.css) for visual continuity, with its own
-  `.outfit-select` card styles (game.css). Selection is local React
-  state only — handed up via onSelect, nothing persisted.
+  Character creator — the pre-game step between landing and GamePage.
+  Replaces the original 8 static CSS-swatch cards with:
 
-  Swatches/colors come straight from CharacterStyles.ts, the same
-  registry WorldScene reads from, so the preview never drifts from
-  the actual in-game look.
+  • A live, idle-breathing animated preview rendered through the same
+    drawHumanoid() function WorldScene uses, so the preview is always
+    bit-identical to the in-game look.
+  • Compact prev/next slot-picker rows, one per appearance category.
+
+  Visual design: same black/gold language as the rest of the game
+  (panel-corners, Cinzel font, gold borders) — no new visual style.
+  The card is ~40% narrower than before (max 490px vs 720px) so more
+  of the city background shows through.
 */
 
 const OUTFIT_BLURBS: Record<string, string> = {
-  degenHoodie:       'The classic look. Gold trim, low profile.',
-  goldHolderCoat:    'Rich gold tones for the long-term holders.',
-  whaleSuit:         'Icy blues. You move the market and you know it.',
-  marketTrader:      'Warm amber. Always watching the order book.',
-  alphaAnalyst:      'Teal accents. Quiet alpha, loud results.',
-  rugAlleyInformant: 'Red flags, literally. Trust no dev.',
-  builderJacket:     'Safety orange. Still shipping, still building.',
-  memeLord:          'Playful pink. Probably nothing.',
+  degenHoodie:        'The classic look. Gold trim, low profile.',
+  goldHolderCoat:     'Rich gold tones for the long-term holders.',
+  whaleSuit:          'Icy blues. You move the market and you know it.',
+  marketTrader:       'Warm amber. Always watching the order book.',
+  alphaAnalyst:       'Teal accents. Quiet alpha, loud results.',
+  rugAlleyInformant:  'Red flags, literally. Trust no dev.',
+  builderJacket:      'Safety orange. Still shipping, still building.',
+  memeLord:           'Playful pink. Probably nothing.',
 };
+
+type Category = keyof CharacterAppearance;
+
+interface SlotConfig {
+  key: Category;
+  label: string;
+  options: { id: string; name: string }[];
+}
+
+const SLOTS: SlotConfig[] = [
+  { key: 'skinTone',  label: 'Skin',       options: SKIN_TONES },
+  { key: 'hairstyle', label: 'Hairstyle',  options: HAIRSTYLE_OPTIONS },
+  { key: 'facialHair',label: 'Facial Hair',options: FACIAL_HAIR_OPTIONS },
+  { key: 'hat',       label: 'Hat',        options: HAT_OPTIONS },
+  { key: 'glasses',   label: 'Glasses',    options: GLASSES_OPTIONS },
+  { key: 'accessory', label: 'Accessory',  options: ACCESSORY_OPTIONS },
+  { key: 'jacket',    label: 'Jacket',     options: JACKET_OPTIONS },
+  { key: 'pants',     label: 'Pants',      options: PANTS_OPTIONS },
+  { key: 'shoes',     label: 'Shoes',      options: SHOES_OPTIONS },
+  { key: 'backpack',  label: 'Backpack',   options: BACKPACK_OPTIONS },
+  { key: 'handheld',  label: 'Handheld',   options: HANDHELD_OPTIONS },
+];
 
 interface OutfitSelectPageProps {
   playerName: string;
-  onSelect: (outfitId: string) => void;
+  onSelect: (appearance: CharacterAppearance) => void;
 }
 
 export function OutfitSelectPage({ playerName, onSelect }: OutfitSelectPageProps) {
-  const [selected, setSelected] = useState(DEFAULT_CHARACTER_STYLE_ID);
+  const [appearance, setAppearance] = useState<CharacterAppearance>(DEFAULT_APPEARANCE);
+  const previewGameRef = useRef<CharacterPreviewGame | null>(null);
+  const mountedRef = useRef(false);
+
+  // Boot the preview Phaser.Game once on mount — same cancelled-flag
+  // StrictMode-safe pattern used by GamePage.tsx for the main game.
+  useEffect(() => {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
+    let cancelled = false;
+
+    const game = new CharacterPreviewGame({
+      parentId: 'character-preview-mount',
+      initialAppearance: appearance,
+      onReady: () => {
+        if (cancelled) return;
+        previewGameRef.current = game;
+      },
+    });
+    // Also store immediately so the appearance-update effect can reach
+    // it before the 'ready' event fires.
+    previewGameRef.current = game;
+
+    return () => {
+      cancelled = true;
+      game.destroy();
+      previewGameRef.current = null;
+      mountedRef.current = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push appearance changes to the preview scene WITHOUT remounting.
+  useEffect(() => {
+    previewGameRef.current?.setAppearance(appearance);
+  }, [appearance]);
+
+  const cycleSlot = useCallback((key: Category, direction: -1 | 1) => {
+    setAppearance(prev => {
+      const slotCfg = SLOTS.find(s => s.key === key);
+      if (!slotCfg) return prev;
+      const { options } = slotCfg;
+      const currentIdx = options.findIndex(o => o.id === prev[key]);
+      const nextIdx = (currentIdx + direction + options.length) % options.length;
+      return { ...prev, [key]: options[nextIdx].id };
+    });
+  }, []);
+
+  const randomize = useCallback(() => {
+    setAppearance(prev => {
+      const next = { ...prev };
+      for (const slot of SLOTS) {
+        next[slot.key] = slot.options[Math.floor(Math.random() * slot.options.length)].id;
+      }
+      return next;
+    });
+  }, []);
 
   return (
     <div className="landing outfit-select landing--mounted">
@@ -53,50 +149,59 @@ export function OutfitSelectPage({ playerName, onSelect }: OutfitSelectPageProps
           <span className="card__corner card__corner--br" aria-hidden>◆</span>
 
           <div className="card__inner outfit-select__inner">
-            <h1 className="card__logo outfit-select__title">
-              <span className="card__logo-text">CHOOSE YOUR LOOK</span>
-            </h1>
-            <p className="outfit-select__subtitle">
-              {playerName}, pick how you'll be seen on the streets of RugTown.
-            </p>
+            <div className="outfit-select__header">
+              <h1 className="card__logo outfit-select__title">
+                <span className="card__logo-text">CHARACTER</span>
+              </h1>
+              <p className="outfit-select__subtitle">
+                {playerName}, build your look before entering RugTown.
+              </p>
+            </div>
 
-            <div className="outfit-grid" role="radiogroup" aria-label="Outfit selection">
-              {CHARACTER_STYLES.map((style) => {
-                const isActive = style.id === selected;
-                return (
-                  <button
-                    key={style.id}
-                    type="button"
-                    className={`outfit-card ${isActive ? 'outfit-card--active' : ''}`}
-                    role="radio"
-                    aria-checked={isActive}
-                    onClick={() => setSelected(style.id)}
-                  >
-                    <span
-                      className="outfit-card__swatch"
-                      style={{
-                        background: `linear-gradient(160deg, #${style.coatHighlite.toString(16).padStart(6, '0')}, #${style.coatColor.toString(16).padStart(6, '0')} 55%, #${style.coatShade.toString(16).padStart(6, '0')})`,
-                        boxShadow: `0 0 0 2px #${style.accentColor.toString(16).padStart(6, '0')}55 inset`,
-                      }}
-                      aria-hidden
-                    >
-                      <span
-                        className="outfit-card__accent-dot"
-                        style={{ background: `#${style.accentColor.toString(16).padStart(6, '0')}` }}
-                      />
-                    </span>
-                    <span className="outfit-card__name">{style.name}</span>
-                    <span className="outfit-card__blurb">{OUTFIT_BLURBS[style.id] ?? ''}</span>
-                    {isActive && <span className="outfit-card__check" aria-hidden>✓</span>}
-                  </button>
-                );
-              })}
+            <div className="outfit-select__body">
+              {/* Live animated preview pane */}
+              <div className="outfit-preview-pane">
+                <div id="character-preview-mount" className="outfit-preview-canvas" />
+              </div>
+
+              {/* Slot-picker rows */}
+              <div className="outfit-slots">
+                {SLOTS.map(slot => {
+                  const currentId = appearance[slot.key];
+                  const currentOpt = slot.options.find(o => o.id === currentId) ?? slot.options[0];
+                  const blurb = slot.key === 'jacket' ? OUTFIT_BLURBS[currentId] ?? '' : '';
+                  return (
+                    <div key={slot.key} className="outfit-slot-row">
+                      <span className="outfit-slot-row__label">{slot.label}</span>
+                      <div className="outfit-slot-row__control">
+                        <button
+                          className="outfit-slot-arrow"
+                          onClick={() => cycleSlot(slot.key, -1)}
+                          aria-label={`Previous ${slot.label}`}
+                        >‹</button>
+                        <span className="outfit-slot-row__value" title={blurb}>
+                          {currentOpt.name}
+                        </span>
+                        <button
+                          className="outfit-slot-arrow"
+                          onClick={() => cycleSlot(slot.key, 1)}
+                          aria-label={`Next ${slot.label}`}
+                        >›</button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button className="outfit-randomize-btn" onClick={randomize} type="button">
+                  🎲 Randomize
+                </button>
+              </div>
             </div>
 
             <button
               className="btn btn--primary outfit-select__enter"
-              onClick={() => onSelect(selected)}
-              aria-label="Confirm outfit and enter RugTown"
+              onClick={() => onSelect(appearance)}
+              aria-label="Confirm look and enter RugTown"
             >
               <span className="btn__shimmer" aria-hidden />
               <span className="btn__arrow" aria-hidden>▶</span>

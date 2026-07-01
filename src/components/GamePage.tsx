@@ -2,9 +2,14 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { RugTownGame } from '../game/RugTownGame';
 import { WorldScene, NPC_SPEECH_BY_PERSONALITY, type NpcPersonality } from '../game/scenes/WorldScene';
 import { getWorldObject, WORLD_OBJECTS } from '../game/world/WorldObjects';
+import type { CharacterAppearance } from '../game/world/CharacterAppearance';
 import { soundManager, type SoundChannel } from '../audio/SoundManager';
 import type { EventRarity, EventReward, EventLocation, EventPhase as EnginePhase } from '../game/events/EventTypes';
 import { EVENT_DEFINITIONS } from '../game/events/EventDefinitions';
+import { MarketPanel } from './MarketPanel';
+import { NoticeBoardPanel } from './NoticeBoardPanel';
+import { AlphaLoungePanel } from './AlphaLoungePanel';
+import { fetchTrendingSolanaTokens, type MarketToken } from '../services/dexscreener';
 
 /*
   GamePage.tsx
@@ -171,6 +176,8 @@ const ZONE_INFO: Record<string, { title: string; sub: string }> = {
   bridge:   { title: 'The Bridge',     sub: 'Crossing into new districts' },
   fame:     { title: 'Hall of Fame',   sub: 'Legends of RugTown' },
   whale:    { title: 'Whale Tower',    sub: 'Watch the big wallets' },
+  notice:   { title: 'Notice Board',   sub: 'Live market notices, pinned fresh' },
+  alpha:    { title: 'Alpha Lounge',   sub: 'Local market read — no external AI' },
 };
 
 const FAME_LEADERBOARD = [
@@ -493,6 +500,97 @@ const NPC_WELCOME_LINES: ((name: string) => string)[] = [
   (name) => `Don't get rugged on your first day, ${name}.`,
 ];
 
+/* ─── RugTown Citizens reacting to live Meme Market data — local-only,
+   read-only. Reuses the exact same fetchTrendingSolanaTokens() service
+   (and its 12s cache) the Market panel itself uses — no separate fetch
+   path, no new network surface. Every line is built from the real
+   symbol/percent/volume/liquidity of a real trending token; nothing
+   here is invented. No wallet, no trading, no swaps — citizens only
+   ever talk about the market, never act on it. ─── */
+const MARKET_REACTION_MIN_GAP = 20000; // ms
+const MARKET_REACTION_MAX_GAP = 40000; // ms
+const MARKET_PUMP_THRESHOLD = 15;       // % — strong enough to sound excited (req. 7)
+const MARKET_DUMP_THRESHOLD = -15;      // % — strong enough to sound worried (req. 8)
+const MARKET_HIGH_VOLUME_USD = 400_000; // 24h volume citizens consider "crazy" (req. 9)
+const MARKET_THIN_LIQUIDITY_USD = 20_000; // liquidity citizens consider "thin" (req. 9)
+
+function roundPct(n: number): number {
+  return Math.round(n);
+}
+
+/** Builds one natural-sounding chat line from a real trending token's
+ *  real stats, or null if the token has no usable price data at all.
+ *  Picks one applicable "mood" at random rather than always reaching
+ *  for the most dramatic one, so the chat doesn't feel like a single
+ *  repeating alert bot (req. 10). */
+function buildMarketReactionLine(token: MarketToken): string | null {
+  const symbol = `$${token.symbol}`;
+  const { m5, h1, h24 } = token.priceChange;
+  const volume = token.volume24h;
+  const liquidity = token.liquidityUsd;
+
+  const candidates: string[] = [];
+
+  const pumps = [
+    { window: '5m', value: m5 },
+    { window: '1h', value: h1 },
+    { window: '24h', value: h24 },
+  ].filter((w): w is { window: string; value: number } => w.value !== null && w.value >= MARKET_PUMP_THRESHOLD);
+  if (pumps.length > 0) {
+    const best = pumps.reduce((a, b) => (b.value > a.value ? b : a));
+    candidates.push(
+      `${symbol} is pumping +${roundPct(best.value)}% on the ${best.window}!`,
+      `${symbol} just ripped +${roundPct(best.value)}%, let's go!`,
+      `Everyone's watching ${symbol} after that +${roundPct(best.value)}% move.`,
+      `${symbol} is on fire right now, +${roundPct(best.value)}%.`,
+    );
+  }
+
+  const dumps = [
+    { window: '5m', value: m5 },
+    { window: '1h', value: h1 },
+    { window: '24h', value: h24 },
+  ].filter((w): w is { window: string; value: number } => w.value !== null && w.value <= MARKET_DUMP_THRESHOLD);
+  if (dumps.length > 0) {
+    const worst = dumps.reduce((a, b) => (b.value < a.value ? b : a));
+    candidates.push(
+      `${symbol} is dumping ${roundPct(worst.value)}% on the ${worst.window}... careful.`,
+      `Ouch, ${symbol} is down ${roundPct(worst.value)}%. Rough.`,
+      `${symbol} is bleeding right now, ${roundPct(worst.value)}%.`,
+      `Not looking good for ${symbol} holders, ${roundPct(worst.value)}%.`,
+    );
+  }
+
+  if (volume !== null && volume >= MARKET_HIGH_VOLUME_USD) {
+    candidates.push(
+      `${symbol} volume looks crazy right now.`,
+      `A lot of eyes on ${symbol} today, volume is wild.`,
+      `${symbol} is getting traded heavy.`,
+    );
+  }
+
+  if (liquidity !== null && liquidity < MARKET_THIN_LIQUIDITY_USD) {
+    candidates.push(
+      `Liquidity on ${symbol} is thin. Be careful out there.`,
+      `${symbol} liquidity looks light, slippage city.`,
+    );
+  }
+
+  // Nothing dramatic — still occasionally worth a mention so the chat
+  // feels like citizens are genuinely watching the board, not just
+  // sounding alarms (req. 10).
+  if (candidates.length === 0 && h24 !== null) {
+    candidates.push(
+      `${symbol} is sitting at ${h24 >= 0 ? '+' : ''}${roundPct(h24)}% today.`,
+      `Keeping an eye on ${symbol}.`,
+      `${symbol} chart looks interesting right now.`,
+    );
+  }
+
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 /* ─── Mock Holder tiers — local simulation only, no wallet/Solana calls.
    Toggling a tier just changes the REP multiplier applied to fountain
    and quest rewards. Clearly a devnet/mock preview, not real holdings. ─── */
@@ -508,12 +606,12 @@ const HOLDER_TIERS: { tier: HolderTier; multiplier: number }[] = [
 interface GamePageProps {
   /** Name chosen on the landing page's guest-entry screen */
   playerName?: string;
-  /** Outfit chosen on the pre-game outfit-select screen (CharacterStyles.ts id) */
-  outfitId?: string;
+  /** Modular appearance chosen on the pre-game character-creator screen */
+  appearance?: CharacterAppearance;
 }
 
 /* ─── Component ─── */
-export function GamePage({ playerName, outfitId }: GamePageProps) {
+export function GamePage({ playerName, appearance }: GamePageProps) {
   const mountRef   = useRef<HTMLDivElement>(null);
   const gameRef    = useRef<RugTownGame | null>(null);
   const sceneRef   = useRef<WorldScene | null>(null);
@@ -537,6 +635,10 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
   const [rep, setRep] = useState(0);
   const [fountainClaimed, setFountainClaimed] = useState(false);
   const [rewardFlash, setRewardFlash] = useState(0);
+
+  /* ── First-minute onboarding ── */
+  const [onboardingDone, setOnboardingDone] = useState(false);
+  const [idleHintVisible, setIdleHintVisible] = useState(false);
 
   /* ── NPC dialogue ── */
   const [nearNpc, setNearNpc] = useState<NearNpc | null>(null);
@@ -653,11 +755,15 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
     sceneRef.current?.setHallOfFameStatues(top3);
   }, [ready, leaderboardRows]);
 
-  /* ── Local sound system — WebAudio-only, starts muted. The first
-     pointerdown/keydown anywhere unlocks it (also satisfies browser
-     autoplay policy, which blocks audio before a user gesture anyway). ── */
+  /* ── Local sound system — WebAudio-only. Not muted by default (the
+     real gate is `soundUnlocked` below — the AudioContext itself can't
+     play anything before a user gesture, so there's nothing to
+     accidentally autoplay), the first pointerdown/keydown anywhere
+     unlocks it. Initial values read straight from soundManager so this
+     never drifts out of sync with its actual defaults. ── */
   const isSettingsOpen = activeAction === 'Settings';
-  const [muted, setMutedState] = useState(true);
+  const [muted, setMutedState] = useState(() => soundManager.isMuted());
+  const [soundUnlocked, setSoundUnlocked] = useState(() => soundManager.isUnlocked());
   const [musicVol, setMusicVol] = useState(soundManager.getVolume('music'));
   const [ambienceVol, setAmbienceVol] = useState(soundManager.getVolume('ambience'));
   const [effectsVol, setEffectsVol] = useState(soundManager.getVolume('effects'));
@@ -690,6 +796,7 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
   useEffect(() => {
     const unlock = () => {
       soundManager.unlock();
+      setSoundUnlocked(true);
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);
     };
@@ -707,6 +814,16 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
       soundManager.setMuted(next);
       return next;
     });
+  }, []);
+
+  /** Settings panel's "Test Sound" button — also doubles as a reliable
+   *  way to unlock audio for anyone who opened Settings before their
+   *  first click/tap elsewhere registered (opening the panel is itself
+   *  a click, but this guarantees the chime actually plays on it). */
+  const playTestSound = useCallback(() => {
+    soundManager.unlock();
+    setSoundUnlocked(true);
+    soundManager.play('reward');
   }, []);
 
   const handleVolumeChange = useCallback((channel: SoundChannel, value: number) => {
@@ -807,7 +924,7 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
 
     const game = new RugTownGame({
       parentId: 'phaser-mount',
-      outfitId,
+      appearance,
       onReady: (scene: WorldScene) => {
         if (cancelled) return;
         sceneRef.current = scene;
@@ -1083,6 +1200,8 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 600);
   const [mobilePlayerCardOpen, setMobilePlayerCardOpen] = useState(false);
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
+  /* Desktop minimap is collapsible to reveal more city — Part B */
+  const [desktopMapOpen, setDesktopMapOpen] = useState(true);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 600);
@@ -1304,7 +1423,24 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
     setRewardFlash(k => k + 1);
     sceneRef.current?.playRewardEffect(`+${amount} REP`);
     soundManager.play('reward');
+    // Tell WorldScene to stop the onboarding fountain glow.
+    sceneRef.current?.game?.registry?.set('fountainClaimed', true);
   }, [fountainClaimed, applyHolderMultiplier]);
+
+  /* ── Onboarding: dismiss when fountain REP is claimed ── */
+  useEffect(() => {
+    if (fountainClaimed) setOnboardingDone(true);
+  }, [fountainClaimed]);
+
+  /* ── Onboarding: 15-second idle hint ── */
+  useEffect(() => {
+    if (!ready || onboardingDone || fountainClaimed) {
+      setIdleHintVisible(false);
+      return;
+    }
+    const timer = setTimeout(() => setIdleHintVisible(true), 15_000);
+    return () => clearTimeout(timer);
+  }, [ready, onboardingDone, fountainClaimed]);
 
   /* ── Quest auto-completion — each just watches state GamePage already
      tracks for other features; nothing new is requested from WorldScene. ── */
@@ -1490,6 +1626,55 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
     return () => clearTimeout(timer);
   }, [npcNames, triggerNpcChatActivity]);
 
+  /* ── RugTown Citizens reacting to live Meme Market data ──
+     Self-rescheduling timer (20-40s, randomized) — separate channel
+     from the general chat-activity timer above, picking one real
+     trending token per cycle and posting one real-data line about it.
+     Silently skips a cycle on a fetch error rather than surfacing an
+     error to the player — the Market panel already owns that UI. */
+  const triggerMarketReaction = useCallback(async () => {
+    if (npcNames.length === 0) return;
+    let tokens: MarketToken[];
+    try {
+      tokens = await fetchTrendingSolanaTokens();
+    } catch {
+      return;
+    }
+    if (tokens.length === 0) return;
+
+    const token = tokens[Math.floor(Math.random() * tokens.length)];
+    const line = buildMarketReactionLine(token);
+    if (!line) return;
+
+    const name = npcNames[Math.floor(Math.random() * npcNames.length)];
+    appendChatMessage(name, line, 'npc');
+    // Only sometimes also borrows a citizen's speech bubble (req. 6) —
+    // every cycle would feel like a banner ad floating over the city.
+    if (Math.random() < 0.5) {
+      sceneRef.current?.showNpcEventSpeech(line);
+    }
+  }, [npcNames, appendChatMessage]);
+
+  useEffect(() => {
+    if (npcNames.length === 0) return;
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+    const scheduleNext = () => {
+      const delay = MARKET_REACTION_MIN_GAP + Math.random() * (MARKET_REACTION_MAX_GAP - MARKET_REACTION_MIN_GAP);
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        void triggerMarketReaction().finally(() => {
+          if (!cancelled) scheduleNext();
+        });
+      }, delay);
+    };
+    scheduleNext();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [npcNames, triggerMarketReaction]);
+
   const MEDALS = ['🥇', '🥈', '🥉'];
 
   const renderModalBody = (id: string) => {
@@ -1514,27 +1699,7 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
           </>
         );
       case 'market':
-        return (
-          <>
-            <p className="modal-text">A new ticker flickers into view on the stall boards.</p>
-            <div className="modal-token-card">
-              <span className="modal-token-card__badge">NEW</span>
-              <span className="modal-token-card__ticker">$RUGSTREET</span>
-              <span className="modal-token-card__tag">Token Discovered</span>
-              <div className="modal-stat-row">
-                <div className="modal-stat">
-                  <span className="modal-stat__label">Price</span>
-                  <span className="modal-stat__value">$0.000041</span>
-                </div>
-                <div className="modal-stat">
-                  <span className="modal-stat__label">24h</span>
-                  <span className="modal-stat__value modal-stat__value--up">+12.4%</span>
-                </div>
-              </div>
-            </div>
-            <p className="modal-text modal-text--muted">No wallet connected — preview only.</p>
-          </>
-        );
+        return <MarketPanel />;
       case 'bridge':
         return (
           <>
@@ -1591,6 +1756,10 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
             </div>
           </>
         );
+      case 'notice':
+        return <NoticeBoardPanel />;
+      case 'alpha':
+        return <AlphaLoungePanel />;
       default:
         return null;
     }
@@ -1797,6 +1966,7 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
               Image 3: ornate gold bordered panel
               On mobile this collapses into a small toggle button.
               ────────────────────────────────────────────────────── */}
+          {/* Mobile: collapsed map toggle */}
           {isMobile && !mobileMapOpen && (
             <button
               className="mobile-collapsed-btn mobile-collapsed-btn--tr"
@@ -1804,7 +1974,17 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
               aria-label="Show map"
             >🗺️</button>
           )}
-          {(!isMobile || mobileMapOpen) && (
+          {/* Desktop: collapsed map toggle — shows only when map is hidden */}
+          {!isMobile && !desktopMapOpen && (
+            <button
+              className="desktop-map-show-btn"
+              onClick={() => setDesktopMapOpen(true)}
+              aria-label="Show minimap"
+              title="Show minimap"
+            >🗺️</button>
+          )}
+          {/* Map panel — shown on mobile when open, or on desktop when not collapsed */}
+          {(isMobile ? mobileMapOpen : desktopMapOpen) && (
           <div className="hud-panel hud-panel--tr">
             <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
@@ -1821,6 +2001,15 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
 
             <div className="panel-header">
               <span className="panel-header__logo">RUGTOWN MAP</span>
+              {/* Desktop hide button — Part B */}
+              {!isMobile && (
+                <button
+                  className="desktop-map-hide-btn"
+                  onClick={() => setDesktopMapOpen(false)}
+                  aria-label="Hide minimap"
+                  title="Hide minimap"
+                >✕</button>
+              )}
             </div>
 
             {/* Clickable minimap */}
@@ -2217,6 +2406,12 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
               </div>
 
               <div className="settings-panel__body">
+                <div className={`sound-status ${soundUnlocked ? 'sound-status--ready' : 'sound-status--locked'}`} role="status">
+                  {soundUnlocked
+                    ? (muted ? '🔇 Sound Off' : '🔊 Sound Ready')
+                    : '🔒 Click, tap, or press a key to enable sound'}
+                </div>
+
                 <div className="settings-mute-row">
                   <span className="settings-mute-row__label">Sound</span>
                   <button
@@ -2227,6 +2422,10 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
                     {muted ? '🔇 Muted' : '🔊 On'}
                   </button>
                 </div>
+
+                <button className="settings-test-sound-btn" onClick={playTestSound}>
+                  🔔 Test Sound
+                </button>
 
                 <div className="settings-slider-row">
                   <label className="settings-slider-row__label" htmlFor="vol-music">Music</label>
@@ -2274,8 +2473,8 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
                 </div>
 
                 <p className="settings-panel__note">
-                  Synthesized placeholder tones — no audio files. Sound stays muted until you
-                  interact with the game.
+                  Synthesized placeholder tones — no audio files. Sound unlocks automatically
+                  on your first click, tap, or key press.
                 </p>
 
                 <div className="settings-mute-row">
@@ -2583,11 +2782,17 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
               the bottom-center panels (Holder/Leaderboard/Settings/etc). */}
           {!modalZone && !dialogue && !activeAction && !whaleAlert && !statueModal &&
             (nearZone || nearNpc || nearTreasure || nearWhale || nearStatue) && (
-            <div className="zone-prompt" role="status">
+            <div
+              className={`zone-prompt${nearZone?.id === 'fountain' && !fountainClaimed ? ' zone-prompt--fountain-highlight' : ''}`}
+              role="status"
+            >
               <span className="zone-prompt__key">E</span>
               <span className="zone-prompt__text">
                 {nearZone
-                  ? `Press E to interact — ${nearZone.name}`
+                  ? (nearZone.id === 'fountain' && !fountainClaimed
+                      ? `⛲ Press E to claim REP from the Fountain!`
+                      : `Press E to interact — ${nearZone.name}`)
+
                   : nearNpc
                   ? `Press E to talk — ${nearNpc.name}`
                   : nearTreasure
@@ -2611,7 +2816,7 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
           onClick={requestCloseModal}
         >
           <div
-            className={`modal-panel ${modalClosing ? 'modal-panel--closing' : ''}`}
+            className={`modal-panel ${modalZone === 'market' ? 'modal-panel--market' : ''} ${modalZone === 'notice' ? 'modal-panel--notice' : ''} ${modalZone === 'alpha' ? 'modal-panel--alpha' : ''} ${modalClosing ? 'modal-panel--closing' : ''}`}
             onClick={(e) => e.stopPropagation()}
           >
             <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
@@ -2631,7 +2836,7 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
               <button className="modal-close" onClick={requestCloseModal} aria-label="Close">✕</button>
             </div>
 
-            <div className="modal-body">
+            <div className={`modal-body ${modalZone === 'market' ? 'modal-body--market' : ''} ${modalZone === 'notice' ? 'modal-body--notice' : ''} ${modalZone === 'alpha' ? 'modal-body--alpha' : ''}`}>
               {renderModalBody(modalZone)}
             </div>
           </div>
@@ -2880,6 +3085,39 @@ export function GamePage({ playerName, outfitId }: GamePageProps) {
             <br />
             {currentEvent.description}
           </p>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          FIRST-MINUTE ONBOARDING PANEL
+          Shown until the player claims fountain REP or dismisses it.
+          Small, corner-pinned, non-blocking.
+          ══════════════════════════════════════════════════════════ */}
+      {ready && !onboardingDone && (
+        <div className="onboarding-panel" role="complementary" aria-label="Getting started">
+          <button
+            className="onboarding-dismiss"
+            onClick={() => setOnboardingDone(true)}
+            aria-label="Dismiss onboarding"
+            title="Dismiss"
+          >✕</button>
+
+          <div className="onboarding-title">Welcome to RugTown</div>
+
+          <ol className="onboarding-steps">
+            <li>{isMobile ? 'Use joystick to move' : 'Use WASD to move'}</li>
+            <li>{isMobile ? 'Tap E to interact' : 'Press E to interact'}</li>
+            <li>Walk to the <span className="onboarding-highlight">⛲ Spawn Fountain</span></li>
+            <li>Press E to claim your first REP</li>
+          </ol>
+        </div>
+      )}
+
+      {/* ── 15-second idle hint ── */}
+      {ready && !onboardingDone && idleHintVisible && !fountainClaimed && (
+        <div className="idle-hint" role="status" aria-live="polite">
+          <span className="idle-hint__icon" aria-hidden>✦</span>
+          Try walking to the glowing fountain
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { WorldScene } from './scenes/WorldScene';
+import type { CharacterAppearance } from './world/CharacterAppearance';
 
 /*
   RugTownGame.ts
@@ -16,8 +17,9 @@ import { WorldScene } from './scenes/WorldScene';
 export interface RugTownGameConfig {
   /** DOM element ID to mount the canvas inside */
   parentId: string;
-  /** Outfit chosen on the pre-game outfit-select screen (CharacterStyles.ts id) */
-  outfitId?: string;
+  /** Modular appearance chosen on the pre-game character-creator screen
+   *  (see src/game/world/CharacterAppearance.ts). */
+  appearance?: CharacterAppearance;
   /** Called when the scene is ready */
   onReady?: (scene: WorldScene) => void;
 }
@@ -30,8 +32,8 @@ export class RugTownGame {
     this.worldScene = new WorldScene();
 
     // Set before the scene's create() ever runs, so the player's first
-    // draw already uses the chosen outfit.
-    if (config.outfitId) this.worldScene.setOutfit(config.outfitId);
+    // draw already uses the chosen appearance.
+    if (config.appearance) this.worldScene.setAppearance(config.appearance);
 
     this.game = new Phaser.Game({
       type: Phaser.AUTO,            // WebGL with Canvas fallback

@@ -490,7 +490,8 @@
 .minimap {
   position: relative;
   margin: 10px 12px 8px;
-  height: 120px;
+  /* Part E: height matches 16:9 world aspect ratio at panel width ~176px */
+  height: 99px;
   background: #060e12;
   border: 1px solid rgba(200, 144, 42, 0.2);
   overflow: hidden;
@@ -2303,6 +2304,54 @@
   border-color: rgba(200, 144, 42, 0.2);
 }
 
+/* Visible sound status — locked (before first gesture) vs. ready/off */
+.sound-status {
+  padding: 7px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.02em;
+  border-radius: 3px;
+}
+
+.sound-status--ready {
+  color: #3ecf6e;
+  background: rgba(62, 207, 110, 0.08);
+  border: 1px solid rgba(62, 207, 110, 0.25);
+}
+
+.sound-status--locked {
+  color: #e8902a;
+  background: rgba(232, 144, 42, 0.08);
+  border: 1px solid rgba(232, 144, 42, 0.25);
+  animation: sound-status-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes sound-status-pulse {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 1; }
+}
+
+.settings-test-sound-btn {
+  width: 100%;
+  padding: 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #e8d8c0;
+  background: rgba(200, 144, 42, 0.08);
+  border: 1px solid rgba(200, 144, 42, 0.3);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.settings-test-sound-btn:hover {
+  background: rgba(200, 144, 42, 0.16);
+  border-color: rgba(200, 144, 42, 0.5);
+}
+
 .settings-slider-row {
   display: flex;
   align-items: center;
@@ -2964,11 +3013,12 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   OUTFIT SELECT SCREEN
-   New step between LandingPage and GamePage. Reuses .landing/
-   .landing__bg/.landing__card/.btn classes from landing.css for
-   visual continuity; everything below is new and scoped under
-   .outfit-select so it can't bleed into the landing screen itself.
+   CHARACTER CREATOR SCREEN
+   RPG-style modular appearance picker with a live animated preview.
+   Reuses .landing/.landing__bg/.landing__card/.btn classes from
+   landing.css for visual continuity; scoped under .outfit-select
+   so nothing bleeds onto the landing screen. ~40% smaller card
+   footprint than the old 8-swatch grid so more city shows behind.
    ══════════════════════════════════════════════════════════════ */
 .outfit-select__content {
   position: relative;
@@ -2978,122 +3028,178 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 16px;
+  padding: 20px 16px;
   overflow-y: auto;
 }
 
 .outfit-select__card {
   position: static;
-  width: min(720px, 100%);
-  max-width: 720px;
+  width: min(490px, 100%);
+  max-width: 490px;
 }
 
 .outfit-select__inner {
   align-items: stretch;
+  gap: 0;
+}
+
+.outfit-select__header {
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.12);
+  margin-bottom: 12px;
 }
 
 .outfit-select__title .card__logo-text {
-  font-size: 22px;
+  font-size: 19px;
 }
 
 .outfit-select__subtitle {
-  text-align: center;
   font-family: 'Cinzel', serif;
-  font-size: 12px;
+  font-size: 10.5px;
   color: #a8987a;
-  margin: 4px 0 18px;
+  margin: 4px 0 0;
 }
 
-.outfit-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-bottom: 18px;
+/* ── 2-column body: live preview left, slot pickers right ── */
+.outfit-select__body {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 12px;
 }
 
-@media (max-width: 640px) {
-  .outfit-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.outfit-card {
-  position: relative;
+.outfit-preview-pane {
+  flex-shrink: 0;
+  width: 148px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px 8px 12px;
-  background: rgba(10, 14, 18, 0.7);
-  border: 1px solid rgba(200, 144, 42, 0.25);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
-  font-family: 'Cinzel', serif;
 }
 
-.outfit-card:hover {
-  border-color: rgba(232, 184, 75, 0.55);
-  transform: translateY(-2px);
-}
-
-.outfit-card--active {
-  border-color: #e8b84b;
-  background: rgba(232, 184, 75, 0.10);
-  box-shadow: 0 0 14px rgba(232, 184, 75, 0.18);
-}
-
-.outfit-card__swatch {
+.outfit-preview-canvas {
+  width: 148px;
+  height: 220px;
+  background: rgba(10, 14, 18, 0.6);
+  border: 1px solid rgba(200, 144, 42, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
   position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 5px;
+}
+
+/* The Phaser canvas inserted by CharacterPreviewGame fills this div */
+.outfit-preview-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.outfit-slots {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 6px;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
-.outfit-card__accent-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.outfit-slots::-webkit-scrollbar { width: 3px; }
+.outfit-slots::-webkit-scrollbar-thumb { background: #7a5c1e; border-radius: 2px; }
+
+.outfit-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.outfit-card__name {
-  font-size: 11px;
-  font-weight: 700;
-  color: #e8d8c0;
-  text-align: center;
-}
-
-.outfit-card__blurb {
+.outfit-slot-row__label {
+  font-family: 'Cinzel', serif;
   font-size: 8.5px;
-  color: #8a7a60;
-  text-align: center;
-  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9a8a6a;
+  width: 62px;
+  flex-shrink: 0;
 }
 
-.outfit-card__check {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 16px;
-  height: 16px;
+.outfit-slot-row__control {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10, 14, 18, 0.5);
+  border: 1px solid rgba(200, 144, 42, 0.18);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+.outfit-slot-arrow {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  color: #0a0c0e;
-  background: #e8b84b;
-  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c8902a;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.12s;
+}
+
+.outfit-slot-arrow:hover { color: #e8b84b; }
+
+.outfit-slot-row__value {
+  flex: 1;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  color: #e8d8c0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outfit-randomize-btn {
+  margin-top: 6px;
+  padding: 5px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #8a7a5c;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(200, 144, 42, 0.2);
+  border-radius: 3px;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background 0.15s, color 0.15s;
+}
+
+.outfit-randomize-btn:hover {
+  background: rgba(200, 144, 42, 0.1);
+  color: #e8b84b;
 }
 
 .outfit-select__enter {
   align-self: center;
   width: 100%;
-  max-width: 280px;
+  max-width: 240px;
   margin: 0 auto;
+}
+
+/* ── Mobile: stack preview above slots ── */
+@media (max-width: 560px) {
+  .outfit-select__card { width: 96vw; }
+  .outfit-select__body { flex-direction: column; align-items: center; }
+  .outfit-preview-pane { width: 140px; }
+  .outfit-preview-canvas { width: 140px; height: 200px; }
+  .outfit-slots { max-height: 240px; width: 100%; }
+  .outfit-slot-row__label { width: 52px; font-size: 7.5px; }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -3329,3 +3435,1249 @@
   .event-banner__meta { font-size: 8.5px; }
   .mayor-card { top: 108px; padding: 12px 14px 14px; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MEME MARKET — live DexScreener trading-floor terminal
+   Reuses .modal-overlay/.modal-panel/panel-corner chrome; this section
+   only widens that shell (.modal-panel--market) and styles everything
+   inside it. Read-only throughout — no wallet, no trading, no swaps.
+   ══════════════════════════════════════════════════════════════ */
+.modal-panel--market {
+  width: min(980px, 95vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body--market {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.market-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.market-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.15);
+}
+
+.market-toolbar__tag {
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #6a5a42;
+  text-transform: uppercase;
+}
+
+.market-toolbar__status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  color: #8a7a5c;
+  white-space: nowrap;
+}
+
+.market-refresh-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #e8b84b;
+  animation: market-refresh-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes market-refresh-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+
+.market-sort-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.1);
+}
+
+.market-sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #8a7a5c;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(200, 144, 42, 0.18);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.market-sort-btn:hover {
+  border-color: rgba(200, 144, 42, 0.4);
+  color: #c8b89a;
+}
+
+.market-sort-btn--active {
+  color: #e8b84b;
+  background: rgba(200, 144, 42, 0.12);
+  border-color: #c8902a;
+}
+
+.market-sort-btn__arrow {
+  font-size: 7px;
+}
+
+/* ── Loading / error states ── */
+.market-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 1;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.market-state p {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: #9a8a6a;
+  max-width: 320px;
+}
+
+.market-state--error p {
+  color: #e8a890;
+}
+
+.market-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(200, 144, 42, 0.2);
+  border-top-color: #e8b84b;
+  animation: market-spin 0.8s linear infinite;
+}
+
+@keyframes market-spin {
+  to { transform: rotate(360deg); }
+}
+
+.market-retry-btn {
+  padding: 7px 18px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #0a0c0e;
+  background: linear-gradient(180deg, #e8b84b, #c8902a);
+  border: 1px solid #7a5c1e;
+  cursor: pointer;
+}
+
+.market-stale-banner {
+  padding: 6px 14px;
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  color: #e8a890;
+  background: rgba(232, 80, 60, 0.08);
+  border-bottom: 1px solid rgba(232, 80, 60, 0.2);
+}
+
+/* ── Content: table + side detail panel ── */
+.market-content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.market-table-wrap {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.market-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-family: 'Cinzel', serif;
+}
+
+.market-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 10px;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9a8a6a;
+  text-align: right;
+  background: #0c1014;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.25);
+  white-space: nowrap;
+}
+
+.market-table thead th:first-child,
+.market-table thead th:nth-child(2) {
+  text-align: left;
+}
+
+.market-table__rank-col {
+  width: 30px;
+  text-align: center !important;
+  color: #6a5a42;
+}
+
+.market-table tbody td {
+  padding: 7px 10px;
+  font-size: 10px;
+  color: #c8b89a;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.06);
+}
+
+.market-table tbody td:first-child,
+.market-table tbody td:nth-child(2) {
+  text-align: left;
+}
+
+.market-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.market-row:hover {
+  background: rgba(200, 144, 42, 0.06);
+}
+
+.market-row--selected {
+  background: rgba(200, 144, 42, 0.12);
+}
+
+.market-row--trending {
+  box-shadow: inset 0 0 0 9999px rgba(232, 184, 75, 0.04);
+  animation: market-row-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes market-row-glow {
+  0%, 100% { box-shadow: inset 0 0 0 9999px rgba(232, 184, 75, 0.03); }
+  50%      { box-shadow: inset 0 0 0 9999px rgba(232, 184, 75, 0.09); }
+}
+
+.market-positive { color: #3ecf6e; font-weight: 600; }
+.market-negative { color: #e8503c; font-weight: 600; }
+
+.market-token-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.market-token-cell__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.market-token-cell__symbol {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e8d8c0;
+}
+
+.market-token-cell__name {
+  font-size: 8.5px;
+  color: #6a5a42;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-logo {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(200, 144, 42, 0.3);
+  background: #0c1014;
+}
+
+.market-logo--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #e8b84b;
+  background: rgba(200, 144, 42, 0.15);
+}
+
+/* ── Side detail panel ── */
+.market-detail-panel {
+  flex-shrink: 0;
+  width: 270px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  overflow-y: auto;
+  border-left: 1px solid rgba(200, 144, 42, 0.18);
+  background: rgba(10, 14, 18, 0.5);
+}
+
+.market-detail-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.market-detail-panel__header .market-logo {
+  width: 32px;
+  height: 32px;
+}
+
+.market-detail-panel__symbol {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8d8c0;
+}
+
+.market-detail-panel__name {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  color: #6a5a42;
+}
+
+.market-detail-panel__close {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(200, 144, 42, 0.3);
+  border-radius: 50%;
+  color: #c8902a;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.market-detail-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.market-detail-label-tag {
+  padding: 2px 7px;
+  font-family: 'Courier New', monospace;
+  font-size: 7.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9a8a6a;
+  background: rgba(200, 144, 42, 0.08);
+  border: 1px solid rgba(200, 144, 42, 0.2);
+  border-radius: 2px;
+}
+
+.market-detail-chart {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  border: 1px solid rgba(200, 144, 42, 0.2);
+  border-radius: 3px;
+  background: #0a0c0e;
+}
+
+.market-detail-chart iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.market-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(200, 144, 42, 0.12);
+}
+
+.market-detail-row__label {
+  font-family: 'Cinzel', serif;
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6a5a42;
+  flex-shrink: 0;
+}
+
+.market-detail-row__value {
+  margin-left: auto;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  color: #c8b89a;
+  text-align: right;
+}
+
+.market-detail-row__value--mono {
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #e8b84b;
+}
+
+.market-copy-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #8a7a5c;
+  background: transparent;
+  border: 1px solid rgba(200, 144, 42, 0.25);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.market-copy-btn:hover {
+  color: #e8b84b;
+  border-color: rgba(200, 144, 42, 0.5);
+}
+
+.market-buy-sell-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(232, 80, 60, 0.35);
+  overflow: hidden;
+}
+
+.market-buy-sell-bar__buys {
+  height: 100%;
+  background: #3ecf6e;
+}
+
+.market-dexscreener-link {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #0a0c0e;
+  background: linear-gradient(180deg, #e8b84b, #c8902a);
+  border: 1px solid #7a5c1e;
+  text-decoration: none;
+}
+
+.market-disclaimer {
+  padding: 6px 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.04em;
+  color: #4a3e2e;
+  text-align: center;
+  border-top: 1px solid rgba(200, 144, 42, 0.1);
+}
+
+@media (max-width: 900px) {
+  .modal-panel--market { width: 96vw; max-height: 92vh; }
+  .market-content { flex-direction: column; }
+  .market-detail-panel {
+    width: auto;
+    border-left: none;
+    border-top: 1px solid rgba(200, 144, 42, 0.18);
+    max-height: 50vh;
+  }
+}
+
+@media (max-width: 600px) {
+  .market-toolbar { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .market-sort-row { padding: 6px 10px; }
+  .market-sort-btn { padding: 4px 8px; font-size: 8px; }
+  .market-table tbody td, .market-table thead th { padding: 6px 7px; font-size: 9px; }
+  .market-detail-chart { height: 150px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   NOTICE BOARD — live market bulletin (Top 5 sections + warnings)
+   Reuses .modal-overlay/.modal-panel/panel-corner chrome, same as the
+   Meme Market terminal, just at a smaller "bulletin" width — these two
+   panels intentionally don't share component code.
+   ══════════════════════════════════════════════════════════════ */
+.modal-panel--notice {
+  width: min(520px, 94vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body--notice {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.notice-board {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.notice-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.15);
+}
+
+.notice-toolbar__tag {
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #6a5a42;
+  text-transform: uppercase;
+}
+
+.notice-refresh-btn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #0a0c0e;
+  background: linear-gradient(180deg, #e8b84b, #c8902a);
+  border: 1px solid #7a5c1e;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.notice-refresh-btn:hover {
+  filter: brightness(1.1);
+}
+
+.notice-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Loading / error states (same visual language as the Market panel,
+   independently defined so the two panels stay decoupled) ── */
+.notice-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 1;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.notice-state p {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: #9a8a6a;
+  max-width: 320px;
+}
+
+.notice-state--error p {
+  color: #e8a890;
+}
+
+.notice-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(200, 144, 42, 0.2);
+  border-top-color: #e8b84b;
+  animation: notice-spin 0.8s linear infinite;
+}
+
+@keyframes notice-spin {
+  to { transform: rotate(360deg); }
+}
+
+.notice-stale-banner {
+  margin: 8px 14px 0;
+  padding: 6px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  color: #e8a890;
+  background: rgba(232, 80, 60, 0.08);
+  border: 1px solid rgba(232, 80, 60, 0.2);
+  border-radius: 3px;
+}
+
+/* ── Sections ── */
+.notice-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px 4px;
+}
+
+.notice-section {
+  margin-bottom: 10px;
+}
+
+.notice-section__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  font-family: 'Cinzel', serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #e8b84b;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.18);
+}
+
+.notice-section__empty {
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  font-style: italic;
+  color: #5a4e3a;
+  padding: 4px 2px 2px;
+}
+
+.notice-section__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notice-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  text-decoration: none;
+  border-radius: 2px;
+  transition: background 0.12s;
+}
+
+.notice-row:hover {
+  background: rgba(200, 144, 42, 0.08);
+}
+
+.notice-row__symbol {
+  font-family: 'Cinzel', serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #e8d8c0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-row__name {
+  font-family: 'Cinzel', serif;
+  font-size: 8.5px;
+  color: #6a5a42;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.notice-row__price {
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #8a7a5c;
+  white-space: nowrap;
+}
+
+.notice-row__metric {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #c8b89a;
+  white-space: nowrap;
+  text-align: right;
+  min-width: 56px;
+}
+
+.notice-positive { color: #3ecf6e; }
+.notice-negative { color: #e8503c; }
+
+.notice-disclaimer {
+  padding: 6px 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.04em;
+  color: #4a3e2e;
+  text-align: center;
+  border-top: 1px solid rgba(200, 144, 42, 0.1);
+}
+
+@media (max-width: 600px) {
+  .modal-panel--notice { width: 96vw; max-height: 90vh; }
+  .notice-row {
+    grid-template-columns: 52px 1fr auto;
+    grid-template-areas:
+      "symbol name metric"
+      "price price metric";
+  }
+  .notice-row__symbol { grid-area: symbol; }
+  .notice-row__name { grid-area: name; }
+  .notice-row__price { grid-area: price; font-size: 8px; }
+  .notice-row__metric { grid-area: metric; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ALPHA LOUNGE — local market-narrative read (mood, narratives,
+   movers, danger list, locally-generated summary). Reuses
+   .modal-overlay/.modal-panel/panel-corner chrome; fully independent
+   of the Market/Notice Board panels (no shared component code).
+   ══════════════════════════════════════════════════════════════ */
+.modal-panel--alpha {
+  width: min(560px, 94vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body--alpha {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.alpha-lounge {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.alpha-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.15);
+}
+
+.alpha-toolbar__tag {
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #6a5a42;
+  text-transform: uppercase;
+}
+
+.alpha-refresh-btn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #0a0c0e;
+  background: linear-gradient(180deg, #e8b84b, #c8902a);
+  border: 1px solid #7a5c1e;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.alpha-refresh-btn:hover { filter: brightness(1.1); }
+.alpha-refresh-btn:disabled { opacity: 0.6; cursor: default; }
+
+.alpha-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 1;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.alpha-state p {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: #9a8a6a;
+  max-width: 320px;
+}
+
+.alpha-state--error p { color: #e8a890; }
+
+.alpha-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(200, 144, 42, 0.2);
+  border-top-color: #e8b84b;
+  animation: alpha-spin 0.8s linear infinite;
+}
+
+@keyframes alpha-spin {
+  to { transform: rotate(360deg); }
+}
+
+.alpha-stale-banner {
+  margin: 8px 14px 0;
+  padding: 6px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  color: #e8a890;
+  background: rgba(232, 80, 60, 0.08);
+  border: 1px solid rgba(232, 80, 60, 0.2);
+  border-radius: 3px;
+}
+
+.alpha-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px 4px;
+}
+
+/* ── Mood badge ── */
+.alpha-mood {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.alpha-mood__badge {
+  padding: 5px 14px;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+}
+
+.alpha-mood__badge--bullish { color: #3ecf6e; background: rgba(62, 207, 110, 0.08); }
+.alpha-mood__badge--mixed   { color: #e8b84b; background: rgba(232, 184, 75, 0.08); }
+.alpha-mood__badge--risky   { color: #e8503c; background: rgba(232, 80, 60, 0.08); }
+
+.alpha-mood__sub {
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  color: #8a7a5c;
+}
+
+/* ── AI-style local summary ── */
+.alpha-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: rgba(200, 144, 42, 0.05);
+  border: 1px solid rgba(200, 144, 42, 0.2);
+  border-radius: 3px;
+}
+
+.alpha-summary__label {
+  font-family: 'Courier New', monospace;
+  font-size: 7.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6a5a42;
+}
+
+.alpha-summary__text {
+  font-family: 'Cinzel', serif;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: #e8d8c0;
+}
+
+/* ── Sections (shared with mover/danger lists) ── */
+.alpha-section {
+  margin-bottom: 12px;
+}
+
+.alpha-section__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  font-family: 'Cinzel', serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #e8b84b;
+  border-bottom: 1px solid rgba(200, 144, 42, 0.18);
+}
+
+.alpha-section__empty {
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  font-style: italic;
+  color: #5a4e3a;
+  padding: 4px 2px 2px;
+}
+
+.alpha-section__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alpha-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  text-decoration: none;
+  border-radius: 2px;
+  transition: background 0.12s;
+}
+
+.alpha-row:hover { background: rgba(200, 144, 42, 0.08); }
+
+.alpha-row__symbol {
+  font-family: 'Cinzel', serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #e8d8c0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alpha-row__name {
+  font-family: 'Cinzel', serif;
+  font-size: 8.5px;
+  color: #6a5a42;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.alpha-row__metric {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #c8b89a;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.alpha-positive { color: #3ecf6e; }
+.alpha-negative { color: #e8503c; }
+
+/* ── Narrative tags ── */
+.alpha-narrative-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.alpha-narrative-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  color: #e8d8c0;
+  background: rgba(200, 144, 42, 0.08);
+  border: 1px solid rgba(200, 144, 42, 0.22);
+  border-radius: 999px;
+}
+
+.alpha-narrative-tag__count {
+  color: #e8b84b;
+  font-weight: 700;
+}
+
+.alpha-disclaimer {
+  padding: 6px 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.04em;
+  color: #4a3e2e;
+  text-align: center;
+  border-top: 1px solid rgba(200, 144, 42, 0.1);
+}
+
+@media (max-width: 600px) {
+  .modal-panel--alpha { width: 96vw; max-height: 90vh; }
+  .alpha-mood { gap: 6px; }
+  .alpha-mood__badge { font-size: 10px; padding: 4px 10px; }
+  .alpha-row { grid-template-columns: 52px 1fr auto; }
+  .alpha-row__metric { font-size: 9px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PART B: Desktop minimap hide/show toggle
+   ══════════════════════════════════════════════════════════════ */
+
+/* Button that re-opens the minimap on desktop after it's been hidden */
+.desktop-map-show-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: rgba(6, 10, 14, 0.92);
+  border: 1px solid rgba(200, 144, 42, 0.45);
+  border-top: 2px solid #c8902a;
+  border-radius: 4px;
+  cursor: pointer;
+  pointer-events: all;
+  z-index: 11;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.desktop-map-show-btn:hover {
+  background: rgba(30, 20, 4, 0.95);
+  border-color: rgba(200, 144, 42, 0.7);
+}
+
+/* Close (×) button inside the minimap panel header on desktop */
+.desktop-map-hide-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(200, 144, 42, 0.3);
+  border-radius: 50%;
+  color: #9a7a3a;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.desktop-map-hide-btn:hover {
+  border-color: rgba(200, 144, 42, 0.6);
+  color: #e8b84b;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PART D: Landmark label helper (Phaser renders the text, but
+   we keep this note for future React-side tooltip anchors)
+   ══════════════════════════════════════════════════════════════ */
+/* Phaser text labels for landmarks are created in WorldScene.ts
+   (createLandmarkLabels). No CSS needed for those — they live on
+   the Phaser canvas. */
+
+/* ══════════════════════════════════════════════════════════════
+   FIRST-MINUTE ONBOARDING — non-blocking, corner-pinned guide
+   that disappears once the player claims fountain REP.
+   ══════════════════════════════════════════════════════════════ */
+
+.onboarding-panel {
+  position: fixed;
+  bottom: 84px;         /* above the action bar */
+  left: 240px;          /* right of the player-card panel (~210px + gap) */
+  z-index: 55;
+  min-width: 230px;
+  max-width: 270px;
+  padding: 13px 16px 14px;
+  background: rgba(7, 10, 14, 0.96);
+  border: 1px solid #9a6e1e;
+  border-top: 2px solid #c8902a;
+  box-shadow:
+    inset 0 0 0 1px rgba(200, 144, 42, 0.12),
+    0 0 24px rgba(0, 0, 0, 0.6);
+  pointer-events: all;
+  animation: onboarding-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes onboarding-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.onboarding-title {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #e8b84b;
+  margin-bottom: 9px;
+}
+
+.onboarding-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.onboarding-steps li {
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  color: #c8b89a;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  line-height: 1.4;
+}
+
+.onboarding-steps li::before {
+  content: '◆';
+  color: #e8b84b;
+  font-size: 5px;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.onboarding-highlight {
+  color: #f0d060;
+  font-weight: 700;
+}
+
+.onboarding-dismiss {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 17px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(200, 144, 42, 0.28);
+  border-radius: 50%;
+  color: #7a6040;
+  font-size: 8px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.13s, color 0.13s;
+}
+
+.onboarding-dismiss:hover {
+  border-color: rgba(200, 144, 42, 0.65);
+  color: #e8b84b;
+}
+
+/* 15-second idle hint — bottom-center, pointer-events none */
+.idle-hint {
+  position: fixed;
+  bottom: 86px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  background: rgba(7, 10, 14, 0.93);
+  border: 1px solid rgba(200, 144, 42, 0.38);
+  border-top: 2px solid #c8902a;
+  font-family: 'Cinzel', serif;
+  font-size: 9.5px;
+  color: #e8d8a0;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: idle-hint-in 0.3s ease both;
+}
+
+@keyframes idle-hint-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.idle-hint__icon {
+  color: #e8b84b;
+  font-size: 11px;
+  animation: idle-hint-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes idle-hint-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%       { opacity: 1;    transform: scale(1.2); }
+}
+
+/* Enhanced zone prompt for the Spawn Fountain before first REP claim */
+.zone-prompt--fountain-highlight {
+  border-top-color: #f0d060;
+  border-color: rgba(232, 184, 75, 0.7);
+  box-shadow:
+    0 0 14px rgba(232, 184, 75, 0.5),
+    inset 0 0 8px rgba(232, 184, 75, 0.08);
+  animation: zone-prompt-in 0.18s ease, fountain-prompt-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes fountain-prompt-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(232, 184, 75, 0.35); }
+  50%      { box-shadow: 0 0 20px rgba(232, 184, 75, 0.65), 0 0 40px rgba(232, 184, 75, 0.2); }
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .onboarding-panel {
+    left: 8px;
+    bottom: 138px;   /* above the mobile joystick cluster */
+    max-width: min(260px, calc(50vw - 12px));
+  }
+
+  .idle-hint {
+    bottom: 142px;
+    font-size: 8.5px;
+    padding: 6px 12px;
+  }
+}
+
