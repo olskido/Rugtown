@@ -1,17 +1,33 @@
 /*
   SoundManager.ts
   ───────────────
-  Lightweight, local-only sound system built entirely on the Web Audio
-  API — no audio files, no network requests, no external dependencies.
-  Every sound is a synthesized oscillator tone.
+  RugTown's app-wide audio system.
 
-  Part F: Three background beat tracks that shuffle every 45-90 seconds:
-  0 = Dark City  (slow, minor, atmospheric bass)
-  1 = Market Pulse (medium-tempo rhythmic with melody)
-  2 = Event Tension (faster, tense, minor feel)
+  Two independent layers:
+
+  1. UI SOUND EFFECTS — synthesized on the Web Audio API (no files, no
+     network). Every click / reward / event chime is a short oscillator
+     tone. Cheap, instant, and never blocked by autoplay policy once the
+     context is unlocked. (Unchanged from the original system.)
+
+  2. BACKGROUND MUSIC — real audio files streamed from /public/audio via
+     two crossfading <audio> "decks":
+       • city.mp3   — default ambient city loop
+       • market.mp3 — Meme Market district loop (optional override)
+       • event.mp3  — live-event override loop
+
+     Ambient playback shuffles naturally between the city tracks, never
+     repeats the same track twice in a row, and crossfades between them.
+     A live event overrides the ambient music with event.mp3; leaving the
+     event crossfades back. The Meme Market building can optionally pin
+     market.mp3 while the player is there.
+
+  Nothing plays before the first user gesture (unlock()), satisfying the
+  browser autoplay policy. Music auto-resumes when a backgrounded tab is
+  returned to.
 */
 
-export type SoundChannel = 'music' | 'ambience' | 'effects';
+export type SoundChannel = 'music' | 'effects';
 
 export type SoundEffectName =
   | 'click'
@@ -39,82 +55,59 @@ const EFFECT_PRESETS: Record<SoundEffectName, TonePreset> = {
   bell:     { freq: 988,    freq2: 1318.5, duration: 0.4, type: 'triangle' },
 };
 
-/* ─── Background beat track definitions ───
-   Each track is a looping sequence of steps.
-   null = silence step; vol defaults to 0.35 if omitted. */
-interface BeatStep { freq: number; type: OscillatorType; dur: number; vol?: number; }
+/* ─── Music track catalog ───
+   Keys are logical track names; values resolve against Vite's public/
+   root (served from the site origin, so they work in dev and prod). */
+type MusicTrack = 'city' | 'market' | 'event';
 
-interface BeatTrack {
-  /** ms between steps */
-  stepMs: number;
-  steps: (BeatStep | null)[];
-}
+const MUSIC_URLS: Record<MusicTrack, string> = {
+  city:   '/audio/city.mp3',
+  market: '/audio/market.mp3',
+  event:  '/audio/event.mp3',
+};
 
-const BEAT_TRACKS: BeatTrack[] = [
-  // Track 0: Dark City — soft mid-range pulses (no sub-bass drone)
-  {
-    stepMs: 600,
-    steps: [
-      { freq: 220.0, type: 'sine', dur: 0.30, vol: 0.22 },
-      null,
-      { freq: 261.6, type: 'sine', dur: 0.18, vol: 0.16 },
-      null,
-      { freq: 196.0, type: 'sine', dur: 0.26, vol: 0.20 },
-      { freq: 329.6, type: 'sine', dur: 0.08, vol: 0.12 },
-      null,
-      { freq: 246.9, type: 'sine', dur: 0.20, vol: 0.14 },
-    ],
-  },
-  // Track 1: Market Pulse — medium tempo, soft rhythmic hints
-  {
-    stepMs: 375,
-    steps: [
-      { freq: 220.0, type: 'sine', dur: 0.10, vol: 0.18 },
-      { freq: 329.6, type: 'sine', dur: 0.07, vol: 0.12 },
-      { freq: 196.0, type: 'sine', dur: 0.12, vol: 0.16 },
-      { freq: 392.0, type: 'sine', dur: 0.06, vol: 0.10 },
-      { freq: 220.0, type: 'sine', dur: 0.10, vol: 0.18 },
-      { freq: 349.2, type: 'sine', dur: 0.07, vol: 0.11 },
-      { freq: 196.0, type: 'sine', dur: 0.10, vol: 0.15 },
-      null,
-    ],
-  },
-  // Track 2: Event Tension — faster, tense, minor feel (sine only — no buzz)
-  {
-    stepMs: 300,
-    steps: [
-      { freq: 293.7, type: 'sine', dur: 0.16, vol: 0.20 },
-      { freq: 349.2, type: 'sine', dur: 0.08, vol: 0.14 },
-      { freq: 329.6, type: 'sine', dur: 0.16, vol: 0.18 },
-      null,
-      { freq: 293.7, type: 'sine', dur: 0.20, vol: 0.22 },
-      { freq: 392.0, type: 'sine', dur: 0.09, vol: 0.12 },
-      { freq: 349.2, type: 'sine', dur: 0.12, vol: 0.16 },
-      { freq: 311.1, type: 'sine', dur: 0.08, vol: 0.12 },
-    ],
-  },
-];
+/** Tracks that make up the natural ambient shuffle (event is reserved as
+ *  an override, never part of the calm-city rotation). */
+const AMBIENT_POOL: MusicTrack[] = ['city', 'market'];
+
+/** Which contextual layer currently owns the music. Priority, high→low:
+ *  event  >  market  >  ambient. */
+type MusicContext = 'ambient' | 'market' | 'event';
+
+/** Crossfade duration between tracks / contexts, in milliseconds. */
+const FADE_MS = 1400;
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 class SoundManager {
+  /* ── Web Audio (effects only) ── */
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private channelGains: Partial<Record<SoundChannel, GainNode>> = {};
+  private effectsGain: GainNode | null = null;
 
   private muted = false;
   private volumes: Record<SoundChannel, number> = {
-    music:    0.12,
-    ambience: 0.08,
-    effects:  0.35,
+    music:   0.5,
+    effects: 0.35,
   };
 
   private unlocked = false;
-  private musicStarted = false;
 
-  /* ── Beat track state ── */
-  private beatTrackIdx = 0;
-  private beatStepIdx = 0;
-  private beatTimer: ReturnType<typeof setInterval> | null = null;
-  private beatShuffleTimer: ReturnType<typeof setTimeout> | null = null;
+  /* ── Music decks (two <audio> elements we crossfade between) ── */
+  private decks: HTMLAudioElement[] = [];
+  private activeDeck = 0;
+  private musicContext: MusicContext = 'ambient';
+  private marketRequested = false;
+
+  private ambientQueue: MusicTrack[] = [];
+  private lastAmbientTrack: MusicTrack | null = null;
+
+  private fadeRaf: number | null = null;
+  private lastFadeTs = 0;
+
+  /* ─────────────────────────────────────────────────────────────
+     Lifecycle
+     ───────────────────────────────────────────────────────────── */
 
   /** Call once on the first user gesture. Safe to call repeatedly. */
   unlock() {
@@ -122,36 +115,49 @@ class SoundManager {
     this.unlocked = true;
     this.ensureContext();
     this.ctx?.resume().catch(() => {});
-    // Background music only — no continuous low-frequency ambience drone.
-    this.startMusic();
+    this.initMusic();
+    // Honour whatever context was requested before the gesture landed
+    // (defaults to the ambient shuffle).
+    if (this.musicContext === 'event') this.crossfadeTo('event', true);
+    else if (this.musicContext === 'market') this.crossfadeTo('market', true);
+    else this.startAmbientShuffle();
   }
 
   isMuted(): boolean { return this.muted; }
-
   isUnlocked(): boolean { return this.unlocked; }
 
   setMuted(muted: boolean) {
     this.muted = muted;
+    // Effects layer.
     if (this.ctx && this.masterGain) {
       this.masterGain.gain.setTargetAtTime(muted ? 0 : 1, this.ctx.currentTime, 0.05);
     }
+    // Music layer — active deck jumps to the (un)muted target unless a
+    // crossfade is already animating volumes.
+    this.applyMusicVolume();
   }
 
   getVolume(channel: SoundChannel): number { return this.volumes[channel]; }
 
   setVolume(channel: SoundChannel, volume: number) {
-    this.volumes[channel] = volume;
-    const gain = this.channelGains[channel];
-    if (this.ctx && gain) {
-      gain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.05);
+    const v = clamp01(volume);
+    this.volumes[channel] = v;
+    if (channel === 'music') {
+      this.applyMusicVolume();
+    } else if (this.ctx && this.effectsGain) {
+      this.effectsGain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
     }
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     UI sound effects (synthesized)
+     ───────────────────────────────────────────────────────────── */
 
   play(name: SoundEffectName) {
     if (!this.unlocked) return;
     this.ensureContext();
     const ctx = this.ctx;
-    const destination = this.channelGains.effects;
+    const destination = this.effectsGain;
     if (!ctx || !destination) return;
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
@@ -174,15 +180,13 @@ class SoundManager {
     master.gain.value = this.muted ? 0 : 1;
     master.connect(ctx.destination);
 
+    const effects = ctx.createGain();
+    effects.gain.value = this.volumes.effects;
+    effects.connect(master);
+
     this.ctx = ctx;
     this.masterGain = master;
-
-    (['music', 'ambience', 'effects'] as SoundChannel[]).forEach(channel => {
-      const gain = ctx.createGain();
-      gain.gain.value = this.volumes[channel];
-      gain.connect(master);
-      this.channelGains[channel] = gain;
-    });
+    this.effectsGain = effects;
   }
 
   private playTone(freq: number, duration: number, type: OscillatorType, destination: GainNode, vol = 0.55) {
@@ -204,58 +208,172 @@ class SoundManager {
     osc.stop(now + duration + 0.02);
   }
 
-  /* ─── Music: 3 shuffling beat tracks ─── */
+  /* ─────────────────────────────────────────────────────────────
+     Background music (file-based, crossfaded)
+     ───────────────────────────────────────────────────────────── */
 
-  private startMusic() {
-    if (this.musicStarted) return;
-    this.musicStarted = true;
-    // Random starting track
-    this.beatTrackIdx = Math.floor(Math.random() * BEAT_TRACKS.length);
-    this.runBeatTrack();
-    this.scheduleNextShuffle();
+  /** Switch the music to (or away from) the live-event override.
+   *  Event music has the highest priority — it overrides city/market. */
+  setEventMusic(active: boolean) {
+    if (active) {
+      if (this.musicContext === 'event') return;
+      this.musicContext = 'event';
+      if (this.unlocked) this.crossfadeTo('event', true);
+    } else {
+      if (this.musicContext !== 'event') return;
+      // Leaving the event: fall back to market if still requested, else the
+      // ambient city shuffle.
+      if (this.marketRequested) {
+        this.musicContext = 'market';
+        if (this.unlocked) this.crossfadeTo('market', true);
+      } else {
+        this.startAmbientShuffle();
+      }
+    }
   }
 
-  private runBeatTrack() {
-    if (this.beatTimer) {
-      clearInterval(this.beatTimer);
-      this.beatTimer = null;
-    }
-    this.beatStepIdx = 0;
-    const track = BEAT_TRACKS[this.beatTrackIdx];
+  /** Optionally pin the Meme Market loop while the player is at the market
+   *  building. Ignored while an event override is active (resumes once the
+   *  event ends). */
+  setMarketMusic(active: boolean) {
+    this.marketRequested = active;
+    if (this.musicContext === 'event') return; // event keeps priority
 
-    const tick = () => {
-      const dest = this.channelGains.music;
-      if (!dest || !this.ctx) return;
-      const step = track.steps[this.beatStepIdx % track.steps.length];
-      if (step) {
-        this.playTone(step.freq, step.dur, step.type, dest, step.vol ?? 0.35);
+    if (active) {
+      if (this.musicContext === 'market') return;
+      this.musicContext = 'market';
+      if (this.unlocked) this.crossfadeTo('market', true);
+    } else if (this.musicContext === 'market') {
+      this.startAmbientShuffle();
+    }
+  }
+
+  private initMusic() {
+    if (this.decks.length) return;
+    for (let i = 0; i < 2; i++) {
+      const el = new Audio();
+      el.preload = 'auto';
+      el.volume = 0;
+      el.addEventListener('ended', () => this.handleTrackEnded(i));
+      this.decks.push(el);
+    }
+    document.addEventListener('visibilitychange', this.handleVisibility);
+  }
+
+  /** Ambient (non-looping) tracks fire 'ended' → advance the shuffle.
+   *  Looping context tracks (event/market) never reach here. */
+  private handleTrackEnded(deckIdx: number) {
+    if (deckIdx === this.activeDeck && this.musicContext === 'ambient') {
+      this.playNextAmbient();
+    }
+  }
+
+  /** Pause when the tab is hidden; resume the active deck when it returns
+   *  (browsers throttle/suspend background media). */
+  private handleVisibility = () => {
+    if (!this.unlocked) return;
+    const deck = this.decks[this.activeDeck];
+    if (!deck) return;
+    if (document.hidden) {
+      deck.pause();
+    } else {
+      deck.play().catch(() => {});
+    }
+  };
+
+  private startAmbientShuffle() {
+    this.musicContext = 'ambient';
+    this.playNextAmbient();
+  }
+
+  private playNextAmbient() {
+    const track = this.nextAmbientTrack();
+    this.lastAmbientTrack = track;
+    this.crossfadeTo(track, false);
+  }
+
+  /** Draw the next ambient track from a reshuffled queue, guaranteeing the
+   *  same track never plays twice in a row (even across queue refills). */
+  private nextAmbientTrack(): MusicTrack {
+    if (this.ambientQueue.length === 0) {
+      const shuffled = [...AMBIENT_POOL];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-      this.beatStepIdx++;
+      // Avoid repeating the last-played track across the refill boundary.
+      if (shuffled.length > 1 && shuffled[0] === this.lastAmbientTrack) {
+        [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+      }
+      this.ambientQueue = shuffled;
+    }
+    return this.ambientQueue.shift()!;
+  }
+
+  /** Load a track onto the inactive deck, start it, and crossfade the two
+   *  decks. `loop` is true for context overrides (event/market) that should
+   *  play until their context changes, false for ambient tracks that hand
+   *  off to the next shuffle entry when they end. */
+  private crossfadeTo(track: MusicTrack, loop: boolean) {
+    if (!this.unlocked || this.decks.length < 2) return;
+    const nextIdx = 1 - this.activeDeck;
+    const incoming = this.decks[nextIdx];
+
+    incoming.src = MUSIC_URLS[track];
+    incoming.loop = loop;
+    incoming.currentTime = 0;
+    incoming.volume = 0;
+    incoming.play().catch(() => {});
+
+    this.activeDeck = nextIdx;
+    this.startFade();
+  }
+
+  /** Immediately set the active deck to the current effective volume when no
+   *  crossfade is animating (used by volume-slider / mute changes). */
+  private applyMusicVolume() {
+    if (this.fadeRaf != null) return; // fade loop already drives volumes
+    const deck = this.decks[this.activeDeck];
+    if (deck) deck.volume = this.effectiveMusicVolume();
+  }
+
+  private effectiveMusicVolume(): number {
+    return this.muted ? 0 : clamp01(this.volumes.music);
+  }
+
+  /** rAF-driven crossfade: ramp the active deck up to the effective music
+   *  volume and every other deck down to 0 (then pause it). Re-reads the
+   *  effective volume each frame so live slider/mute changes are respected. */
+  private startFade() {
+    this.lastFadeTs = performance.now();
+    if (this.fadeRaf != null) return;
+
+    const step = (ts: number) => {
+      const dt = ts - this.lastFadeTs;
+      this.lastFadeTs = ts;
+      const target = this.effectiveMusicVolume();
+      const maxDelta = dt / FADE_MS; // full 0→1 sweep across FADE_MS
+      let stillFading = false;
+
+      this.decks.forEach((deck, i) => {
+        const goal = i === this.activeDeck ? target : 0;
+        const cur = deck.volume;
+        let next = cur;
+        if (cur < goal) next = Math.min(goal, cur + maxDelta);
+        else if (cur > goal) next = Math.max(goal, cur - maxDelta);
+        deck.volume = clamp01(next);
+
+        if (Math.abs(deck.volume - goal) > 0.001) {
+          stillFading = true;
+        } else if (i !== this.activeDeck && deck.volume <= 0.001 && !deck.paused) {
+          deck.pause();
+        }
+      });
+
+      this.fadeRaf = stillFading ? requestAnimationFrame(step) : null;
     };
 
-    // Wait for the first interval — avoids a loud low note the instant
-    // audio unlocks on the user's first click/tap.
-    this.beatTimer = setInterval(tick, track.stepMs);
-  }
-
-  private scheduleNextShuffle() {
-    if (this.beatShuffleTimer) clearTimeout(this.beatShuffleTimer);
-    const delay = 45_000 + Math.random() * 45_000; // 45-90 seconds
-    this.beatShuffleTimer = setTimeout(() => {
-      this.shuffleToNextTrack();
-      this.scheduleNextShuffle();
-    }, delay);
-  }
-
-  private shuffleToNextTrack() {
-    // Pick any track that's different from the current one
-    const count = BEAT_TRACKS.length;
-    let next = this.beatTrackIdx;
-    for (let attempts = 0; attempts < 5 && next === this.beatTrackIdx; attempts++) {
-      next = Math.floor(Math.random() * count);
-    }
-    this.beatTrackIdx = next;
-    this.runBeatTrack();
+    this.fadeRaf = requestAnimationFrame(step);
   }
 }
 

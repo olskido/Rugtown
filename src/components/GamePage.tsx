@@ -11,9 +11,10 @@ import { NoticeBoardPanel } from './NoticeBoardPanel';
 import { AlphaLoungePanel } from './AlphaLoungePanel';
 import { HudCharacterPortrait } from './HudCharacterPortrait';
 import { fetchTrendingSolanaTokens, type MarketToken } from '../services/dexscreener';
-import { saveRep, saveBadge, saveInventoryItem, saveDistrictUnlock } from '../lib/profile';
+import { saveRep, saveBadge, saveInventoryItem, saveDistrictUnlock, updateLastSeen } from '../lib/profile';
 import { createCityChannel, type PresencePayload } from '../lib/presence';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { LEVEL_DEFINITIONS, type LevelObjectiveType } from '../game/levels/LevelDefinitions';
 
 /*
   GamePage.tsx
@@ -666,6 +667,9 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   // Holds the active Realtime channel so sendChatMessage / triggerEmote
   // can broadcast without needing to reach into the presence useEffect's closure.
   const cityChannelRef = useRef<ReturnType<typeof createCityChannel>>(null);
+  // True only after channel.subscribe() resolves to SUBSCRIBED — guards
+  // sendChatMessage/triggerEmote from attempting a broadcast before ready.
+  const channelSubscribedRef = useRef(false);
   // Dedup set for received emote broadcasts — key: `${senderId}:${timestamp}`
   const receivedEmoteKeysRef = useRef<Set<string>>(new Set());
 
@@ -751,6 +755,15 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const isChatOpen = activeAction === 'Chat';
 
+  /* ── Level progression system — local-only, no backend ── */
+  const [currentLevel, setCurrentLevel] = useState(() => {
+    const saved = localStorage.getItem('rugtown:currentLevel');
+    return saved ? Math.max(1, parseInt(saved, 10)) : 1;
+  });
+  const currentLevelRef    = useRef(currentLevel);
+  const levelCompletedRef  = useRef(0);
+  const currentLevelDef    = LEVEL_DEFINITIONS.find(l => l.id === currentLevel) ?? null;
+
   /* ── Quests (frontend-only, no backend) ── */
   const announcedQuestsRef = useRef<Set<string>>(new Set());
   const toastIdRef = useRef(0);
@@ -817,7 +830,6 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const [muted, setMutedState] = useState(() => soundManager.isMuted());
   const [soundUnlocked, setSoundUnlocked] = useState(() => soundManager.isUnlocked());
   const [musicVol, setMusicVol] = useState(soundManager.getVolume('music'));
-  const [ambienceVol, setAmbienceVol] = useState(soundManager.getVolume('ambience'));
   const [effectsVol, setEffectsVol] = useState(soundManager.getVolume('effects'));
 
   /* ── Settings panel: fullscreen + collision debug ── */
@@ -881,9 +893,22 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const handleVolumeChange = useCallback((channel: SoundChannel, value: number) => {
     soundManager.setVolume(channel, value);
     if (channel === 'music') setMusicVol(value);
-    else if (channel === 'ambience') setAmbienceVol(value);
     else setEffectsVol(value);
   }, []);
+
+  /* ── Music context ──────────────────────────────────────────────
+     A live event overrides the ambient city music with the event track;
+     leaving the event (any non-live phase) fades back. Standing at the
+     Meme Market building optionally pins the market track. SoundManager
+     enforces the event > market > ambient priority, so these two effects
+     can be declared independently. ── */
+  useEffect(() => {
+    soundManager.setEventMusic(eventPhase === 'live');
+  }, [eventPhase]);
+
+  useEffect(() => {
+    soundManager.setMarketMusic(nearZone?.id === 'market');
+  }, [nearZone]);
 
   /* ── Inventory: badges + mock items ── */
   const isInventoryOpen = activeAction === 'Inventory';
@@ -986,6 +1011,38 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     });
   }, []);
 
+  /* ── Level completion — fires when an objective is satisfied.
+     Reads currentLevel from a ref (not state) so the callback itself is
+     stable and safe to call from stale closures and inline event handlers.
+     The levelCompletedRef guard prevents the same level completing twice
+     if two triggers fire in the same synchronous pass. ── */
+  const completeLevelIfMatches = useCallback((
+    type: LevelObjectiveType,
+    target?: string | number,
+  ) => {
+    const lvl = currentLevelRef.current;
+    const def = LEVEL_DEFINITIONS.find(l => l.id === lvl);
+    if (!def) return;                                         // beyond level 30
+    if (def.objectiveType !== type) return;
+    if (target !== undefined && def.target !== target) return;
+    if (levelCompletedRef.current >= lvl) return;            // already completing
+
+    levelCompletedRef.current  = lvl;
+    currentLevelRef.current    = lvl + 1;                    // optimistic for chaining
+
+    setRep(r => r + def.rewardRep);
+    setRewardFlash(k => k + 1);
+    sceneRef.current?.playRewardEffect(`+${def.rewardRep} REP`);
+    soundManager.play('reward');
+    showToast(`Level ${lvl} Complete: ${def.title}`);
+    appendChatMessage(
+      'City Feed',
+      `Mission complete: ${def.title} — ${def.unlockText}`,
+      'event',
+    );
+    setCurrentLevel(lvl + 1);
+  }, [showToast, appendChatMessage]);
+
   /* ── Boot Phaser ── */
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1016,6 +1073,12 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         const names: string[] = scene.game?.registry?.get('npcNames') ?? [];
         setNpcCount(count);
         setNpcNames(names);
+
+        // Initialise the mission zone pulse for the level active at scene start.
+        const initDef = LEVEL_DEFINITIONS.find(l => l.id === currentLevelRef.current);
+        scene.setActiveMissionZone(
+          initDef?.objectiveType === 'visit_zone' ? (initDef.target as string) : null,
+        );
 
         // Phaser-side E press near a zone — open the matching modal.
         // Landmark interactions take priority, so also dismiss any open
@@ -1141,6 +1204,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
             `🏛️ ${inspectorName} inspected the #${payload.rank} statue — ${payload.name}.`,
             'event'
           );
+          completeLevelIfMatches('inspect_statue');
         });
       },
     });
@@ -1475,14 +1539,17 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     sceneRef.current?.showPlayerSpeech(text);
     soundManager.play('chatSend');
     // Broadcast to other real players — NPC and event messages are
-    // never sent here so they stay local.  cityChannelRef is null when
-    // Supabase is not configured, making this a safe no-op for guests.
-    cityChannelRef.current?.send({
-      type: 'broadcast',
-      event: 'chat',
-      payload: { sender: playerName || 'DegenExplorer', text },
-    }).catch(() => {});
-  }, [chatInput, playerName, appendChatMessage]);
+    // never sent here so they stay local.  channelSubscribedRef guards
+    // against calling send() before the channel is fully subscribed.
+    if (channelSubscribedRef.current) {
+      cityChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'chat',
+        payload: { sender: playerName || 'DegenExplorer', text },
+      }).catch(() => {});
+    }
+    completeLevelIfMatches('send_chat');
+  }, [chatInput, playerName, appendChatMessage, completeLevelIfMatches]);
 
   const handleChatInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') sendChatMessage();
@@ -1496,18 +1563,21 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     sceneRef.current?.showPlayerSpeech(`${emote.icon} ${emote.label}`, EMOTE_BUBBLE_DURATION);
     sceneRef.current?.playEmoteAnimation();
     appendChatMessage(playerName || 'DegenExplorer', `used ${emote.label}`, 'player');
-    // Broadcast to other real players — no-op for guests (cityChannelRef is null)
-    cityChannelRef.current?.send({
-      type: 'broadcast',
-      event: 'emote',
-      payload: {
-        senderId:  presenceIdRef.current,
-        sender:    playerName || 'DegenExplorer',
-        emoteId:   emote.id,
-        timestamp: Date.now(),
-      },
-    }).catch(() => {});
-  }, [playerName, appendChatMessage]);
+    // Broadcast to other real players — no-op for guests or before subscribe
+    if (channelSubscribedRef.current) {
+      cityChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'emote',
+        payload: {
+          senderId:  presenceIdRef.current,
+          sender:    playerName || 'DegenExplorer',
+          emoteId:   emote.id,
+          timestamp: Date.now(),
+        },
+      }).catch(() => {});
+    }
+    completeLevelIfMatches('use_emote');
+  }, [playerName, appendChatMessage, completeLevelIfMatches]);
 
   // Declared after triggerEmote so the dependency is satisfied
   const waveAtRemotePlayer = useCallback(() => {
@@ -1604,6 +1674,47 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     if (nearZone?.id === 'whale') unlockBadge('whale-watcher');
   }, [nearZone, unlockBadge]);
 
+  /* ── Level progression triggers — one effect per trigger type.
+     Including currentLevel as a dep lets newly-completed levels fire
+     immediately if the condition is already met (chaining behavior).
+     The levelCompletedRef guard inside completeLevelIfMatches prevents
+     the same level id from completing twice even if multiple effects
+     fire in the same batch. ── */
+  useEffect(() => { currentLevelRef.current = currentLevel; }, [currentLevel]);
+  useEffect(() => {
+    localStorage.setItem('rugtown:currentLevel', String(currentLevel));
+  }, [currentLevel]);
+
+  useEffect(() => {
+    if (fountainClaimed) completeLevelIfMatches('claim_fountain');
+  }, [fountainClaimed, currentLevel, completeLevelIfMatches]);
+
+  useEffect(() => {
+    if (nearZone) completeLevelIfMatches('visit_zone', nearZone.id);
+  }, [nearZone, currentLevel, completeLevelIfMatches]);
+
+  useEffect(() => {
+    if (dialogue) completeLevelIfMatches('talk_npc');
+  }, [dialogue, currentLevel, completeLevelIfMatches]);
+
+  useEffect(() => {
+    const def = currentLevelDef;
+    if (def?.objectiveType === 'rep_reached' && typeof def.target === 'number' && rep >= def.target) {
+      completeLevelIfMatches('rep_reached', def.target);
+    }
+  }, [rep, currentLevel, currentLevelDef, completeLevelIfMatches]);
+
+  /* ── Mission zone pulse — tell WorldScene which landmark to highlight
+     whenever the current mission changes. Runs on every level advance and
+     on initial mount (sceneRef may be null initially; that's fine — the
+     onReady callback above handles the initial call). ── */
+  useEffect(() => {
+    const zoneId = currentLevelDef?.objectiveType === 'visit_zone'
+      ? (currentLevelDef.target as string)
+      : null;
+    sceneRef.current?.setActiveMissionZone(zoneId ?? null);
+  }, [currentLevelDef]);
+
   /* ── Debounced REP sync for logged-in users ──────────────────────
      Saves profiles.rep to Supabase 3 s after the last REP change.
      Guests (userId null/undefined) are never touched.
@@ -1679,6 +1790,8 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         }
         if (status !== 'SUBSCRIBED') return;
         subscribed = true;
+        channelSubscribedRef.current = true;
+        if (userId) updateLastSeen(userId).catch(() => {});
         const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
         await channel.track({
           id:         presenceIdRef.current,
@@ -1709,6 +1822,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
     return () => {
       clearInterval(broadcastTimer);
+      channelSubscribedRef.current = false;
       channel.unsubscribe();
       cityChannelRef.current = null;
     };
@@ -1751,7 +1865,8 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     appendChatMessage('City Feed', `🏆 ${name} found the treasure!`, 'event');
     showToast(`🏆 Treasure found! +${amount} REP`);
     pushStoryLog(`${name} found the treasure`);
-  }, [treasureClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog]);
+    completeLevelIfMatches('claim_treasure');
+  }, [treasureClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog, completeLevelIfMatches]);
 
   /* ── Whale Alert claim — same one-shot pattern as the treasure claim
      above (WorldScene destroys the marker before emitting, so this only
@@ -1770,7 +1885,8 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     appendChatMessage('City Feed', `🐳 ${name} inspected the whale alert!`, 'event');
     showToast(`🐳 Whale inspected! +${amount} REP`);
     pushStoryLog(`${name} inspected the whale`);
-  }, [whaleClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog]);
+    completeLevelIfMatches('inspect_whale');
+  }, [whaleClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog, completeLevelIfMatches]);
 
   /* ── District unlocks — same trigger state as the quests/badges above. ── */
   useEffect(() => {
@@ -2187,7 +2303,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
             {/* Mode badge */}
             <div className="mode-badge">
               <span className="mode-badge__dot" />
-              WORLD VIEW · NO BACKEND
+              RUGTOWN CITY
             </div>
           </div>
           )}
@@ -2605,7 +2721,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                 >✕</button>
               </div>
 
-              <div className="leaderboard-panel__tag">Local simulation — no real players</div>
+              <div className="leaderboard-panel__tag">City Rankings</div>
 
               <div className="leaderboard-tabs" role="tablist">
                 {LEADERBOARD_TABS.map(tab => (
@@ -2702,21 +2818,6 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                 </div>
 
                 <div className="settings-slider-row">
-                  <label className="settings-slider-row__label" htmlFor="vol-ambience">Ambience</label>
-                  <input
-                    id="vol-ambience"
-                    className="settings-slider"
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={ambienceVol}
-                    disabled={muted}
-                    onChange={(e) => handleVolumeChange('ambience', parseFloat(e.target.value))}
-                  />
-                </div>
-
-                <div className="settings-slider-row">
                   <label className="settings-slider-row__label" htmlFor="vol-effects">Effects</label>
                   <input
                     id="vol-effects"
@@ -2732,8 +2833,8 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                 </div>
 
                 <p className="settings-panel__note">
-                  Synthesized placeholder tones — no audio files. Sound unlocks automatically
-                  on your first click, tap, or key press.
+                  Music streams live and shuffles as you explore. Sound unlocks
+                  automatically on your first click, tap, or key press.
                 </p>
 
                 <div className="settings-mute-row">
@@ -2937,6 +3038,60 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           )}
 
           {/* ──────────────────────────────────────────────────────
+              MISSION HUD — always-visible current level + objective
+              ────────────────────────────────────────────────────── */}
+          <div className="mission-hud" role="status">
+            {currentLevelDef ? (
+              <div className="mission-hud__inner" key={currentLevel}>
+                <div className="mission-hud__top">
+                  <span className="mission-hud__level">LV {currentLevelDef.id}/{LEVEL_DEFINITIONS.length}</span>
+                  <span className="mission-hud__sep">·</span>
+                  <span className="mission-hud__group">{currentLevelDef.group}</span>
+                  <span className="mission-hud__sep">·</span>
+                  <span className="mission-hud__reward">+{currentLevelDef.rewardRep} REP</span>
+                </div>
+                <div className="mission-hud__bottom">
+                  <span className="mission-hud__title">{currentLevelDef.title}</span>
+                  <span className="mission-hud__sep">—</span>
+                  <span className="mission-hud__obj">{currentLevelDef.description}</span>
+                  <span className="mission-hud__sep">·</span>
+                  <span className="mission-hud__building">📍{currentLevelDef.buildingName}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mission-hud__top">
+                <span className="mission-hud__level">LEGEND</span>
+                <span className="mission-hud__sep">·</span>
+                <span className="mission-hud__group">All 30 levels complete!</span>
+              </div>
+            )}
+          </div>
+
+          {/* ──────────────────────────────────────────────────────
+              CHAT FAB — always-visible chat toggle, separate from
+              the action bar so players immediately see it without
+              needing to know Chat is the first item in the bar.
+              ────────────────────────────────────────────────────── */}
+          <button
+            className={`chat-fab${isChatOpen ? ' chat-fab--active' : ''}`}
+            onClick={() => {
+              soundManager.play('click');
+              setModalClosing(false); setModalZone(null);
+              setDialogueClosing(false); setDialogue(null);
+              setWhaleAlertClosing(false); setWhaleAlert(null);
+              setStatueModalClosing(false); setStatueModal(null);
+              setActiveAction(prev => prev === 'Chat' ? null : 'Chat');
+            }}
+            aria-label={isChatOpen ? 'Close city chat' : 'Open city chat'}
+            title="City Chat (C)"
+          >
+            💬
+            {chatMessages.length > 0 && !isChatOpen && (
+              <span className="chat-fab__dot" aria-hidden />
+            )}
+          </button>
+
+          {/* ──────────────────────────────────────────────────────
               BOTTOM ACTION BAR
               Image 2: horizontal row of icon buttons at screen bottom
               Image 3: gold-bordered dark bar, circular icon buttons
@@ -2970,7 +3125,13 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                   setWhaleAlert(null);
                   setStatueModalClosing(false);
                   setStatueModal(null);
+                  const willOpen = activeAction !== item.label;
                   setActiveAction(prev => prev === item.label ? null : item.label);
+                  if (willOpen) {
+                    if (item.label === 'Leaderboard') completeLevelIfMatches('open_leaderboard');
+                    if (item.label === 'Inventory')   completeLevelIfMatches('open_inventory');
+                    if (item.label === 'Holder')      completeLevelIfMatches('open_holder');
+                  }
                 }}
                 aria-label={item.label}
                 aria-pressed={activeAction === item.label}

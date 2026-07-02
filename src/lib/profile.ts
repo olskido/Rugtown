@@ -219,3 +219,15 @@ export async function saveRep(userId: string, rep: number): Promise<void> {
     .update({ rep })
     .eq('id', userId);
 }
+
+/**
+ * Stamp profiles.last_seen_at to now().
+ * Called when the Realtime presence channel subscribes successfully.
+ */
+export async function updateLastSeen(userId: string): Promise<void> {
+  if (!supabase) return;
+  await supabase
+    .from('profiles')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', userId);
+}

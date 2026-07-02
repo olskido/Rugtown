@@ -36,13 +36,14 @@ const DEFAULT_WORLD_H   = 2160;
 
 // Player movement
 const PLAYER_SPEED      = 264;          // px/sec at full run (20% slower than 330)
-const PLAYER_DECEL_TIME = 0.10;         // smooth stop without slipperiness
 const PLAYER_DIAG       = 0.7071;       // diagonal normalization
 
-// Camera follow
-const CAM_LERP          = 0.10;         // 0=instant, 1=never catches up
-const CAM_DEADZONE_X    = 80;           // px of camera deadzone around player
-const CAM_DEADZONE_Y    = 60;
+// Camera follow — tighter deadzone + higher lerp give instant-feeling response
+// without jitter. Previous values (CAM_LERP=0.10, DZ=80×60) caused the
+// camera to lag far behind, producing a "slow then catch-up" perception.
+const CAM_LERP          = 0.16;         // was 0.10 — tighter follow, less perceived lag
+const CAM_DEADZONE_X    = 24;           // was 80 — camera starts tracking much sooner
+const CAM_DEADZONE_Y    = 16;           // was 60
 
 // World-edge safe zone: player can't walk closer than this to any world
 // boundary, giving the camera room to stay centred near the edges.
@@ -292,12 +293,6 @@ const TREE_OFFSETS: { x: number; y: number }[] = [
 ];
 
 const CANAL_OFFSET = { x: 195, y: -70, w: 90, h: 26 };
-
-// Idle camera "breathing" — a near-imperceptible zoom wobble while the
-// player stands still. Zoom controls/range are untouched; this only
-// modulates the already-applied zoom by a tiny fraction.
-const CAM_BREATH_SPEED  = 0.6;       // very slow cycle
-const CAM_BREATH_AMOUNT = 0.004;     // ±0.4% zoom
 
 // NPCs occasionally turn to face a nearby NPC when they pause
 const NPC_FACE_RADIUS  = 70;         // px
@@ -603,6 +598,8 @@ export class WorldScene extends Phaser.Scene {
 
   /* ── Landmark labels (Part D) — created 80ms after world is visible ── */
   private landmarkLabels: Phaser.GameObjects.Text[] = [];
+  private landmarkLabelIds: string[] = [];
+  private missionZoneId: string | null = null;
 
   /* ── Fountain onboarding guide — pulsing glow until player claims REP ── */
   private fountainGuide: Phaser.GameObjects.Graphics | null = null;
@@ -622,8 +619,6 @@ export class WorldScene extends Phaser.Scene {
      CREATE
      ═══════════════════════════════════════════════════════════ */
   create() {
-    const { width: vw, height: vh } = this.scale;
-
     /* ── Background ── */
     if (!this.bgMissing && this.textures.exists('rugtown-city')) {
       this.background = this.add.image(0, 0, 'rugtown-city')
@@ -781,9 +776,13 @@ export class WorldScene extends Phaser.Scene {
      UPDATE — called every frame
      ═══════════════════════════════════════════════════════════ */
   update(_time: number, delta: number) {
-    const dt = delta / 1000;  // seconds
-    this.tick += delta;
-    this.animTick += delta;
+    // Clamp to 100ms to prevent huge position jumps after tab-switch or
+    // browser pause — without this a 1000ms delta moves the player 264px
+    // in a single frame, which looks like teleporting.
+    const clampedDelta = Math.min(delta, 100);
+    const dt = clampedDelta / 1000;  // seconds
+    this.tick += clampedDelta;
+    this.animTick += clampedDelta;
 
     /* ── Player blink timer — purely cosmetic, never touches movement ── */
     if (this.playerBlinkUntil > 0) {
@@ -822,15 +821,12 @@ export class WorldScene extends Phaser.Scene {
       tvy = this.virtualMoveY * PLAYER_SPEED;
     }
 
-    /* ── Instant start at full speed; smooth deceleration on release ── */
-    if (tvx !== 0 || tvy !== 0) {
-      this.velX = tvx;
-      this.velY = tvy;
-    } else {
-      const decel = Math.min(dt / PLAYER_DECEL_TIME, 1);
-      this.velX = Phaser.Math.Linear(this.velX, 0, decel);
-      this.velY = Phaser.Math.Linear(this.velY, 0, decel);
-    }
+    /* ── Instant start AND instant stop — fully deterministic, no curves.
+       Acceleration/decel lerps felt inconsistent (slow start, lag, catch-up)
+       especially combined with camera deadzone. Pure velocity assignment gives
+       pixel-perfect, frame-rate-independent movement feel. ── */
+    this.velX = tvx;
+    this.velY = tvy;
 
     /* ── Apply movement — world-boundary clamp only (no building collision
        in public demo mode). WORLD_PAD keeps the player away from the
@@ -884,11 +880,22 @@ export class WorldScene extends Phaser.Scene {
     this.updateHallOfFameStatues();
     this.updateFountainGuide(delta);
 
-    /* ── Landmark label visibility — fade out when zoomed far out ── */
+    /* ── Landmark label visibility — fade out when zoomed far out;
+       pulse gold on the label whose zone matches the current mission. ── */
     if (this.landmarkLabels.length > 0) {
       const z = this.currentZoom;
-      const a = z >= 0.55 ? 0.88 : z >= 0.30 ? (z - 0.30) / 0.25 * 0.88 : 0;
-      for (const lbl of this.landmarkLabels) lbl.setAlpha(a);
+      const baseA = z >= 0.55 ? 0.88 : z >= 0.30 ? (z - 0.30) / 0.25 * 0.88 : 0;
+      const pulseT = (Math.sin(this.animTick / 400) + 1) / 2;
+      for (let i = 0; i < this.landmarkLabels.length; i++) {
+        const lbl = this.landmarkLabels[i];
+        if (this.landmarkLabelIds[i] === this.missionZoneId && baseA > 0) {
+          lbl.setAlpha(Math.max(0.4, baseA * (0.7 + 0.3 * pulseT)));
+          lbl.setTint(0xffe060);
+        } else {
+          lbl.setAlpha(baseA);
+          lbl.clearTint();
+        }
+      }
     }
 
     /* ── Interaction zones ── */
@@ -948,13 +955,13 @@ export class WorldScene extends Phaser.Scene {
       this.currentZoom = Phaser.Math.Linear(this.currentZoom, this.targetZoom, ZOOM_LERP);
     }
 
-    /* ── Idle camera breathing — very subtle, only while standing still.
-       Purely cosmetic: a tiny modulation on top of the existing zoom
-       value. Zoom range/controls are unaffected. ── */
-    const breathFactor = this.isMoving
-      ? 1
-      : 1 + Math.sin((this.animTick / 1000) * CAM_BREATH_SPEED) * CAM_BREATH_AMOUNT;
-    this.cameras.main.setZoom(this.currentZoom * breathFactor);
+    /* ── Apply zoom only when it actually changes. A perfectly still
+       player then yields a perfectly still camera — no per-frame zoom
+       churn and no sub-pixel shimmer from roundPixels re-rounding the
+       scroll offset every frame. ── */
+    if (this.cameras.main.zoom !== this.currentZoom) {
+      this.cameras.main.setZoom(this.currentZoom);
+    }
 
     /* ── Publish state to React (throttled to every ~100ms) ── */
     if (this.tick > 100) {
@@ -2634,6 +2641,7 @@ export class WorldScene extends Phaser.Scene {
         strokeThickness: 3,
         resolution: 2,
       }).setOrigin(0.5, 1).setDepth(4.5).setAlpha(0);
+      this.landmarkLabelIds.push(id);
       this.landmarkLabels.push(lbl);
     }
   }
@@ -3025,6 +3033,14 @@ export class WorldScene extends Phaser.Scene {
   /** Settings panel's collision-debug toggle — mirrors the C key. */
   setCollisionDebugVisible(visible: boolean) {
     this.setCollisionDebug(visible);
+  }
+
+  /** Highlights the landmark label for the given zone ID with a gold pulse.
+   *  Pass null to clear the highlight (e.g. when the mission changes to a
+   *  non-zone objective type). Safe to call before create() returns. */
+  setActiveMissionZone(zoneId: string | null) {
+    this.missionZoneId = zoneId;
+    for (const lbl of this.landmarkLabels) lbl.clearTint();
   }
 
   /**

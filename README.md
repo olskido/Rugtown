@@ -23,7 +23,7 @@ wallet connection. Live market data comes from DexScreener's public API
 | Game engine   | Phaser 3.90 (WebGL / Canvas) |
 | Bundler       | Vite 5 |
 | Styling       | Plain CSS (no Tailwind) |
-| Sound         | Web Audio API (synthesized, no audio files) |
+| Sound         | Streamed music (`public/audio/`) + Web Audio SFX |
 | Market data   | DexScreener public API (no key required) |
 | Auth + DB     | Supabase (optional — see setup below) |
 
@@ -83,14 +83,29 @@ VITE_SUPABASE_ANON_KEY=your-anon-public-key-here
 > The anon key is safe to expose in the browser because every table has
 > Row-Level Security enabled; users can only read and write their own rows.
 
-### 4. (Optional) Enable Google OAuth
+### 4. Verify Realtime is enabled
+
+Supabase Realtime handles live player presence and city chat between users.
+It is **enabled by default** on all Supabase projects — no extra configuration
+is required.
+
+To confirm: **Supabase dashboard → Realtime** — the service should show as
+active.  If broadcast messages between players stop working, check that
+the project is not paused (free tier projects pause after 7 days of
+inactivity; wake them up by visiting the dashboard).
+
+### 5. (Optional) Enable Google OAuth
 
 In the Supabase dashboard: **Authentication → Providers → Google** → toggle on.
 Follow the guide to create Google OAuth credentials and paste the Client ID /
 Secret back into Supabase.  No code changes needed on the frontend — the auth
 client in `src/lib/supabase.ts` already handles it.
 
-### 5. Vercel deployment
+Ensure **Site URL** and **Redirect URLs** in  
+**Authentication → URL Configuration** include your deployed domain
+(e.g. `https://rugtown.vercel.app`).
+
+### 6. Vercel deployment
 
 Add the same two env vars in  
 **Vercel → Project → Settings → Environment Variables**:
@@ -99,6 +114,41 @@ Add the same two env vars in
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
 ```
+
+Redeploy after adding the variables.  The framework preset is **Vite**,
+build command `npm run build`, output directory `dist`.
+
+---
+
+## Private beta checklist
+
+Run through this before inviting testers.
+
+### Supabase dashboard
+- [ ] Project is **not** paused (free tier wakes on first request, but
+      first-visitor latency can be 10-30 s — consider keeping it active)
+- [ ] **SQL Editor**: `database/schema.sql` has been run at least once
+- [ ] **Authentication → Providers**: Email is enabled; Google is enabled
+      (if you want OAuth)
+- [ ] **Authentication → URL Configuration**: Site URL matches your
+      deployed domain; `/*` or the exact origin is in Redirect URLs
+- [ ] **Realtime** panel shows the service running (no errors)
+
+### Local / staging smoke test
+- [ ] `npm run build` exits with 0 errors
+- [ ] Guest flow: skip auth → outfit → game — movement, events, chat
+      all work with no console errors
+- [ ] Sign-up flow: email + password → check inbox → confirm link →
+      redirects back → outfit screen shows character creator
+- [ ] Google OAuth flow: click "Continue with Google" → Google consent →
+      redirects back → outfit screen shows character creator
+- [ ] In-game: appearance saves and reloads on next login
+- [ ] In-game: REP increments and persists after page refresh
+- [ ] Multiplayer: open two browser tabs (or two browsers) both logged in
+      → both show the other player moving in-world and in the online count
+- [ ] Chat: send a message in tab A → tab B receives it in city chat
+- [ ] Emotes: trigger an emote in tab A → tab B sees the emote bubble
+      above the sender's avatar
 
 ---
 
@@ -125,24 +175,35 @@ Static Vite app — no server-side code, no env vars required for basic gameplay
 - Desktop and mobile responsive layout
 
 ### World & Movement
-- WASD / arrow-key movement with immediate full-speed response, smooth
-  deceleration on release, camera follow with deadzone and momentum, scroll-wheel
-  + button zoom
+- WASD / arrow-key movement with immediate full-speed, instant-stop response —
+  fully deterministic, no acceleration curves; camera follow with tight deadzone
+  and smooth lerp, scroll-wheel + button zoom
 - Default zoom 60% shows a comfortable city overview
 - Dynamic minimum zoom prevents showing empty space outside the map
 - Collision system (water canals, building edges) with optional debug overlay
-  (`C` key or Settings panel)
+  (Settings panel)
 - Floating landmark labels above key locations (Spawn Fountain, Meme Market,
   Hall of Fame, Whale Tower, Alpha Lounge, Notice Board, Bridge) that fade at
-  low zoom
+  low zoom; the label for the current mission's target zone pulses gold
+
+### 30-Level Progression System
+- Always-visible **Mission HUD** (top-center on mobile, bottom-center on desktop)
+  shows the current level, group, objective, target building, and REP reward
+- 30 data-driven levels across 6 groups: New Degen Tutorial → City Explorer →
+  Meme Market Scout → Whale Watcher → Alpha Hunter → RugTown Citizen
+- Objective types: visit zone, claim fountain, chat, emote, talk NPC, inspect
+  statue, inspect whale, claim treasure, open inventory/leaderboard/holder,
+  reach REP milestone
+- REP reward on completion; animated level-up transition on the Mission HUD
+- Progress persisted in `localStorage` so guests don't lose progress on refresh
+- **Chat FAB** — dedicated 💬 button always visible at bottom-left (desktop) or
+  bottom-center (mobile), independent of the action bar
 
 ### First-Minute Onboarding
-- Small non-blocking corner panel guides new players to claim REP at the
-  Spawn Fountain
+- Level 1 mission ("Claim your first REP at the Spawn Fountain") appears
+  immediately in the Mission HUD; building label pulses gold to guide new players
+- Pulsing gold fountain glow reinforces the direction
 - Platform-aware instructions: "Use WASD" on desktop, "Use joystick" on mobile
-- Pulsing gold fountain glow guides the player toward the first reward
-- 15-second idle hint if the player hasn't acted
-- Panel dismisses automatically when fountain REP is claimed, or manually
 
 ### Event Engine
 - Data-driven lifecycle: Idle → Countdown → Announcement → Live → Completed → Cooldown
@@ -214,27 +275,31 @@ No wallet, no trading, no swaps — display only.
 - Press E near any citizen for a short dialogue line
 
 ### Quests, Badges, Districts
-- 4 starter quests that unlock in sequence via exploration
-- 7 badges earned through gameplay actions
+- **30-level progression** (see above) — the primary moment-to-moment guidance
+- 4 starter quests that run alongside levels and unlock in sequence
+- 7 badges earned through gameplay actions (fountain, market, NPCs, whale, treasure)
 - 6 city districts that unlock as the player progresses
 
 ### Reputation (REP) System
-- Earned from quests, fountain claim, NPC inspection, treasure finds, and
-  events
+- Earned from level completion, fountain claim, NPC inspection, treasure finds,
+  events, and quests
 - Mock Holder tier (None / Bronze / Silver / Gold) multiplies REP gains —
   a local simulation, no real token required
-- Local leaderboard shows rank against NPC citizens
+- Local leaderboard labeled **City Rankings** shows rank against NPC citizens
+  (clearly tagged NPC, never presented as real players)
 
 ### Sound
-- Web Audio API throughout — zero audio files, no network requests
-- Audio unlocks only after the first user click, tap, or key press
-- **3 background beat loops** that shuffle every 45–90 seconds:
-  - *Dark City* — soft mid-range atmospheric pulses
-  - *Market Pulse* — medium-tempo rhythmic hints
-  - *Event Tension* — faster, tense minor feel
-- UI sound effects: click, modal open, reward chime, quest complete, event
-  bell, chat send
-- Mute toggle + per-channel volume sliders (music / ambience / effects)
+- Audio unlocks only after the first user click, tap, or key press (no autoplay)
+- **Streamed background music** from `public/audio/` with two crossfading decks:
+  - *city.mp3* / *market.mp3* — shuffle naturally, never repeat the same track
+    twice in a row, and crossfade between one another
+  - *event.mp3* — overrides the ambient music while a live event is running,
+    then crossfades back when the event ends
+  - The Meme Market building can optionally pin the market track
+  - Music auto-resumes when a backgrounded tab is returned to
+- UI sound effects (synthesized via Web Audio): click, modal open, reward
+  chime, quest complete, event bell, chat send
+- Mute toggle + Music / Effects volume sliders in Settings
 - "Test Sound" button in Settings to verify audio is working
 
 ### Accounts & Multiplayer (Supabase optional)
@@ -279,8 +344,8 @@ No wallet, no trading, no swaps — display only.
   chat, emotes, and click-to-view profile cards work via Supabase Realtime
   when configured. NPC citizens are always labelled separately and never
   counted as real players.
-- **No audio files.** All sound is synthesized via WebAudio oscillators —
-  placeholder until real audio is produced.
+- **Background music streams** from `public/audio/` (city / market / event);
+  UI sound effects are synthesized via Web Audio oscillators.
 - **Collision is intentionally light** — water canals, map edges, one large
   structure — not every building footprint.
 - **Leaderboard tabs** (Daily / Weekly / All Time) show the same in-session

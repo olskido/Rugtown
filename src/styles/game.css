@@ -4834,3 +4834,185 @@
   .profile-action-btn--close { padding: 6px 8px; }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   MISSION HUD — always-visible current level + objective strip
+   Sits above the action bar centered. Pointer-events none so it
+   never blocks clicks on the canvas or zone prompt beneath it.
+   ══════════════════════════════════════════════════════════════ */
+.mission-hud {
+  position: absolute;
+  bottom: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  pointer-events: none;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 16px;
+
+  background: rgba(6, 10, 14, 0.93);
+  border: 1px solid rgba(200, 144, 42, 0.28);
+  border-top: 2px solid rgba(200, 144, 42, 0.55);
+  box-shadow: 0 -2px 18px rgba(0, 0, 0, 0.35);
+
+  font-family: 'Cinzel', serif;
+  white-space: nowrap;
+  max-width: min(520px, 82vw);
+}
+
+.mission-hud__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mission-hud__level {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #e8b84b;
+  letter-spacing: 0.1em;
+}
+
+.mission-hud__sep {
+  font-size: 8px;
+  color: #4a3a18;
+}
+
+.mission-hud__group {
+  font-size: 7.5px;
+  color: #6a5a42;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mission-hud__reward {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #3ecf6e;
+  letter-spacing: 0.05em;
+}
+
+.mission-hud__bottom {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mission-hud__title {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #e8d8c0;
+  letter-spacing: 0.03em;
+}
+
+.mission-hud__obj {
+  font-size: 9px;
+  color: #b8a888;
+}
+
+.mission-hud__building {
+  font-size: 8px;
+  color: #7a6a52;
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .mission-hud {
+    bottom: auto;
+    top: 58px;
+    transform: translateX(-50%);
+    max-width: min(340px, 86vw);
+    font-size: 90%;
+  }
+}
+
+/* Level-advance entrance — the inner wrapper gets a new React key each time
+   the level changes, which forces a remount and restarts this animation. */
+@keyframes missionIn {
+  from { opacity: 0; transform: translateY(-5px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+.mission-hud__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: missionIn 0.35s ease-out forwards;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CHAT FAB — dedicated always-visible chat toggle button
+   Sits bottom-left (desktop) or bottom-center (mobile) above the
+   action bar. Provides a guaranteed-visible entry point for Chat
+   without needing to know it's the first item in the action bar.
+   ══════════════════════════════════════════════════════════════ */
+.chat-fab {
+  position: absolute;
+  bottom: 66px;
+  left: 14px;
+  z-index: 13;
+  pointer-events: all;
+
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+
+  background: rgba(6, 10, 14, 0.95);
+  border: 2px solid rgba(200, 144, 42, 0.4);
+  border-top: 2px solid #c8902a;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    0 0 10px rgba(200, 144, 42, 0.1);
+
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.chat-fab--active {
+  background: rgba(30, 16, 2, 0.97);
+  border-color: #e8b84b;
+  border-top-color: #e8b84b;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.6),
+    0 0 18px rgba(232, 184, 75, 0.22);
+}
+
+.chat-fab:hover:not(.chat-fab--active) {
+  border-color: rgba(200, 144, 42, 0.65);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.5),
+    0 0 14px rgba(200, 144, 42, 0.18);
+}
+
+/* Notification dot — shows when there are messages and chat is closed */
+.chat-fab__dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e8b84b;
+  border: 2px solid #06090e;
+}
+
+@media (max-width: 600px) {
+  .chat-fab {
+    bottom: 66px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .chat-fab--active {
+    transform: translateX(-50%);
+  }
+}
+
