@@ -108,12 +108,12 @@ const NPC_LABEL_NEAR_RADIUS = 70;   // px — close-encounter radius; names are 
 const NPC_POPULATION_MIN = 15;
 const NPC_POPULATION_MAX = 20;
 
-// Redraw citizens + remote players at ~30fps max (every 33ms). Their
+// Redraw citizens + remote players at ~20fps max (every 50ms). Their
 // geometry rebuild is the dominant per-frame cost with a crowd on screen;
-// halving it frees the main thread while movement stays smooth. The throttle
-// only engages when there's headroom (>30fps) — at lower FPS they redraw
-// every frame, so it never makes a struggling frame worse.
-const CHAR_DRAW_INTERVAL = 33;
+// capping at 20fps frees the main thread while movement stays smooth.
+// NPCs move slowly (~40-100px/s), so 20fps animation is imperceptibly
+// different from 30fps at normal play distance.
+const CHAR_DRAW_INTERVAL = 50;
 
 // Ambient speech bubbles also get pushed into the city chat panel, but
 // that must NOT scale with population — this is a single GLOBAL cooldown
@@ -619,7 +619,18 @@ export class WorldScene extends Phaser.Scene {
   private fountainGuide: Phaser.GameObjects.Graphics | null = null;
   private fountainGuideAnimTick = 0;
 
+  /* ── Ready callback — called after NPCs are fully spawned so the loading
+     screen stays visible until the city is populated and the first frame
+     is guaranteed to be smooth. Set by RugTownGame before Phaser boots. ── */
+  private onReadyCallback: ((scene: WorldScene) => void) | null = null;
+
   constructor() { super({ key: 'WorldScene' }); }
+
+  /** Set by RugTownGame before game creation — called once all NPCs have
+   *  been spawned and the scene is truly ready for the player to enter. */
+  setOnReadyCallback(fn: (scene: WorldScene) => void) {
+    this.onReadyCallback = fn;
+  }
 
   /* ═══════════════════════════════════════════════════════════
      PRELOAD
@@ -771,10 +782,12 @@ export class WorldScene extends Phaser.Scene {
     this.registry.set('nearNpc',   null);
     this.registry.set('collisionDebug', false);
 
-    /* ── Defer NPC citizens — short delay so the map is interactable first,
-         then spawn in small batches (see createNpcs) so we never freeze the
-         main thread for seconds right when the player first presses a key. ── */
-    this.time.delayedCall(120, () => {
+    /* ── Defer NPC citizens — short delay so the first frame renders before
+         any expensive work starts, then spawn in batches of 5 at 20ms gaps.
+         The ready callback fires AFTER the last batch so the loading screen
+         remains visible until the city is fully populated — no GPU texture
+         uploads mid-gameplay. ── */
+    this.time.delayedCall(80, () => {
       this.createNpcs();
     });
 
@@ -1048,11 +1061,13 @@ export class WorldScene extends Phaser.Scene {
     this.playerShadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * (1 - bodyBob * 0.05), SHADOW_H);
     this.playerShadow.setPosition(this.px, this.py);
 
-    /* ── Glow (gold pulse below feet) — player only, marks the main character ── */
+    /* ── Glow (gold pulse below feet) — player only, marks the main character.
+       3 layers instead of 6 — visually identical at play distance, half the
+       WebGL shape ops per frame. ── */
     this.playerGlow.clear();
     const glowT = (Math.sin(this.animTick / 600) + 1) / 2;
     const glowA = 0.08 + glowT * 0.08;
-    for (let r = 28; r > 0; r -= 5) {
+    for (const r of [26, 16, 7]) {
       this.playerGlow.fillStyle(0xe8b84b, glowA * (1 - r / 28));
       this.playerGlow.fillCircle(0, CHAR_H / 4, r);
     }
@@ -1222,16 +1237,21 @@ export class WorldScene extends Phaser.Scene {
       });
     };
 
-    // One citizen per ~45ms — keeps every startup frame cheap (a single
-    // text-texture upload) so the player's first movements never hit a
-    // frame long enough to trip the delta clamp. Fully populated by ~1s.
-    const BATCH = 1;
+    // 5 citizens per 20ms batch — fully populated in ~80ms, well within the
+    // loading-screen window. The ready callback fires after the final batch
+    // so the player never enters a cold city mid-frame.
+    const BATCH = 5;
     let idx = 0;
     const spawnBatch = () => {
       const end = Math.min(idx + BATCH, names.length);
       for (let i = idx; i < end; i++) spawnNpc(names[i], i);
       idx = end;
-      if (idx < names.length) this.time.delayedCall(45, spawnBatch);
+      if (idx < names.length) {
+        this.time.delayedCall(20, spawnBatch);
+      } else {
+        // All NPCs spawned — signal that the scene is truly ready.
+        this.onReadyCallback?.(this);
+      }
     };
     spawnBatch();
   }
@@ -1309,17 +1329,23 @@ export class WorldScene extends Phaser.Scene {
       }
 
       /* ── Apply movement — road-only with axis sliding (same rules as the
-         player). If the citizen is fully blocked it repicks a target next
-         tick so it never grinds against a wall. ── */
-      const resolved = this.resolveWalk(n.px, n.py, n.velX, n.velY, dt);
-      const newX = Phaser.Math.Clamp(resolved.x, CHAR_W / 2, this.worldW - CHAR_W / 2);
-      const newY = Phaser.Math.Clamp(resolved.y, CHAR_H / 2, this.worldH - CHAR_H / 2);
-      const moved = Math.abs(newX - n.px) > 0.1 || Math.abs(newY - n.py) > 0.1;
-      if (!moved && n.state === 'walk' && (Math.abs(n.velX) > 4 || Math.abs(n.velY) > 4)) {
-        n.stateTimer = 0; // blocked against road edge → choose a new target
+         player). Skip resolveWalk entirely when the NPC is nearly stopped —
+         it would move <0.02px and the collision check adds needless CPU. ── */
+      let moved = false;
+      if (Math.abs(n.velX) > 0.5 || Math.abs(n.velY) > 0.5) {
+        const resolved = this.resolveWalk(n.px, n.py, n.velX, n.velY, dt);
+        const newX = Phaser.Math.Clamp(resolved.x, CHAR_W / 2, this.worldW - CHAR_W / 2);
+        const newY = Phaser.Math.Clamp(resolved.y, CHAR_H / 2, this.worldH - CHAR_H / 2);
+        moved = Math.abs(newX - n.px) > 0.1 || Math.abs(newY - n.py) > 0.1;
+        if (!moved && n.state === 'walk' && (Math.abs(n.velX) > 4 || Math.abs(n.velY) > 4)) {
+          n.stateTimer = 0; // blocked against road edge → choose a new target
+        }
+        n.px = newX;
+        n.py = newY;
+      } else {
+        n.velX = 0;
+        n.velY = 0;
       }
-      n.px = newX;
-      n.py = newY;
 
       if (Math.abs(n.velX) > 6 || Math.abs(n.velY) > 6) {
         if (Math.abs(n.velX) >= Math.abs(n.velY)) {

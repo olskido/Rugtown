@@ -35,6 +35,12 @@ export class RugTownGame {
     // draw already uses the chosen appearance.
     if (config.appearance) this.worldScene.setAppearance(config.appearance);
 
+    // Wire the ready callback BEFORE Phaser boots — WorldScene fires it
+    // after all NPCs are spawned, not at the raw create() return point.
+    // This keeps the loading screen visible until the city is fully
+    // populated so the player's first frame is guaranteed to be smooth.
+    if (config.onReady) this.worldScene.setOnReadyCallback(config.onReady);
+
     this.game = new Phaser.Game({
       type: Phaser.AUTO,            // WebGL with Canvas fallback
       parent: config.parentId,      // Mount inside this DOM element
@@ -86,12 +92,6 @@ export class RugTownGame {
       disableContextMenu: true,
     });
 
-    // Notify consumer when scene is ready
-    if (config.onReady) {
-      this.game.events.once('ready', () => {
-        config.onReady!(this.worldScene);
-      });
-    }
   }
 
   /** Access the world scene directly */
