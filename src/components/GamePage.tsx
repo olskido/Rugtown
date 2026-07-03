@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { RugTownGame } from '../game/RugTownGame';
+import type { RugTownGame } from '../game/RugTownGame';
 import { WorldScene, NPC_SPEECH_BY_PERSONALITY, type NpcPersonality } from '../game/scenes/WorldScene';
 import { getWorldObject, WORLD_OBJECTS } from '../game/world/WorldObjects';
 import { JACKET_OPTIONS, DEFAULT_APPEARANCE, type CharacterAppearance } from '../game/world/CharacterAppearance';
@@ -15,6 +15,8 @@ import { saveRep, saveBadge, saveInventoryItem, saveDistrictUnlock, updateLastSe
 import { createCityChannel, type PresencePayload } from '../lib/presence';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { LEVEL_DEFINITIONS, type LevelObjectiveType } from '../game/levels/LevelDefinitions';
+import { notificationQueue } from '../lib/notificationQueue';
+import { NotificationBanner } from './NotificationBanner';
 
 /*
   GamePage.tsx
@@ -698,11 +700,11 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const lastEventChatKeyRef = useRef<string | null>(null);
   const lastChainAnnouncedKeyRef = useRef<string | null>(null);
 
-  /* ── Event alert dismissal — banner/mayor-card can be dismissed without
-     stopping the underlying event. Both reset automatically whenever the
-     event id or phase changes (handled in the useEffect below). ── */
+  /* ── Event alert dismissal — the live-event banner can be dismissed without
+     stopping the underlying event. Resets automatically whenever the event id
+     or phase changes (handled in the useEffect below). The mayor announcement
+     is no longer a separate card — it flows through the notification queue. ── */
   const [eventBannerDismissed, setEventBannerDismissed] = useState(false);
-  const [mayorCardDismissed, setMayorCardDismissed] = useState(false);
 
   /* ── "Today's Story" log (Phase 4 Event Chain System) — a rolling
      window of the last 5 notable moments (event phase starts + player
@@ -766,17 +768,19 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
   /* ── Quests (frontend-only, no backend) ── */
   const announcedQuestsRef = useRef<Set<string>>(new Set());
-  const toastIdRef = useRef(0);
   const [questStatus, setQuestStatus] = useState<Record<string, QuestStatus>>(
     () => Object.fromEntries(QUESTS.map(q => [q.id, 'in-progress' as QuestStatus]))
   );
-  const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const isQuestsOpen = activeAction === 'Quests';
 
+  /* ── Notifications — every system routes through the ONE global queue
+     (src/lib/notificationQueue.ts): one visible at a time, FIFO, ~15s gap,
+     priority for the big beats, X advances immediately. showToast() is kept
+     as the generic system-notification entry point so existing callers just
+     work; the important beats (treasure/whale/mayor) enqueue with a kind +
+     high priority directly. ── */
   const showToast = useCallback((text: string) => {
-    const id = ++toastIdRef.current;
-    setToasts(prev => [...prev, { id, text }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+    notificationQueue.push({ kind: 'system', text });
   }, []);
 
   /* ── Mock Holder tier ── */
@@ -1052,8 +1056,25 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     // already-destroyed instance's callback can resolve after cleanup and
     // clobber the refs below with a torn-down scene. `cancelled` blocks that.
     let cancelled = false;
+    let poll: ReturnType<typeof setInterval> | null = null;
+    let game: RugTownGame | null = null;
 
-    const game = new RugTownGame({
+    let lastCamX = NaN, lastCamY = NaN, lastCamZoom = NaN;
+    let lastEventSec = -1;
+    // Proximity/marker values are re-created as fresh objects every Phaser
+    // frame, so comparing by reference would re-render this huge component
+    // 10×/sec whenever the player is near anything. Track a cheap string
+    // signature instead and only push into React state when it changes.
+    let lastNearZoneSig = '';
+    let lastNearNpcSig = '';
+    let lastNearStatueSig = '';
+    let lastTreasureSig = '';
+    let lastWhaleSig = '';
+
+    void import('../game/RugTownGame').then(({ RugTownGame: GameCtor }) => {
+      if (cancelled || !mountRef.current) return;
+
+      game = new GameCtor({
       parentId: 'phaser-mount',
       appearance,
       onReady: (scene: WorldScene) => {
@@ -1209,20 +1230,31 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
       },
     });
 
-    gameRef.current = game;
+      gameRef.current = game;
 
-    /* Poll camera + zone-proximity state from Phaser registry */
-    const poll = setInterval(() => {
+      /* Poll camera + zone-proximity state from Phaser registry.
+         Camera state is only pushed into React when it actually changes, so a
+         still player triggers zero re-renders of this (large) component — the
+         10Hz churn used to compete with Phaser's render loop and cause jank. */
+      poll = setInterval(() => {
       if (cancelled || !sceneRef.current) return;
       const reg = sceneRef.current.game?.registry;
       if (!reg) return;
-      setCamera({
-        x:    reg.get('camX') ?? 0,
-        y:    reg.get('camY') ?? 0,
-        zoom: reg.get('zoom') ?? 0.85,
-      });
-      setNearZone(reg.get('nearZone') ?? null);
-      setNearNpc(reg.get('nearNpc') ?? null);
+      const cx = Math.round(reg.get('camX') ?? 0);
+      const cy = Math.round(reg.get('camY') ?? 0);
+      const cz = reg.get('zoom') ?? 0.85;
+      if (cx !== lastCamX || cy !== lastCamY || cz !== lastCamZoom) {
+        lastCamX = cx; lastCamY = cy; lastCamZoom = cz;
+        setCamera({ x: cx, y: cy, zoom: cz });
+      }
+      const nz = reg.get('nearZone') ?? null;
+      const nzSig = nz ? nz.id : '';
+      if (nzSig !== lastNearZoneSig) { lastNearZoneSig = nzSig; setNearZone(nz); }
+
+      const nn = reg.get('nearNpc') ?? null;
+      const nnSig = nn ? nn.name : '';
+      if (nnSig !== lastNearNpcSig) { lastNearNpcSig = nnSig; setNearNpc(nn); }
+
       setCollisionDebugOn(reg.get('collisionDebug') ?? false);
 
       // Event HUD — read-only registry poll, same pattern as everything
@@ -1232,7 +1264,15 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
       const phase: EnginePhase = reg.get('eventPhase') ?? 'idle';
       setEventPhase(phase);
       setCurrentEvent(evt);
-      setEventTimeRemaining(evt ? Math.max(0, evt.phaseDuration - (Date.now() - evt.phaseStartedAt)) : 0);
+      // Only push the countdown into React when the displayed second
+      // changes, not on every 100ms tick — avoids 10Hz re-renders while an
+      // event is live.
+      const remainingMs = evt ? Math.max(0, evt.phaseDuration - (Date.now() - evt.phaseStartedAt)) : 0;
+      const remainingSec = Math.ceil(remainingMs / 1000);
+      if (remainingSec !== lastEventSec) {
+        lastEventSec = remainingSec;
+        setEventTimeRemaining(remainingMs);
+      }
 
       if (evt) {
         // Fire the chat line (+ toast/sound for the bigger beats) exactly
@@ -1244,13 +1284,23 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           if (line) {
             appendChatMessage('City Feed', `${line.icon} ${line.text}`, 'event');
             if (evt.phase === 'live') {
-              showToast(`${line.icon} ${evt.title} is live!`);
+              notificationQueue.push({
+                kind: 'event', icon: line.icon, title: 'Event Live',
+                text: `${evt.title} is live!`,
+              });
               soundManager.play('event');
               // "Today's Story" only logs the moment an event actually
               // starts — claims (treasure/whale) add their own entries
               // separately, in their respective claim effects below.
               pushStoryLog(storyLogLineForLive(evt));
             } else if (evt.phase === 'announcement') {
+              // Mayor announcement — queued (high priority) instead of a
+              // separate always-on card, so it never overlaps other alerts.
+              notificationQueue.push({
+                kind: 'mayor', icon: '📯', title: 'Mayor of RugTown',
+                text: `Citizens of RugTown… ${evt.description}`,
+                priority: 'high',
+              });
               soundManager.play('event');
             }
           }
@@ -1274,25 +1324,32 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
       // Treasure Hunt chest — read-only mirror for the minimap marker and
       // the "Press E to open treasure" prompt below.
-      setTreasureChest(reg.get('treasureChest') ?? null);
+      const tc = reg.get('treasureChest') ?? null;
+      const tcSig = tc ? `${tc.wx},${tc.wy}` : '';
+      if (tcSig !== lastTreasureSig) { lastTreasureSig = tcSig; setTreasureChest(tc); }
       setNearTreasure(reg.get('nearTreasure') ?? false);
 
       // Whale Alert marker — read-only mirror for the minimap marker and
       // the "Press E to inspect whale" prompt below.
-      setWhaleMarker(reg.get('whaleMarker') ?? null);
+      const wm = reg.get('whaleMarker') ?? null;
+      const wmSig = wm ? `${wm.wx},${wm.wy}` : '';
+      if (wmSig !== lastWhaleSig) { lastWhaleSig = wmSig; setWhaleMarker(wm); }
       setNearWhale(reg.get('nearWhale') ?? false);
 
       // Hall of Fame statues — read-only mirror for the "Press E to
       // inspect statue" prompt below (the statues themselves are pushed
       // the other direction, GamePage → WorldScene, in the leaderboard
       // effect above).
-      setNearStatue(reg.get('nearStatue') ?? null);
-    }, 100);
+      const ns = reg.get('nearStatue') ?? null;
+      const nsSig = ns ? `${ns.rank}:${ns.name}` : '';
+      if (nsSig !== lastNearStatueSig) { lastNearStatueSig = nsSig; setNearStatue(ns); }
+      }, 100);
+    });
 
     return () => {
       cancelled = true;
-      clearInterval(poll);
-      game.destroy();
+      if (poll) clearInterval(poll);
+      game?.destroy();
       gameRef.current = null;
       sceneRef.current = null;
     };
@@ -1863,7 +1920,10 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     unlockBadge('treasure-finder');
     const name = playerName || 'DegenExplorer';
     appendChatMessage('City Feed', `🏆 ${name} found the treasure!`, 'event');
-    showToast(`🏆 Treasure found! +${amount} REP`);
+    notificationQueue.push({
+      kind: 'treasure', icon: '🏆', title: 'Treasure Hunt',
+      text: `Treasure found! +${amount} REP`, priority: 'high',
+    });
     pushStoryLog(`${name} found the treasure`);
     completeLevelIfMatches('claim_treasure');
   }, [treasureClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog, completeLevelIfMatches]);
@@ -1883,7 +1943,10 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     unlockBadge('whale-watcher-plus');
     const name = playerName || 'DegenExplorer';
     appendChatMessage('City Feed', `🐳 ${name} inspected the whale alert!`, 'event');
-    showToast(`🐳 Whale inspected! +${amount} REP`);
+    notificationQueue.push({
+      kind: 'whale', icon: '🐳', title: 'Whale Alert',
+      text: `Whale inspected! +${amount} REP`, priority: 'high',
+    });
     pushStoryLog(`${name} inspected the whale`);
     completeLevelIfMatches('inspect_whale');
   }, [whaleClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog, completeLevelIfMatches]);
@@ -1921,11 +1984,14 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     wasGoldRef.current = isGold;
   }, [holderTier, showToast]);
 
+  /* ── Clear the global notification queue when leaving the game so no
+     timers leak and no stale notification survives across sessions. ── */
+  useEffect(() => () => notificationQueue.reset(), []);
+
   /* ── Reset event alert dismissals whenever the event phase changes.
      A new phase means genuinely new information worth showing again. ── */
   useEffect(() => {
     setEventBannerDismissed(false);
-    setMayorCardDismissed(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentEvent?.id, eventPhase]);
 
@@ -3517,17 +3583,11 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         />
       )}
 
-      {/* Toast notifications — e.g. quest-complete */}
-      {toasts.length > 0 && (
-        <div className="toast-stack" aria-live="polite">
-          {toasts.map(t => (
-            <div key={t.id} className="toast">
-              <span className="toast__icon" aria-hidden>🏆</span>
-              <span className="toast__text">{t.text}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Global notification queue — one banner at a time, FIFO, ~15s gap.
+          Every system (mayor, whale, treasure, crier, badge, level, REP,
+          event, district, system) enqueues into it; this renders the single
+          currently-visible one. See src/lib/notificationQueue.ts. */}
+      <NotificationBanner />
 
       {/* ══════════════════════════════════════════════════════════
           EVENT HUD — Phase 2 Event Engine. Read-only: WorldScene's
@@ -3585,31 +3645,9 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         </div>
       )}
 
-      {/* Mayor announcement — non-blocking card; can be dismissed without
-          stopping the event. Auto-reappears if the phase changes. */}
-      {eventPhase === 'announcement' && currentEvent && !mayorCardDismissed && (
-        <div className="mayor-card" role="status" aria-live="polite">
-          <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
-          <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
-          <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
-          <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
-          <button
-            className="mayor-card__close"
-            onClick={() => setMayorCardDismissed(true)}
-            aria-label="Dismiss announcement"
-            title="Dismiss"
-          >✕</button>
-          <div className="mayor-card__header">
-            <span className="mayor-card__icon" aria-hidden>📯</span>
-            <span className="mayor-card__title">Mayor of RugTown</span>
-          </div>
-          <p className="mayor-card__text">
-            <em>Citizens of RugTown...</em>
-            <br />
-            {currentEvent.description}
-          </p>
-        </div>
-      )}
+      {/* Mayor announcements now flow through the global notification queue
+          (enqueued on the event's "announcement" phase) so they never
+          overlap other alerts — see NotificationBanner above. */}
 
       {/* ══════════════════════════════════════════════════════════
           FIRST-MINUTE ONBOARDING PANEL

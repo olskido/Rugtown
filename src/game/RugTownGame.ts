@@ -51,6 +51,22 @@ export class RugTownGame {
       antialias: false,
       pixelArt: false,
 
+      // Prefer the discrete/faster GPU where the browser offers a choice —
+      // meaningfully raises baseline FPS on laptops with hybrid graphics.
+      render: {
+        powerPreference: 'high-performance',
+      },
+
+      // Delta smoothing (smoothStep) averages frame delta over recent
+      // frames, so a brief startup hitch ramps gradually instead of
+      // producing a sudden speed lurch. fps.min is left at the Phaser
+      // default so WorldScene's own 100ms delta clamp stays the single
+      // authority on the low-FPS movement floor.
+      fps: {
+        target: 60,
+        smoothStep: true,
+      },
+
       // Resize to parent
       scale: {
         mode:       Phaser.Scale.RESIZE,

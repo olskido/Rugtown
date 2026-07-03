@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { getLiveWorldObjects, getWorldObject, toWorldPosition, WORLD_OBJECTS } from '../world/WorldObjects';
-import { COLLISION_RECTS, toWorldRect } from '../world/CollisionZones';
+import { buildWalkableRects, isWalkablePoint, type WalkRect } from '../world/RoadNetwork';
 import {
   generateRandomAppearance, resolveAppearance, DEFAULT_APPEARANCE,
   type CharacterAppearance, type ResolvedAppearance,
@@ -34,16 +34,15 @@ import type { PresencePayload } from '../../lib/presence';
 const DEFAULT_WORLD_W   = 3840;
 const DEFAULT_WORLD_H   = 2160;
 
-// Player movement
-const PLAYER_SPEED      = 264;          // px/sec at full run (20% slower than 330)
+// Player movement — instant velocity, delta-timed, frame-rate independent.
+// 196 px/s (30% below the previous 280) — a calmer, more controllable pace.
+const PLAYER_SPEED      = 196;
 const PLAYER_DIAG       = 0.7071;       // diagonal normalization
 
-// Camera follow — tighter deadzone + higher lerp give instant-feeling response
-// without jitter. Previous values (CAM_LERP=0.10, DZ=80×60) caused the
-// camera to lag far behind, producing a "slow then catch-up" perception.
-const CAM_LERP          = 0.16;         // was 0.10 — tighter follow, less perceived lag
-const CAM_DEADZONE_X    = 24;           // was 80 — camera starts tracking much sooner
-const CAM_DEADZONE_Y    = 16;           // was 60
+// Camera follow — responsive without overshooting.
+const CAM_LERP          = 0.22;
+const CAM_DEADZONE_X    = 18;
+const CAM_DEADZONE_Y    = 12;
 
 // World-edge safe zone: player can't walk closer than this to any world
 // boundary, giving the camera room to stay centred near the edges.
@@ -108,6 +107,13 @@ const NPC_LABEL_NEAR_RADIUS = 70;   // px — close-encounter radius; names are 
 // Population is randomized once per session — small enough for solid FPS.
 const NPC_POPULATION_MIN = 15;
 const NPC_POPULATION_MAX = 20;
+
+// Redraw citizens + remote players at ~30fps max (every 33ms). Their
+// geometry rebuild is the dominant per-frame cost with a crowd on screen;
+// halving it frees the main thread while movement stays smooth. The throttle
+// only engages when there's headroom (>30fps) — at lower FPS they redraw
+// every frame, so it never makes a struggling frame worse.
+const CHAR_DRAW_INTERVAL = 33;
 
 // Ambient speech bubbles also get pushed into the city chat panel, but
 // that must NOT scale with population — this is a single GLOBAL cooldown
@@ -463,6 +469,13 @@ export class WorldScene extends Phaser.Scene {
    *  city chat panel doesn't scale (and spam) with population size. */
   private npcChatCooldownRemaining = 0;
 
+  /** Accumulator that throttles the (expensive) citizen + remote-player
+   *  geometry redraws to ~30fps. Their movement/state still updates every
+   *  frame — only the Graphics re-tessellation is halved, which is the
+   *  dominant sustained cost with a crowd on screen. */
+  private charDrawAccum = 0;
+  private charDrawThisFrame = true;
+
   /* ── Interaction zones ── */
   private zones: ActiveZone[] = [];
   private nearZoneId: string | null = null;
@@ -484,8 +497,9 @@ export class WorldScene extends Phaser.Scene {
   private plazaX = 0;
   private plazaY = 0;
 
-  /* ── Collision (player only — see requirement to leave NPCs unaffected) ── */
-  private collisionRectsWorld: { x: number; y: number; w: number; h: number }[] = [];
+  /* ── Walkability (road-only movement) — player AND citizens are confined
+     to the road/plaza/bridge network built from RoadNetwork.ts. ── */
+  private walkableRects: WalkRect[] = [];
   private collisionDebugGraphics!: Phaser.GameObjects.Graphics;
   private collisionDebugVisible = false;
 
@@ -757,9 +771,10 @@ export class WorldScene extends Phaser.Scene {
     this.registry.set('nearNpc',   null);
     this.registry.set('collisionDebug', false);
 
-    /* ── Part A: Defer NPC citizens — one frame later so the first render
-         shows the background immediately before citizens are created ── */
-    this.time.delayedCall(1, () => {
+    /* ── Defer NPC citizens — short delay so the map is interactable first,
+         then spawn in small batches (see createNpcs) so we never freeze the
+         main thread for seconds right when the player first presses a key. ── */
+    this.time.delayedCall(120, () => {
       this.createNpcs();
     });
 
@@ -783,6 +798,12 @@ export class WorldScene extends Phaser.Scene {
     const dt = clampedDelta / 1000;  // seconds
     this.tick += clampedDelta;
     this.animTick += clampedDelta;
+
+    // Decide once per frame whether the throttled characters (citizens +
+    // remote players) redraw this frame. The local player always redraws.
+    this.charDrawAccum += clampedDelta;
+    this.charDrawThisFrame = this.charDrawAccum >= CHAR_DRAW_INTERVAL;
+    if (this.charDrawThisFrame) this.charDrawAccum = 0;
 
     /* ── Player blink timer — purely cosmetic, never touches movement ── */
     if (this.playerBlinkUntil > 0) {
@@ -828,19 +849,13 @@ export class WorldScene extends Phaser.Scene {
     this.velX = tvx;
     this.velY = tvy;
 
-    /* ── Apply movement — world-boundary clamp only (no building collision
-       in public demo mode). WORLD_PAD keeps the player away from the
-       absolute edge so the camera always has room to stay centred. ── */
-    const newX = Phaser.Math.Clamp(
-      this.px + this.velX * dt,
-      WORLD_PAD,
-      this.worldW - WORLD_PAD
-    );
-    const newY = Phaser.Math.Clamp(
-      this.py + this.velY * dt,
-      WORLD_PAD,
-      this.worldH - WORLD_PAD
-    );
+    /* ── Apply movement — road-only walkability with axis sliding, then a
+       world-boundary clamp. resolveWalk() confines the player to the road /
+       plaza / bridge network and slides along edges so there's no jitter or
+       sticking (buildings, rivers, walls and gardens are all non-walkable). ── */
+    const resolved = this.resolveWalk(this.px, this.py, this.velX, this.velY, dt);
+    const newX = Phaser.Math.Clamp(resolved.x, WORLD_PAD, this.worldW - WORLD_PAD);
+    const newY = Phaser.Math.Clamp(resolved.y, WORLD_PAD, this.worldH - WORLD_PAD);
 
     const moved = Math.abs(newX - this.px) > 0.1 || Math.abs(newY - this.py) > 0.1;
     this.px = newX;
@@ -856,29 +871,47 @@ export class WorldScene extends Phaser.Scene {
     }
     this.isMoving = moved && (Math.abs(this.velX) > 8 || Math.abs(this.velY) > 8);
 
-    /* ── Turn smoothing — subtle body lean into horizontal motion ── */
+    /* ── Turn smoothing — subtle body lean into horizontal motion.
+       Delta-corrected like the camera so the lean eases at a constant rate
+       regardless of frame rate. ── */
     const leanTarget = Phaser.Math.Clamp(this.velX / PLAYER_SPEED, -1, 1) * LEAN_MAX;
-    this.lean = Phaser.Math.Linear(this.lean, leanTarget, LEAN_SMOOTH);
+    const leanFactor = LEAN_SMOOTH >= 1 ? 1 : 1 - Math.pow(1 - LEAN_SMOOTH, dt * 60);
+    this.lean = Phaser.Math.Linear(this.lean, leanTarget, leanFactor);
 
     /* ── Move the container (camera follows this) ── */
     this.player.setPosition(this.px, this.py);
 
+    /* ── Frame-rate-independent camera smoothing ──────────────────────
+       Phaser applies camera.lerp as a fixed fraction PER FRAME, so the
+       camera's catch-up speed silently depends on the current FPS: at a
+       low startup frame rate it crawls behind, then rushes to catch up
+       when FPS recovers — read on screen as "everything lags, then moves
+       very fast". Recomputing the lerp from dt each frame makes it close
+       the same fraction of the gap per unit TIME instead, so movement is
+       identical at 20fps or 60fps. (dt*60 == 1 at 60fps → base CAM_LERP.) ── */
+    const camLerp = CAM_LERP >= 1 ? 1 : 1 - Math.pow(1 - CAM_LERP, dt * 60);
+    this.cameras.main.lerp.set(camLerp, camLerp);
+
     /* ── Redraw player every frame ── */
     this.drawPlayer();
 
-    /* ── NPC citizens ── */
-    this.updateNpcs(delta);
+    /* ── NPC citizens ──
+       All entity updates below use the SAME clamped delta as the player
+       above. Passing raw delta here (while the player used clampedDelta)
+       was what made citizens jump while the player crawled during a
+       startup frame-drop — the "slow then explode" effect. ── */
+    this.updateNpcs(clampedDelta);
 
     /* ── Remote real players (Realtime Presence) ── */
-    this.updateRemotePlayers(delta);
+    this.updateRemotePlayers(clampedDelta);
 
     /* ── Event Engine weather overlay (purely cosmetic, additive layer) ── */
-    this.updateWeatherEffect(delta);
+    this.updateWeatherEffect(clampedDelta);
     this.updateTreasureChest();
     this.updateWhaleMarker();
-    this.updateTownCrier(delta);
+    this.updateTownCrier(clampedDelta);
     this.updateHallOfFameStatues();
-    this.updateFountainGuide(delta);
+    this.updateFountainGuide(clampedDelta);
 
     /* ── Landmark label visibility — fade out when zoomed far out;
        pulse gold on the label whose zone matches the current mission. ── */
@@ -1081,7 +1114,13 @@ export class WorldScene extends Phaser.Scene {
     }));
     this.npcLandmarks = landmarks;
 
-    names.forEach((name, i) => {
+    // Publish the real roster up front so the HUD + chat simulator have the
+    // right names/count immediately, even though the NPC objects below are
+    // built in small batches across frames.
+    this.registry.set('npcNames', names);
+    this.registry.set('npcCount', names.length);
+
+    const spawnNpc = (name: string, i: number) => {
       const personality = Phaser.Utils.Array.GetRandom(NPC_PERSONALITIES);
       // Jacket stays personality-biased (preserves "alpha analysts wear
       // teal" flavor); every other slot is independently randomized —
@@ -1098,13 +1137,23 @@ export class WorldScene extends Phaser.Scene {
         : Phaser.Math.Between(0, landmarks.length - 1);
       const landmark = landmarks[homeLandmarkIndex];
 
-      const homeX = Phaser.Math.Clamp(this.worldW * landmark.fx + Phaser.Math.Between(-20, 20), CHAR_W, this.worldW - CHAR_W);
-      const homeY = Phaser.Math.Clamp(this.worldH * landmark.fy + Phaser.Math.Between(-20, 20), CHAR_H, this.worldH - CHAR_H);
+      // Home + spawn are snapped onto the road network so citizens always
+      // start on a walkable road/plaza (req: NPCs respect the road network).
+      const home = this.snapToWalkable(
+        this.worldW * landmark.fx + Phaser.Math.Between(-20, 20),
+        this.worldH * landmark.fy + Phaser.Math.Between(-20, 20),
+      );
+      const homeX = home.x;
+      const homeY = home.y;
 
       const spawnAngle = Math.random() * Math.PI * 2;
       const spawnDist  = Math.random() * landmark.radius * 0.6;
-      const px = Phaser.Math.Clamp(homeX + Math.cos(spawnAngle) * spawnDist, CHAR_W, this.worldW - CHAR_W);
-      const py = Phaser.Math.Clamp(homeY + Math.sin(spawnAngle) * spawnDist, CHAR_H, this.worldH - CHAR_H);
+      const spawn = this.snapToWalkable(
+        homeX + Math.cos(spawnAngle) * spawnDist,
+        homeY + Math.sin(spawnAngle) * spawnDist,
+      );
+      const px = spawn.x;
+      const py = spawn.y;
 
       const shadow = this.add.graphics().setDepth(6);
       const body   = this.add.graphics().setDepth(7);
@@ -1121,7 +1170,7 @@ export class WorldScene extends Phaser.Scene {
         padding: { x: 3, y: 1 },
         stroke: '#000000',
         strokeThickness: 2,
-        resolution: Math.max(2, window.devicePixelRatio || 1),
+        resolution: 1,
       }).setOrigin(0.5, 1).setDepth(7.2);
 
       const speech = this.add.text(0, 0, '', {
@@ -1171,12 +1220,20 @@ export class WorldScene extends Phaser.Scene {
         blinkUntil: 0,
         shadow, body, label, speech,
       });
-    });
+    };
 
-    // Published once so React (chat-activity simulator, citizen-count HUD)
-    // can reference real citizen names/count without duplicating this list.
-    this.registry.set('npcNames', this.npcs.map(n => n.name));
-    this.registry.set('npcCount', this.npcs.length);
+    // One citizen per ~45ms — keeps every startup frame cheap (a single
+    // text-texture upload) so the player's first movements never hit a
+    // frame long enough to trip the delta clamp. Fully populated by ~1s.
+    const BATCH = 1;
+    let idx = 0;
+    const spawnBatch = () => {
+      const end = Math.min(idx + BATCH, names.length);
+      for (let i = idx; i < end; i++) spawnNpc(names[i], i);
+      idx = end;
+      if (idx < names.length) this.time.delayedCall(45, spawnBatch);
+    };
+    spawnBatch();
   }
 
   private updateNpcs(delta: number) {
@@ -1233,20 +1290,34 @@ export class WorldScene extends Phaser.Scene {
         n.velY = Phaser.Math.Linear(n.velY, 0, accel);
 
         if (n.stateTimer <= 0) {
-          // Pick a new wander target near home — keeps the NPC gathered near its landmark
-          const angle = Math.random() * Math.PI * 2;
-          const dist  = Math.random() * n.wanderRadius;
-          n.targetX = Phaser.Math.Clamp(n.homeX + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
-          n.targetY = Phaser.Math.Clamp(n.homeY + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
+          // Pick a new wander target near home that lands ON the road network,
+          // so citizens respect roads exactly like the player. Retry a few
+          // random offsets; fall back to home (always a walkable plaza).
+          let tx = n.homeX, ty = n.homeY;
+          for (let attempt = 0; attempt < 6; attempt++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist  = Math.random() * n.wanderRadius;
+            const cx = Phaser.Math.Clamp(n.homeX + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
+            const cy = Phaser.Math.Clamp(n.homeY + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
+            if (this.isWalkable(cx, cy)) { tx = cx; ty = cy; break; }
+          }
+          n.targetX = tx;
+          n.targetY = ty;
           n.state = 'walk';
           n.stateTimer = Phaser.Math.Between(n.walkMin, n.walkMax);
         }
       }
 
-      /* ── Apply movement — clamp to world bounds ── */
-      const newX = Phaser.Math.Clamp(n.px + n.velX * dt, CHAR_W / 2, this.worldW - CHAR_W / 2);
-      const newY = Phaser.Math.Clamp(n.py + n.velY * dt, CHAR_H / 2, this.worldH - CHAR_H / 2);
+      /* ── Apply movement — road-only with axis sliding (same rules as the
+         player). If the citizen is fully blocked it repicks a target next
+         tick so it never grinds against a wall. ── */
+      const resolved = this.resolveWalk(n.px, n.py, n.velX, n.velY, dt);
+      const newX = Phaser.Math.Clamp(resolved.x, CHAR_W / 2, this.worldW - CHAR_W / 2);
+      const newY = Phaser.Math.Clamp(resolved.y, CHAR_H / 2, this.worldH - CHAR_H / 2);
       const moved = Math.abs(newX - n.px) > 0.1 || Math.abs(newY - n.py) > 0.1;
+      if (!moved && n.state === 'walk' && (Math.abs(n.velX) > 4 || Math.abs(n.velY) > 4)) {
+        n.stateTimer = 0; // blocked against road edge → choose a new target
+      }
       n.px = newX;
       n.py = newY;
 
@@ -1333,7 +1404,7 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
-      this.drawNpc(n);
+      if (this.charDrawThisFrame) this.drawNpc(n);
     }
   }
 
@@ -1524,39 +1595,86 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /* ═══════════════════════════════════════════════════════════
-     COLLISION
-     Player-only walkable boundaries — buildings and water canals are
-     blocked, everything else (roads, plaza, bridges, open ground) is
-     walkable by default. Geometry comes entirely from CollisionZones.ts
-     (src/game/world/CollisionZones.ts); nothing is hardcoded here.
-     NPCs are intentionally unaffected — updateNpcs() never calls
-     isBlockedAt(), per this task's scope.
+     WALKABILITY — road-only movement
+     The world is BLOCKED by default; only the road / plaza / bridge
+     network (RoadNetwork.ts) is walkable. Both the player and the NPC
+     citizens are confined to it, spawns are snapped onto it, and events
+     spawn only on reachable road/plaza points. Geometry comes entirely
+     from RoadNetwork.ts — nothing is hardcoded here.
      ═══════════════════════════════════════════════════════════ */
   private createCollision() {
-    this.collisionRectsWorld = COLLISION_RECTS.map(r => toWorldRect(r, this.worldW, this.worldH));
+    this.walkableRects = buildWalkableRects(this.worldW, this.worldH);
 
+    // Debug overlay (press C / Settings toggle): tints the WALKABLE network
+    // green so the road layout can be verified/tuned at a glance.
     this.collisionDebugGraphics = this.add.graphics().setDepth(50).setVisible(false);
-    for (const r of this.collisionRectsWorld) {
-      this.collisionDebugGraphics.fillStyle(0xff2222, 0.32);
+    for (const r of this.walkableRects) {
+      const colour = r.kind === 'plaza' ? 0x38f0a0 : 0x4bd4ff;
+      this.collisionDebugGraphics.fillStyle(colour, 0.22);
       this.collisionDebugGraphics.fillRect(r.x, r.y, r.w, r.h);
-      this.collisionDebugGraphics.lineStyle(1, 0xff2222, 0.8);
+      this.collisionDebugGraphics.lineStyle(1, colour, 0.7);
       this.collisionDebugGraphics.strokeRect(r.x, r.y, r.w, r.h);
     }
   }
 
-  /** True if a CHAR_W×CHAR_H box centered at (x,y) overlaps any collision rect. */
-  private isBlockedAt(x: number, y: number): boolean {
-    const left   = x - CHAR_W / 2;
-    const right  = x + CHAR_W / 2;
-    const top    = y - CHAR_H / 2;
-    const bottom = y + CHAR_H / 2;
+  /** True if (x,y) is on a walkable road/plaza/bridge tile. Movement uses
+   *  the character's centre point; roads are wide (ROAD_WIDTH) so the body
+   *  never visually threads a needle. */
+  private isWalkable(x: number, y: number): boolean {
+    return isWalkablePoint(this.walkableRects, x, y);
+  }
 
-    for (const r of this.collisionRectsWorld) {
-      if (left < r.x + r.w && right > r.x && top < r.y + r.h && bottom > r.y) {
-        return true;
-      }
+  /**
+   * Resolve a desired move with axis sliding so movement stays smooth along
+   * road edges (no sticking / jitter — the Pokémon / Stardew feel). Tries the
+   * full move first, then X-only, then Y-only; if all are blocked the entity
+   * holds position. Returns the resolved position.
+   */
+  private resolveWalk(
+    px: number, py: number, vx: number, vy: number, dt: number
+  ): { x: number; y: number } {
+    const nx = px + vx * dt;
+    const ny = py + vy * dt;
+    if (this.isWalkable(nx, ny)) return { x: nx, y: ny };
+    if (vx !== 0 && this.isWalkable(nx, py)) return { x: nx, y: py };
+    if (vy !== 0 && this.isWalkable(px, ny)) return { x: px, y: ny };
+    return { x: px, y: py };
+  }
+
+  /** Snap an arbitrary point to the nearest walkable point by scanning the
+   *  walkable rects (used for spawns so nothing ever starts off-road). */
+  private snapToWalkable(x: number, y: number): { x: number; y: number } {
+    if (this.isWalkable(x, y)) return { x, y };
+    let best = { x, y };
+    let bestD = Infinity;
+    for (const r of this.walkableRects) {
+      const cx = Phaser.Math.Clamp(x, r.x, r.x + r.w);
+      const cy = Phaser.Math.Clamp(y, r.y, r.y + r.h);
+      const d = (cx - x) * (cx - x) + (cy - y) * (cy - y);
+      if (d < bestD) { bestD = d; best = { x: cx, y: cy }; }
     }
-    return false;
+    return best;
+  }
+
+  /** A random reachable road/plaza point — used by events that have no fixed
+   *  landmark so treasure/whale/crier always land somewhere the player can
+   *  actually walk to. Area-weighted so bigger plazas aren't over-picked. */
+  private randomWalkablePoint(): { wx: number; wy: number } {
+    const rects = this.walkableRects;
+    if (rects.length === 0) return { wx: this.plazaX, wy: this.plazaY };
+    let total = 0;
+    for (const r of rects) total += r.w * r.h;
+    let pick = Math.random() * total;
+    let chosen = rects[0];
+    for (const r of rects) {
+      pick -= r.w * r.h;
+      if (pick <= 0) { chosen = r; break; }
+    }
+    // Keep away from the very edge of the rect so the body stays on-road.
+    const pad = 12;
+    const wx = Phaser.Math.Between(chosen.x + pad, chosen.x + chosen.w - pad);
+    const wy = Phaser.Math.Between(chosen.y + pad, chosen.y + chosen.h - pad);
+    return { wx, wy };
   }
 
   /** Single place that actually flips the debug overlay — used by both
@@ -1805,8 +1923,9 @@ export class WorldScene extends Phaser.Scene {
     sample.forEach((npc, i) => {
       const angle = i * slotWidth + Phaser.Math.FloatBetween(-slotWidth * 0.35, slotWidth * 0.35);
       const dist = Phaser.Math.Between(35, 95);
-      npc.homeX = Phaser.Math.Clamp(wx + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
-      npc.homeY = Phaser.Math.Clamp(wy + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
+      const home = this.snapToWalkable(wx + Math.cos(angle) * dist, wy + Math.sin(angle) * dist);
+      npc.homeX = home.x;
+      npc.homeY = home.y;
       npc.wanderRadius = 60;
       npc.state = 'walk';
       npc.targetX = npc.homeX;
@@ -1884,13 +2003,9 @@ export class WorldScene extends Phaser.Scene {
     const landmark = def.location.landmarkId ? getWorldObject(def.location.landmarkId) : undefined;
     if (landmark) return toWorldPosition(landmark, this.worldW, this.worldH);
 
-    const margin = 160;
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const wx = Phaser.Math.Between(margin, this.worldW - margin);
-      const wy = Phaser.Math.Between(margin, this.worldH - margin);
-      if (!this.isBlockedAt(wx, wy)) return { wx, wy };
-    }
-    return { wx: this.plazaX, wy: this.plazaY };
+    // No fixed landmark → drop it on a random reachable road/plaza point so
+    // the player can always walk to it.
+    return this.randomWalkablePoint();
   }
 
   /** Simple pixel-art chest — code-generated Graphics, same technique
@@ -2499,8 +2614,9 @@ export class WorldScene extends Phaser.Scene {
     sample.forEach((npc, i) => {
       const angle = i * slotWidth + Phaser.Math.FloatBetween(-slotWidth * 0.35, slotWidth * 0.35);
       const dist = Phaser.Math.Between(spreadMin, spreadMax);
-      npc.homeX = Phaser.Math.Clamp(wx + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
-      npc.homeY = Phaser.Math.Clamp(wy + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
+      const home = this.snapToWalkable(wx + Math.cos(angle) * dist, wy + Math.sin(angle) * dist);
+      npc.homeX = home.x;
+      npc.homeY = home.y;
       npc.wanderRadius = 50;
       npc.state = 'walk';
       npc.targetX = npc.homeX;
@@ -2944,8 +3060,12 @@ export class WorldScene extends Phaser.Scene {
      ═══════════════════════════════════════════════════════════ */
 
   teleportTo(x: number, y: number) {
-    this.px = Phaser.Math.Clamp(x, 0, this.worldW);
-    this.py = Phaser.Math.Clamp(y, 0, this.worldH);
+    const snapped = this.snapToWalkable(
+      Phaser.Math.Clamp(x, 0, this.worldW),
+      Phaser.Math.Clamp(y, 0, this.worldH),
+    );
+    this.px = snapped.x;
+    this.py = snapped.y;
     this.player.setPosition(this.px, this.py);
     this.velX = 0;
     this.velY = 0;
@@ -3199,7 +3319,7 @@ export class WorldScene extends Phaser.Scene {
         entry.emotePulseUntil = Math.max(0, entry.emotePulseUntil - delta);
       }
 
-      this.drawRemotePlayer(entry);
+      if (this.charDrawThisFrame) this.drawRemotePlayer(entry);
     });
   }
 

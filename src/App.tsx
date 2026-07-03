@@ -3,13 +3,12 @@ import './styles/global.css';
 import './styles/landing.css';
 import './styles/game.css';
 import './styles/auth.css';
-import './styles/loading.css';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
 import { OutfitSelectPage } from './components/OutfitSelectPage';
-import { LoadingScreen } from './components/LoadingScreen';
 import { GamePage } from './components/GamePage';
 import { DEFAULT_APPEARANCE, type CharacterAppearance } from './game/world/CharacterAppearance';
+import { soundManager } from './audio/SoundManager';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import {
   fetchProfile,
@@ -35,15 +34,14 @@ import {
                               OutfitSelectPage (nickname + character)
                                      │
                                      ▼
-                              LoadingScreen (3–5 s)
-                                     │
-                                     ▼
                                  GamePage
+                        (boots Phaser immediately; shows its own
+                         readiness-gated cover while the world loads)
 
   Guests: local-only, unchanged when Supabase is not configured.
 */
 
-type Screen = 'landing' | 'auth' | 'outfit' | 'loading' | 'game';
+type Screen = 'landing' | 'auth' | 'outfit' | 'game';
 
 interface AuthUser {
   id: string;
@@ -71,6 +69,41 @@ export default function App() {
     setInitialOwnedItemIds([]);
     setInitialDistrictIds([]);
   }, []);
+
+  /* ── Audio: start music as early as possible ─────────────────────
+     Buffer the music tracks immediately on load, then unlock + start
+     playback on the very first user interaction anywhere in the app
+     (e.g. clicking "Enter RugTown" on the landing page or typing on the
+     auth screen). This is what makes music play from the moment you sign
+     up, not only once you're inside the game. Autoplay policy is respected
+     — preload() never plays; playback only begins after a real gesture. ── */
+  useEffect(() => {
+    soundManager.preload();
+    if (soundManager.isUnlocked()) return;
+    const unlock = () => {
+      soundManager.unlock();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    window.addEventListener('touchstart', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
+
+  /* ── Preload Phaser while the player is on auth / character creator so
+     the game engine chunk is cached before GamePage mounts — cuts the
+     blank-screen wait after outfit selection. ── */
+  useEffect(() => {
+    if (screen === 'auth' || screen === 'outfit') {
+      void import('./game/RugTownGame');
+    }
+  }, [screen]);
 
   /* ── Supabase: auth listener + profile sync ──────────────────── */
   useEffect(() => {
@@ -185,7 +218,10 @@ export default function App() {
     (picked: CharacterAppearance, name: string) => {
       setAppearance(picked);
       setPlayerName(name);
-      setScreen('loading');
+      // Straight into the game — GamePage shows its own readiness-gated
+      // cover while Phaser boots, so there's no separate timed loading
+      // screen wasting a second before the world even starts loading.
+      setScreen('game');
       if (user?.id) {
         saveAppearance(user.id, picked).catch(() => {});
         if (name.trim()) saveUsername(user.id, name.trim()).catch(() => {});
@@ -193,10 +229,6 @@ export default function App() {
     },
     [user],
   );
-
-  const handleLoadingComplete = useCallback(() => {
-    setScreen('game');
-  }, []);
 
   const handleLogout = useCallback(async () => {
     await supabase?.auth.signOut();
@@ -219,15 +251,6 @@ export default function App() {
         initialOwnedItemIds={initialOwnedItemIds}
         initialDistrictIds={initialDistrictIds}
         onLogout={handleLogout}
-      />
-    );
-  }
-
-  if (screen === 'loading') {
-    return (
-      <LoadingScreen
-        playerName={playerName}
-        onComplete={handleLoadingComplete}
       />
     );
   }

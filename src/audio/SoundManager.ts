@@ -101,6 +101,7 @@ class SoundManager {
 
   private ambientQueue: MusicTrack[] = [];
   private lastAmbientTrack: MusicTrack | null = null;
+  private firstAmbient = true;
 
   private fadeRaf: number | null = null;
   private lastFadeTs = 0;
@@ -108,6 +109,20 @@ class SoundManager {
   /* ─────────────────────────────────────────────────────────────
      Lifecycle
      ───────────────────────────────────────────────────────────── */
+
+  /** Warm the browser cache for the ambient music tracks so playback can
+   *  begin the instant the first user gesture unlocks audio. Creates the
+   *  decks and buffers the files — but never calls play(), so it can run at
+   *  app startup without violating the autoplay policy. Safe to call once
+   *  from the very first screen (landing / auth). */
+  preload() {
+    this.initMusic();
+    // Warm the HTTP cache for the first track only, so playback starts
+    // instantly on the first gesture without over-fetching every track up
+    // front (market buffers later, during city's minutes-long playback).
+    const d0 = this.decks[0];
+    if (d0 && !d0.src) { d0.src = MUSIC_URLS.city; try { d0.load(); } catch { /* ignore */ } }
+  }
 
   /** Call once on the first user gesture. Safe to call repeatedly. */
   unlock() {
@@ -287,7 +302,15 @@ class SoundManager {
   }
 
   private playNextAmbient() {
-    const track = this.nextAmbientTrack();
+    // The very first ambient track is always the preloaded city loop, so
+    // music starts instantly from warm cache; everything after shuffles.
+    let track: MusicTrack;
+    if (this.firstAmbient) {
+      this.firstAmbient = false;
+      track = 'city';
+    } else {
+      track = this.nextAmbientTrack();
+    }
     this.lastAmbientTrack = track;
     this.crossfadeTo(track, false);
   }

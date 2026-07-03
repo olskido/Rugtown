@@ -2844,6 +2844,101 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
+   GLOBAL NOTIFICATION QUEUE — one banner at a time (see
+   src/lib/notificationQueue.ts). Replaces the old stacked toasts so
+   nothing ever overlaps. Centered top, above the event HUD.
+   ══════════════════════════════════════════════════════════════ */
+.notif-layer {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  width: min(92vw, 460px);
+  pointer-events: none;
+}
+
+.notif-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(7, 10, 14, 0.97);
+  border: 1px solid #9a6e1e;
+  border-top: 2px solid #c8902a;
+  border-radius: 4px;
+  box-shadow: 0 0 26px rgba(0, 0, 0, 0.65), 0 0 18px rgba(200, 144, 42, 0.15);
+  font-family: 'Cinzel', serif;
+  color: #e8d8c0;
+  pointer-events: auto;
+  animation: notif-in 0.28s ease forwards;
+}
+
+.notif-banner--high {
+  border-color: #7a4bd4;
+  border-top-color: #b98bff;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.7), 0 0 22px rgba(150, 90, 255, 0.35);
+}
+
+.notif-banner__icon {
+  font-size: 18px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.notif-banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.notif-banner__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #e8b84b;
+}
+
+.notif-banner--high .notif-banner__title {
+  color: #c9a6ff;
+}
+
+.notif-banner__text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f2e6d2;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.notif-banner__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #9a8a6e;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 0.15s ease;
+}
+
+.notif-banner__close:hover {
+  color: #e8b84b;
+}
+
+@keyframes notif-in {
+  0%   { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ══════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
