@@ -79,6 +79,23 @@ VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-public-key-here
 ```
 
+Also set `VITE_PUBLIC_APP_URL` — the base URL Google OAuth redirects back to.
+Use the URL the app is actually served from in each environment:
+
+```env
+# Local development
+VITE_PUBLIC_APP_URL=http://localhost:5173
+```
+
+```env
+# Production
+VITE_PUBLIC_APP_URL=https://YOUR-VERCEL-DOMAIN.vercel.app
+```
+
+> If `VITE_PUBLIC_APP_URL` is unset, the app falls back to the browser's
+> current origin. Whichever value is used **must** also be added to
+> **Supabase → Authentication → URL Configuration → Redirect URLs**.
+
 > **Never commit `.env.local`** — it is already listed in `.gitignore`.  
 > The anon key is safe to expose in the browser because every table has
 > Row-Level Security enabled; users can only read and write their own rows.
@@ -107,12 +124,13 @@ Ensure **Site URL** and **Redirect URLs** in
 
 ### 6. Vercel deployment
 
-Add the same two env vars in  
+Add the same env vars in  
 **Vercel → Project → Settings → Environment Variables**:
 
 ```
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
+VITE_PUBLIC_APP_URL   # set to https://YOUR-VERCEL-DOMAIN.vercel.app
 ```
 
 Redeploy after adding the variables.  The framework preset is **Vite**,

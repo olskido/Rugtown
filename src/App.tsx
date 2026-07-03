@@ -11,13 +11,14 @@ import { DEFAULT_APPEARANCE, type CharacterAppearance } from './game/world/Chara
 import { soundManager } from './audio/SoundManager';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import {
-  fetchProfile,
+  fetchOrCreateProfile,
   fetchSavedAppearance,
   fetchUserBadgeIds,
   fetchInventoryItemIds,
   fetchDistrictUnlockIds,
   saveAppearance,
   saveUsername,
+  type AuthUserLike,
 } from './lib/profile';
 
 /*
@@ -60,6 +61,9 @@ export default function App() {
 
   /** True while an explicit sign-in / sign-up / OAuth attempt is in flight. */
   const authActionPendingRef = useRef(false);
+  /** Guards against loading the same user's data twice (getSession +
+   *  onAuthStateChange both fire on load). Reset on sign-out. */
+  const loadedUserIdRef = useRef<string | null>(null);
 
   const resetGuestProgress = useCallback(() => {
     setPlayerName('');
@@ -111,17 +115,25 @@ export default function App() {
 
     let cancelled = false;
 
-    const loadUserData = async (
-      userId: string,
-      emailFallback: string,
-    ): Promise<void> => {
+    /* Fetch (or create) the profile and load all persistent player data for a
+       signed-in user. Deduped per user id so the getSession() + SIGNED_IN
+       double-fire on load doesn't run it twice. */
+    const loadUserData = async (sUser: AuthUserLike): Promise<void> => {
+      if (loadedUserIdRef.current === sUser.id) return;
+      loadedUserIdRef.current = sUser.id;
+
+      const emailFallback = sUser.email?.split('@')[0] ?? 'Degen';
       try {
+        // fetchOrCreateProfile is the frontend fallback: it creates the row
+        // from the Google account if the DB trigger didn't (never rely on the
+        // trigger alone). The other reads run in parallel — they key off
+        // user_id and return empty defaults when nothing is saved yet.
         const [profile, savedApp, badgeIds, itemIds, districtIds] = await Promise.all([
-          fetchProfile(userId),
-          fetchSavedAppearance(userId),
-          fetchUserBadgeIds(userId),
-          fetchInventoryItemIds(userId),
-          fetchDistrictUnlockIds(userId),
+          fetchOrCreateProfile(sUser),
+          fetchSavedAppearance(sUser.id),
+          fetchUserBadgeIds(sUser.id),
+          fetchInventoryItemIds(sUser.id),
+          fetchDistrictUnlockIds(sUser.id),
         ]);
         if (cancelled) return;
 
@@ -134,29 +146,42 @@ export default function App() {
         if (itemIds.length) setInitialOwnedItemIds(itemIds);
         if (districtIds.length) setInitialDistrictIds(districtIds);
       } catch {
-        if (!cancelled) setPlayerName(prev => prev || emailFallback);
+        if (!cancelled) {
+          // Reset the guard so a later attempt can retry the load.
+          loadedUserIdRef.current = null;
+          setPlayerName(prev => prev || emailFallback);
+        }
       }
     };
 
-    const handleSession = (session: { user: { id: string; email?: string | null } } | null) => {
-      if (!session?.user || cancelled) return;
-      const { id, email } = session.user;
-      setUser({ id, email: email ?? null });
-      loadUserData(id, email?.split('@')[0] ?? 'Degen');
+    /** Strip the OAuth `?code=` / `#access_token=` params from the URL bar. */
+    const cleanOAuthUrl = () => {
+      if (window.location.hash || window.location.search) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled) return;
-      handleSession(session);
+    const storeUser = (sUser: { id: string; email?: string | null }) => {
+      setUser({ id: sUser.id, email: sUser.email ?? null });
+    };
 
-      // OAuth redirect lands with tokens in the URL — open Auth so the
-      // user sees their logged-in state and taps Continue (not a skip).
+    /* Requirement 1: always call getSession() on load. This restores an
+       existing session (persisted or freshly parsed from the OAuth redirect)
+       and loads the profile/player data. */
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || !session?.user) return;
+      storeUser(session.user);
+      void loadUserData(session.user);
+
+      // Fallback OAuth-return detection via the URL (covers implicit flow and
+      // any case where the SIGNED_IN event doesn't fire): show the logged-in
+      // AuthPage so the user taps Continue — never an auto-skip.
       const isOAuthReturn =
         window.location.hash.includes('access_token') ||
         window.location.search.includes('code=');
-      if (session?.user && isOAuthReturn) {
+      if (isOAuthReturn) {
         setScreen('auth');
-        window.history.replaceState(null, '', window.location.pathname);
+        cleanOAuthUrl();
       }
     });
 
@@ -165,20 +190,27 @@ export default function App() {
         if (cancelled) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
-          const { id, email } = session.user;
-          setUser({ id, email: email ?? null });
-          loadUserData(id, email?.split('@')[0] ?? 'Degen').then(() => {
+          storeUser(session.user);
+          void loadUserData(session.user).then(() => {
             if (cancelled) return;
-            // Only advance after an explicit sign-in action on the Auth page.
             if (authActionPendingRef.current) {
+              // Explicit in-app sign-in (email/password or the Google button
+              // click within this session) → proceed to the character creator.
               authActionPendingRef.current = false;
               setScreen('outfit');
+            } else {
+              // A SIGNED_IN with no pending flag means the page reloaded via the
+              // OAuth redirect (the flag was reset by the reload). Surface the
+              // logged-in AuthPage with "Continue" — do NOT skip it.
+              setScreen('auth');
+              cleanOAuthUrl();
             }
           });
         }
 
         if (event === 'SIGNED_OUT') {
           if (!cancelled) {
+            loadedUserIdRef.current = null;
             setUser(null);
             resetGuestProgress();
           }

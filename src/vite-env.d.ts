@@ -12,6 +12,9 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   /** Supabase public anon key (safe to expose in the browser) */
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  /** Public base URL of the app, used for OAuth (Google) redirects.
+   *  Falls back to window.location.origin when unset. */
+  readonly VITE_PUBLIC_APP_URL?: string;
 }
 
 interface ImportMeta {

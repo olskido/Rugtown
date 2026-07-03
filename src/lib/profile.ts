@@ -30,6 +30,81 @@ export async function fetchProfile(userId: string): Promise<DbProfile | null> {
   return data as DbProfile;
 }
 
+/** Minimal shape of the authenticated user needed to seed a profile. Matches
+ *  the relevant fields of Supabase's `User` (id / email / user_metadata). */
+export interface AuthUserLike {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+}
+
+function sanitizeHandle(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9_]/g, '');
+}
+
+function randomSuffix(): string {
+  // 4 base-36 chars — matches the "short random suffix" requirement.
+  return Math.random().toString(36).slice(2, 6);
+}
+
+/**
+ * Fetch the user's profile, creating it from their (Google/OAuth) account if
+ * it doesn't exist yet.
+ *
+ * The database trigger (`handle_new_user`) normally creates the row on signup,
+ * but we do NOT rely on it alone — this is the frontend fallback so a missing
+ * trigger, a stripped OAuth URL, or any race can't leave a signed-in user
+ * without a profile (which would silently break every later `.update()` write).
+ *
+ * Safe under RLS: the `profiles` INSERT policy allows a row where
+ * `auth.uid() = id`, so a user can always create their own row. Username is the
+ * sanitized email prefix, with a short random suffix only if that handle is
+ * already taken (username is UNIQUE). Row conflicts (trigger/other tab won the
+ * race) resolve to whatever is already in the database.
+ */
+export async function fetchOrCreateProfile(user: AuthUserLike): Promise<DbProfile | null> {
+  if (!supabase) return null;
+
+  const existing = await fetchProfile(user.id);
+  if (existing) return existing;
+
+  const emailPrefix = sanitizeHandle(user.email?.split('@')[0] ?? '') || 'degen';
+  const meta = user.user_metadata ?? {};
+  const metaFullName = typeof meta.full_name === 'string' ? meta.full_name : '';
+  const metaName     = typeof meta.name === 'string' ? meta.name : '';
+  const metaAvatar   = typeof meta.avatar_url === 'string' ? meta.avatar_url : '';
+  const metaPicture  = typeof meta.picture === 'string' ? meta.picture : '';
+
+  const displayName = metaFullName || metaName || emailPrefix;
+  const avatarUrl   = metaAvatar || metaPicture || null;
+
+  // Try the clean handle first; add a random suffix only if it's needed.
+  const candidates = [emailPrefix, `${emailPrefix}_${randomSuffix()}`, `${emailPrefix}_${randomSuffix()}`];
+  for (const username of candidates) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        username,
+        display_name: displayName,
+        avatar_url: avatarUrl,
+      })
+      .select()
+      .single();
+
+    if (!error && data) return data as DbProfile;
+
+    // The row may already exist (trigger or another tab created it first) —
+    // whatever is stored is authoritative, so prefer it over retrying.
+    const now = await fetchProfile(user.id);
+    if (now) return now;
+
+    // Otherwise it was most likely a username-unique clash → next candidate.
+  }
+
+  return await fetchProfile(user.id);
+}
+
 /**
  * Persist the player's chosen display handle to profiles.username.
  * Silently no-ops on conflict or network errors so gameplay is unaffected.

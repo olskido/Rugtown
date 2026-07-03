@@ -113,7 +113,12 @@ export function AuthPage({
     try {
       const { error: authErr } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin },
+        // Explicit, production-safe redirect: use the configured app URL when
+        // present (set per-environment via VITE_PUBLIC_APP_URL), otherwise fall
+        // back to whatever origin the browser is currently on.
+        options: {
+          redirectTo: import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin,
+        },
       });
       if (authErr) throw authErr;
     } catch (err: unknown) {
@@ -170,10 +175,10 @@ export function AuthPage({
             ) : localLoggedIn ? (
               <div className="auth-logged-in">
                 <p className="auth-logged-in__welcome">
-                  Welcome back, <strong>{displayName}</strong>
+                  Signed in as <strong>{loggedInEmail || displayName}</strong>
                 </p>
-                {loggedInEmail && (
-                  <p className="auth-logged-in__email">{loggedInEmail}</p>
+                {loggedInEmail && loggedInUsername && (
+                  <p className="auth-logged-in__email">Playing as {loggedInUsername}</p>
                 )}
                 <button
                   className="btn btn--primary auth-btn-submit"
