@@ -391,6 +391,34 @@
 .qstat__dot--holder-silver { background: #c9d2da; box-shadow: 0 0 5px rgba(201, 210, 218, 0.5); }
 .qstat__dot--holder-gold   { background: #e8b84b; box-shadow: 0 0 6px rgba(232, 184, 75, 0.7); }
 
+/* ── Realtime connection state (Online / Connecting / Offline) ── */
+.conn-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #6a5a42;
+}
+.conn-dot--online     { background: #16c85a; box-shadow: 0 0 6px rgba(22, 200, 90, 0.6); animation: dot-pulse 2s ease-in-out infinite; }
+.conn-dot--connecting { background: #e8b84b; box-shadow: 0 0 5px rgba(232, 184, 75, 0.5); }
+.conn-dot--offline    { background: #c0392b; box-shadow: 0 0 5px rgba(192, 57, 43, 0.5); }
+
+.conn-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  margin-right: 8px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.conn-indicator--online     { color: #16c85a; }
+.conn-indicator--connecting { color: #e8b84b; }
+.conn-indicator--offline    { color: #d06a5c; }
+
 /* Brief pulse on the whole row right after the tier changes */
 .qstat--pulse .qstat__value {
   animation: qstat-pulse 0.9s ease;
@@ -2205,6 +2233,12 @@
 .leaderboard-row__tag--you {
   color: #0a0c0e;
   background: #e8b84b;
+  font-weight: 700;
+}
+
+.leaderboard-row__tag--live {
+  color: #3fc870;
+  background: rgba(50, 200, 80, 0.15);
   font-weight: 700;
 }
 

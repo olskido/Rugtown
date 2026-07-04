@@ -79,48 +79,42 @@ VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-public-key-here
 ```
 
-Also set `VITE_PUBLIC_APP_URL` — the base URL Google OAuth redirects back to.
-Use the URL the app is actually served from in each environment:
-
-```env
-# Local development
-VITE_PUBLIC_APP_URL=http://localhost:5173
-```
-
-```env
-# Production
-VITE_PUBLIC_APP_URL=https://YOUR-VERCEL-DOMAIN.vercel.app
-```
-
-> If `VITE_PUBLIC_APP_URL` is unset, the app falls back to the browser's
-> current origin. Whichever value is used **must** also be added to
-> **Supabase → Authentication → URL Configuration → Redirect URLs**.
-
 > **Never commit `.env.local`** — it is already listed in `.gitignore`.  
 > The anon key is safe to expose in the browser because every table has
 > Row-Level Security enabled; users can only read and write their own rows.
 
 ### 4. Verify Realtime is enabled
 
-Supabase Realtime handles live player presence and city chat between users.
-It is **enabled by default** on all Supabase projects — no extra configuration
-is required.
+Supabase Realtime powers live player presence, city chat, emotes, and remote
+player movement. RugTown uses only **Broadcast** (chat + emotes) and
+**Presence** (player count + positions). These are ephemeral WebSocket
+features — they do **not** stream database rows, so you do **not** need to add
+any table to the `supabase_realtime` publication for multiplayer to work.
 
-To confirm: **Supabase dashboard → Realtime** — the service should show as
-active.  If broadcast messages between players stop working, check that
-the project is not paused (free tier projects pause after 7 days of
-inactivity; wake them up by visiting the dashboard).
+Realtime is **enabled by default** on all Supabase projects — no SQL and no
+extra configuration is required. To confirm: **Supabase dashboard → Realtime**
+should show the service as active.
 
-### 5. (Optional) Enable Google OAuth
+The in-game chat panel and the "Real Players" HUD stat both display a live
+connection state:
 
-In the Supabase dashboard: **Authentication → Providers → Google** → toggle on.
-Follow the guide to create Google OAuth credentials and paste the Client ID /
-Secret back into Supabase.  No code changes needed on the frontend — the auth
-client in `src/lib/supabase.ts` already handles it.
+- **Online** — the city channel reached `SUBSCRIBED`; chat/emotes/presence flow.
+- **Connecting…** — the WebSocket is still handshaking.
+- **Offline** — the subscription errored, timed out, or Supabase isn't
+  configured. (The app never hangs on "Connecting…" — it falls back to
+  Offline after ~10 s.)
 
-Ensure **Site URL** and **Redirect URLs** in  
-**Authentication → URL Configuration** include your deployed domain
-(e.g. `https://rugtown.vercel.app`).
+If two players see **Offline** or can't see each other's messages, the usual
+cause is a **paused project** (free-tier projects pause after 7 days of
+inactivity — open the dashboard to wake it) or an incorrect
+`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
+
+### 5. Email authentication
+
+RugTown uses **Supabase Email Auth** (email + password) as its only account
+system. It is enabled by default on new Supabase projects
+(**Authentication → Providers → Email**). No extra setup or provider
+credentials are required.
 
 ### 6. Vercel deployment
 
@@ -130,7 +124,6 @@ Add the same env vars in
 ```
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
-VITE_PUBLIC_APP_URL   # set to https://YOUR-VERCEL-DOMAIN.vercel.app
 ```
 
 Redeploy after adding the variables.  The framework preset is **Vite**,
@@ -146,20 +139,16 @@ Run through this before inviting testers.
 - [ ] Project is **not** paused (free tier wakes on first request, but
       first-visitor latency can be 10-30 s — consider keeping it active)
 - [ ] **SQL Editor**: `database/schema.sql` has been run at least once
-- [ ] **Authentication → Providers**: Email is enabled; Google is enabled
-      (if you want OAuth)
-- [ ] **Authentication → URL Configuration**: Site URL matches your
-      deployed domain; `/*` or the exact origin is in Redirect URLs
+- [ ] **Authentication → Providers**: Email is enabled
 - [ ] **Realtime** panel shows the service running (no errors)
 
 ### Local / staging smoke test
 - [ ] `npm run build` exits with 0 errors
 - [ ] Guest flow: skip auth → outfit → game — movement, events, chat
       all work with no console errors
-- [ ] Sign-up flow: email + password → check inbox → confirm link →
-      redirects back → outfit screen shows character creator
-- [ ] Google OAuth flow: click "Continue with Google" → Google consent →
-      redirects back → outfit screen shows character creator
+- [ ] Sign-up flow: username + email + password + confirm → account created
+      → outfit screen shows character creator (username saved to profile)
+- [ ] Sign-in flow: email + password → outfit screen → game
 - [ ] In-game: appearance saves and reloads on next login
 - [ ] In-game: REP increments and persists after page refresh
 - [ ] Multiplayer: open two browser tabs (or two browsers) both logged in
@@ -321,7 +310,7 @@ No wallet, no trading, no swaps — display only.
 - "Test Sound" button in Settings to verify audio is working
 
 ### Accounts & Multiplayer (Supabase optional)
-- Email/password and Google OAuth sign-in; Continue as Guest always available
+- Email/password sign-in and sign-up; Continue as Guest always available
 - Saved across sessions: username, character appearance, REP, badges,
   inventory, district unlocks
 - Real-time presence: live Real Players count, remote avatars in-world, city

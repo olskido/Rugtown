@@ -34,9 +34,37 @@ export type PresenceCountState =
  *
  * The caller owns subscribe / track / unsubscribe lifecycle.
  */
+const CITY_TOPIC = 'rugtown:city';
+
+/**
+ * Remove any Realtime channel already registered on the city topic.
+ * Prevents a duplicate-join `CHANNEL_ERROR` when a stale channel is still
+ * registered — e.g. the landing-page counter, or a React StrictMode
+ * double-mount in development.
+ */
+function removeStaleCityChannels(): void {
+  if (!supabase) return;
+  for (const ch of supabase.getChannels()) {
+    if (ch.topic === CITY_TOPIC || ch.topic.endsWith(`:${CITY_TOPIC}`)) {
+      supabase.removeChannel(ch);
+    }
+  }
+}
+
 export function createCityChannel(): RealtimeChannel | null {
   if (!isSupabaseConfigured || !supabase) return null;
-  return supabase.channel('rugtown:city');
+  removeStaleCityChannels();
+  return supabase.channel(CITY_TOPIC);
+}
+
+/**
+ * Fully remove a city channel from the client registry (not just unsubscribe).
+ * `unsubscribe()` alone leaves the channel registered, which causes the next
+ * subscribe on the same topic to collide.
+ */
+export function removeCityChannel(channel: RealtimeChannel | null): void {
+  if (!supabase || !channel) return;
+  supabase.removeChannel(channel);
 }
 
 /**
@@ -73,6 +101,6 @@ export function subscribeCityPresenceCount(
     });
 
   return () => {
-    channel.unsubscribe();
+    removeCityChannel(channel);
   };
 }

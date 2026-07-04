@@ -48,16 +48,17 @@ function randomSuffix(): string {
 }
 
 /**
- * Fetch the user's profile, creating it from their (Google/OAuth) account if
- * it doesn't exist yet.
+ * Fetch the user's profile, creating it from their account if it doesn't exist
+ * yet.
  *
  * The database trigger (`handle_new_user`) normally creates the row on signup,
  * but we do NOT rely on it alone — this is the frontend fallback so a missing
- * trigger, a stripped OAuth URL, or any race can't leave a signed-in user
- * without a profile (which would silently break every later `.update()` write).
+ * trigger or any race can't leave a signed-in user without a profile (which
+ * would silently break every later `.update()` write).
  *
  * Safe under RLS: the `profiles` INSERT policy allows a row where
- * `auth.uid() = id`, so a user can always create their own row. Username is the
+ * `auth.uid() = id`, so a user can always create their own row. Username prefers
+ * the handle chosen at sign-up (carried in user_metadata), falling back to the
  * sanitized email prefix, with a short random suffix only if that handle is
  * already taken (username is UNIQUE). Row conflicts (trigger/other tab won the
  * race) resolve to whatever is already in the database.
@@ -68,18 +69,20 @@ export async function fetchOrCreateProfile(user: AuthUserLike): Promise<DbProfil
   const existing = await fetchProfile(user.id);
   if (existing) return existing;
 
-  const emailPrefix = sanitizeHandle(user.email?.split('@')[0] ?? '') || 'degen';
   const meta = user.user_metadata ?? {};
+  const metaUsername = typeof meta.username === 'string' ? meta.username : '';
   const metaFullName = typeof meta.full_name === 'string' ? meta.full_name : '';
   const metaName     = typeof meta.name === 'string' ? meta.name : '';
-  const metaAvatar   = typeof meta.avatar_url === 'string' ? meta.avatar_url : '';
-  const metaPicture  = typeof meta.picture === 'string' ? meta.picture : '';
 
-  const displayName = metaFullName || metaName || emailPrefix;
-  const avatarUrl   = metaAvatar || metaPicture || null;
+  const chosenHandle = sanitizeHandle(metaUsername);
+  const emailPrefix  = sanitizeHandle(user.email?.split('@')[0] ?? '') || 'degen';
+  const baseHandle   = chosenHandle || emailPrefix;
+
+  const displayName = metaUsername || metaFullName || metaName || baseHandle;
+  const avatarUrl   = null;
 
   // Try the clean handle first; add a random suffix only if it's needed.
-  const candidates = [emailPrefix, `${emailPrefix}_${randomSuffix()}`, `${emailPrefix}_${randomSuffix()}`];
+  const candidates = [baseHandle, `${baseHandle}_${randomSuffix()}`, `${baseHandle}_${randomSuffix()}`];
   for (const username of candidates) {
     const { data, error } = await supabase
       .from('profiles')

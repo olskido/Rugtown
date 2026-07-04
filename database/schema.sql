@@ -203,8 +203,14 @@ CREATE POLICY "wallet_verifications: owner all"
 -- Fires after every INSERT into auth.users so application code never needs
 -- to create the profile row manually.
 --
--- Username is derived from the email prefix (lowercased, special chars stripped)
--- with a short UUID suffix appended to guarantee uniqueness.
+-- Username preference order:
+--   1. The username chosen at signup — passed by the client via
+--      supabase.auth.signUp({ options: { data: { username, display_name } } }),
+--      which lands in NEW.raw_user_meta_data.
+--   2. The email local-part (for any legacy / metadata-less signups).
+--   3. A generic 'degen' handle.
+-- The chosen handle is sanitised, and a short random suffix is appended if the
+-- username is already taken so the UNIQUE constraint never blocks signup.
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
@@ -213,25 +219,48 @@ SECURITY DEFINER            -- runs with the privileges of the function owner
 SET search_path = public    -- prevent search_path injection
 AS $$
 DECLARE
-  base_name text;
-  safe_name text;
+  raw_username text;
+  raw_display  text;
+  base_name    text;
+  candidate    text;
+  final_name   text;
+  attempt      int := 0;
 BEGIN
-  -- Extract and sanitise the local-part of the email address.
-  base_name := lower(
-    regexp_replace(split_part(NEW.email, '@', 1), '[^a-z0-9_]', '', 'g')
-  );
+  raw_username := NEW.raw_user_meta_data->>'username';
+  raw_display  := NEW.raw_user_meta_data->>'display_name';
 
-  -- Ensure the name is never empty, then append 6 hex chars from the UUID
-  -- so the result is globally unique even if two users share an email prefix.
-  safe_name := coalesce(nullif(base_name, ''), 'degen')
-               || '_'
-               || substr(replace(NEW.id::text, '-', ''), 1, 6);
+  -- Sanitise the chosen username; fall back to the email prefix, then 'degen'.
+  base_name := lower(regexp_replace(coalesce(raw_username, ''), '[^a-z0-9_]', '', 'g'));
+  IF base_name = '' THEN
+    base_name := lower(regexp_replace(split_part(NEW.email, '@', 1), '[^a-z0-9_]', '', 'g'));
+  END IF;
+  base_name := left(coalesce(nullif(base_name, ''), 'degen'), 24);
 
-  INSERT INTO public.profiles (id, username)
-  VALUES (NEW.id, safe_name)
-  ON CONFLICT (id) DO NOTHING;
-
-  RETURN NEW;
+  -- Try the plain handle first, adding a short random suffix on collision.
+  candidate := base_name;
+  LOOP
+    BEGIN
+      INSERT INTO public.profiles (id, username, display_name)
+      VALUES (
+        NEW.id,
+        candidate,
+        coalesce(nullif(raw_display, ''), nullif(raw_username, ''), candidate)
+      )
+      ON CONFLICT (id) DO NOTHING;
+      RETURN NEW;                        -- inserted, or id row already existed
+    EXCEPTION WHEN unique_violation THEN  -- username already taken
+      attempt := attempt + 1;
+      IF attempt >= 5 THEN
+        -- Last resort: append 8 hex chars from the UUID (guaranteed unique).
+        final_name := left(base_name, 15) || '_' || substr(replace(NEW.id::text, '-', ''), 1, 8);
+        INSERT INTO public.profiles (id, username, display_name)
+        VALUES (NEW.id, final_name, coalesce(nullif(raw_display, ''), final_name))
+        ON CONFLICT (id) DO NOTHING;
+        RETURN NEW;
+      END IF;
+      candidate := left(base_name, 18) || '_' || substr(md5(random()::text || NEW.id::text), 1, 5);
+    END;
+  END LOOP;
 END;
 $$;
 

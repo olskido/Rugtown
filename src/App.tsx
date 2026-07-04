@@ -59,8 +59,11 @@ export default function App() {
   const [initialOwnedItemIds, setInitialOwnedItemIds] = useState<string[]>([]);
   const [initialDistrictIds, setInitialDistrictIds]   = useState<string[]>([]);
 
-  /** True while an explicit sign-in / sign-up / OAuth attempt is in flight. */
+  /** True while an explicit email/password sign-in or sign-up is in flight. */
   const authActionPendingRef = useRef(false);
+  /** Username chosen during sign-up, persisted to the profile once the auth
+   *  user is created (cleared after use). */
+  const pendingUsernameRef = useRef<string | null>(null);
   /** Guards against loading the same user's data twice (getSession +
    *  onAuthStateChange both fire on load). Reset on sign-out. */
   const loadedUserIdRef = useRef<string | null>(null);
@@ -125,9 +128,9 @@ export default function App() {
       const emailFallback = sUser.email?.split('@')[0] ?? 'Degen';
       try {
         // fetchOrCreateProfile is the frontend fallback: it creates the row
-        // from the Google account if the DB trigger didn't (never rely on the
-        // trigger alone). The other reads run in parallel — they key off
-        // user_id and return empty defaults when nothing is saved yet.
+        // from the account if the DB trigger didn't (never rely on the trigger
+        // alone). The other reads run in parallel — they key off user_id and
+        // return empty defaults when nothing is saved yet.
         const [profile, savedApp, badgeIds, itemIds, districtIds] = await Promise.all([
           fetchOrCreateProfile(sUser),
           fetchSavedAppearance(sUser.id),
@@ -154,35 +157,17 @@ export default function App() {
       }
     };
 
-    /** Strip the OAuth `?code=` / `#access_token=` params from the URL bar. */
-    const cleanOAuthUrl = () => {
-      if (window.location.hash || window.location.search) {
-        window.history.replaceState(null, '', window.location.pathname);
-      }
-    };
-
     const storeUser = (sUser: { id: string; email?: string | null }) => {
       setUser({ id: sUser.id, email: sUser.email ?? null });
     };
 
-    /* Requirement 1: always call getSession() on load. This restores an
-       existing session (persisted or freshly parsed from the OAuth redirect)
-       and loads the profile/player data. */
+    /* Requirement: always call getSession() on load to restore a persisted
+       session (returning users) and load their profile/player data. This does
+       not navigate — the user stays on the landing page until they act. */
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled || !session?.user) return;
       storeUser(session.user);
       void loadUserData(session.user);
-
-      // Fallback OAuth-return detection via the URL (covers implicit flow and
-      // any case where the SIGNED_IN event doesn't fire): show the logged-in
-      // AuthPage so the user taps Continue — never an auto-skip.
-      const isOAuthReturn =
-        window.location.hash.includes('access_token') ||
-        window.location.search.includes('code=');
-      if (isOAuthReturn) {
-        setScreen('auth');
-        cleanOAuthUrl();
-      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -190,27 +175,32 @@ export default function App() {
         if (cancelled) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
-          storeUser(session.user);
-          void loadUserData(session.user).then(() => {
+          const sUser = session.user;
+          storeUser(sUser);
+          void loadUserData(sUser).then(async () => {
             if (cancelled) return;
-            if (authActionPendingRef.current) {
-              // Explicit in-app sign-in (email/password or the Google button
-              // click within this session) → proceed to the character creator.
-              authActionPendingRef.current = false;
-              setScreen('outfit');
-            } else {
-              // A SIGNED_IN with no pending flag means the page reloaded via the
-              // OAuth redirect (the flag was reset by the reload). Surface the
-              // logged-in AuthPage with "Continue" — do NOT skip it.
-              setScreen('auth');
-              cleanOAuthUrl();
+            // Only advance after an explicit in-app sign-in / sign-up action.
+            if (!authActionPendingRef.current) return;
+            authActionPendingRef.current = false;
+
+            // Sign-up: persist the chosen username to the profile (the DB
+            // trigger seeds an email-derived handle; this overrides it with
+            // what the user typed). loadUserData already ensured the row exists.
+            const chosenUsername = pendingUsernameRef.current;
+            pendingUsernameRef.current = null;
+            if (chosenUsername) {
+              await saveUsername(sUser.id, chosenUsername).catch(() => {});
+              if (!cancelled) setPlayerName(chosenUsername);
             }
+
+            if (!cancelled) setScreen('outfit');
           });
         }
 
         if (event === 'SIGNED_OUT') {
           if (!cancelled) {
             loadedUserIdRef.current = null;
+            pendingUsernameRef.current = null;
             setUser(null);
             resetGuestProgress();
           }
@@ -236,10 +226,17 @@ export default function App() {
 
   const handleAuthSignInAttempt = useCallback(() => {
     authActionPendingRef.current = true;
+    pendingUsernameRef.current = null;
+  }, []);
+
+  const handleAuthSignUpAttempt = useCallback((username: string) => {
+    authActionPendingRef.current = true;
+    pendingUsernameRef.current = username.trim() || null;
   }, []);
 
   const handleGuestFromAuth = useCallback(async () => {
     authActionPendingRef.current = false;
+    pendingUsernameRef.current = null;
     if (supabase) await supabase.auth.signOut();
     setUser(null);
     resetGuestProgress();
@@ -306,6 +303,7 @@ export default function App() {
         onContinue={handleAuthContinue}
         onGuest={handleGuestFromAuth}
         onSignInAttempt={handleAuthSignInAttempt}
+        onSignUpAttempt={handleAuthSignUpAttempt}
       />
     );
   }

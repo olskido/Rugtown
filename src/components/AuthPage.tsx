@@ -7,9 +7,11 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
   Auth gate between LandingPage and OutfitSelectPage when Supabase is
   configured. Always shown after "Enter RugTown" — never auto-skipped.
 
-  Navigation:
+  Account system is email/password only (Supabase Email Auth):
+  • Sign Up  — username, email, password, confirm password.
+  • Sign In  — email, password.
   • Logged-in users see a welcome panel + Continue.
-  • Email/password and Google advance via onSignInAttempt + App listener.
+  • Sign-in / sign-up advance via onSignInAttempt / onSignUpAttempt + App listener.
   • Continue as Guest signs out (if needed) and opens the character creator.
 */
 
@@ -23,8 +25,11 @@ interface AuthPageProps {
   onContinue: () => void;
   /** Guest path — clears account session and opens character creator. */
   onGuest: () => void;
-  /** Called immediately before a sign-in / sign-up / OAuth attempt. */
+  /** Called immediately before an email/password sign-in attempt. */
   onSignInAttempt: () => void;
+  /** Called immediately before a sign-up attempt, with the chosen username so
+   *  App can persist it to the profile once the account is created. */
+  onSignUpAttempt: (username: string) => void;
 }
 
 export function AuthPage({
@@ -34,10 +39,13 @@ export function AuthPage({
   onContinue,
   onGuest,
   onSignInAttempt,
+  onSignUpAttempt,
 }: AuthPageProps) {
   const [mode, setMode]         = useState<AuthMode>('signin');
+  const [username, setUsername] = useState('');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [notice, setNotice]     = useState<string | null>(null);
@@ -86,14 +94,21 @@ export function AuthPage({
   const handleSignUp = async () => {
     if (!supabase) return;
     clear();
-    onSignInAttempt();
+    const trimmedUsername = username.trim();
+    onSignUpAttempt(trimmedUsername);
     setLoading(true);
     try {
-      const { data, error: authErr } = await supabase.auth.signUp({ email, password });
+      const { data, error: authErr } = await supabase.auth.signUp({
+        email,
+        password,
+        // Carry the chosen username into the auth user's metadata so the
+        // profile can be created/updated with it after signup.
+        options: { data: { username: trimmedUsername, display_name: trimmedUsername } },
+      });
       if (authErr) throw authErr;
 
       if (data.session) {
-        // onAuthStateChange handles navigation.
+        // onAuthStateChange handles navigation + username persistence.
       } else {
         setNotice('Account created! Check your inbox to confirm, then sign in.');
         setMode('signin');
@@ -101,28 +116,6 @@ export function AuthPage({
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sign-up failed. Please try again.');
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    if (!supabase) return;
-    clear();
-    onSignInAttempt();
-    setLoading(true);
-    try {
-      const { error: authErr } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        // Explicit, production-safe redirect: use the configured app URL when
-        // present (set per-environment via VITE_PUBLIC_APP_URL), otherwise fall
-        // back to whatever origin the browser is currently on.
-        options: {
-          redirectTo: import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin,
-        },
-      });
-      if (authErr) throw authErr;
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Google sign-in failed.');
       setLoading(false);
     }
   };
@@ -137,7 +130,17 @@ export function AuthPage({
   };
 
   const handleSubmit = mode === 'signin' ? handleSignIn : handleSignUp;
-  const canSubmit    = email.trim().length > 0 && password.length >= 6 && !loading;
+
+  const emailOk    = email.trim().length > 0;
+  const passwordOk = password.length >= 6;
+  const usernameOk = username.trim().length >= 2;
+  const passwordsMatch = password === confirmPassword;
+  const showMismatch = mode === 'signup' && confirmPassword.length > 0 && !passwordsMatch;
+  const canSubmit =
+    !loading &&
+    emailOk &&
+    passwordOk &&
+    (mode === 'signin' || (usernameOk && passwordsMatch));
 
   const displayName = loggedInUsername || loggedInEmail?.split('@')[0] || 'Degen';
 
@@ -218,10 +221,28 @@ export function AuthPage({
                   </button>
                 </div>
 
-                {error  && <p className="auth-feedback auth-feedback--error"  role="alert">{error}</p>}
-                {notice && <p className="auth-feedback auth-feedback--notice" role="status">{notice}</p>}
+                {error       && <p className="auth-feedback auth-feedback--error"  role="alert">{error}</p>}
+                {notice      && <p className="auth-feedback auth-feedback--notice" role="status">{notice}</p>}
+                {showMismatch && !error && (
+                  <p className="auth-feedback auth-feedback--error" role="alert">Passwords don't match.</p>
+                )}
 
                 <div className="auth-form">
+                  {mode === 'signup' && (
+                    <input
+                      className="guest__input auth-input"
+                      type="text"
+                      placeholder="Username"
+                      value={username}
+                      onChange={e => { setUsername(e.target.value); clear(); }}
+                      onKeyDown={e => e.key === 'Enter' && canSubmit && handleSubmit()}
+                      autoComplete="username"
+                      aria-label="Username"
+                      disabled={loading}
+                      spellCheck={false}
+                      maxLength={24}
+                    />
+                  )}
                   <input
                     className="guest__input auth-input"
                     type="email"
@@ -245,6 +266,19 @@ export function AuthPage({
                     aria-label="Password"
                     disabled={loading}
                   />
+                  {mode === 'signup' && (
+                    <input
+                      className="guest__input auth-input"
+                      type="password"
+                      placeholder="Confirm password"
+                      value={confirmPassword}
+                      onChange={e => { setConfirmPassword(e.target.value); clear(); }}
+                      onKeyDown={e => e.key === 'Enter' && canSubmit && handleSubmit()}
+                      autoComplete="new-password"
+                      aria-label="Confirm password"
+                      disabled={loading}
+                    />
+                  )}
                   <button
                     className="btn btn--primary auth-btn-submit"
                     onClick={handleSubmit}
@@ -260,22 +294,6 @@ export function AuthPage({
                     </span>
                   </button>
                 </div>
-
-                <div className="card__divider auth-divider">
-                  <span className="card__divider-line" />
-                  <span className="auth-divider-text">or</span>
-                  <span className="card__divider-line" />
-                </div>
-
-                <button
-                  className="btn auth-btn-google"
-                  onClick={handleGoogle}
-                  disabled={loading}
-                  aria-label="Continue with Google"
-                >
-                  <span className="auth-google-icon" aria-hidden>G</span>
-                  Continue with Google
-                </button>
               </>
             )}
 

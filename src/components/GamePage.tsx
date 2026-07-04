@@ -12,7 +12,7 @@ import { AlphaLoungePanel } from './AlphaLoungePanel';
 import { HudCharacterPortrait } from './HudCharacterPortrait';
 import { fetchTrendingSolanaTokens, type MarketToken } from '../services/dexscreener';
 import { saveRep, saveBadge, saveInventoryItem, saveDistrictUnlock, updateLastSeen } from '../lib/profile';
-import { createCityChannel, type PresencePayload } from '../lib/presence';
+import { createCityChannel, removeCityChannel, type PresencePayload } from '../lib/presence';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { LEVEL_DEFINITIONS, type LevelObjectiveType } from '../game/levels/LevelDefinitions';
 import { notificationQueue } from '../lib/notificationQueue';
@@ -66,6 +66,23 @@ interface ChatMessage {
   sender: string;
   text: string;
   kind: 'player' | 'npc' | 'event';
+}
+
+/** Realtime connection state, surfaced in the HUD. */
+type ConnState = 'connecting' | 'online' | 'offline';
+
+/** Wire format for a broadcast chat message (req: id/senderId/sender/text/timestamp). */
+interface ChatBroadcast {
+  id: string;
+  senderId: string;
+  sender: string;
+  text: string;
+  timestamp: number;
+}
+
+/** Globally-unique id for a chat broadcast, used for cross-client dedup. */
+function makeChatMessageId(senderId: string): string {
+  return `${senderId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /* ─── Event HUD (Phase 2 Event Engine) ───
@@ -654,6 +671,14 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
      Shows '—' in the HUD until first sync arrives. ── */
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [presenceFailed, setPresenceFailed] = useState(false);
+  /* Other online players from presence — excludes self. Populated on every
+     presence sync event so the leaderboard reflects the live city. */
+  const [onlinePlayers, setOnlinePlayers] = useState<PresencePayload[]>([]);
+  /* Visible realtime connection state: Connecting → Online, or Offline on
+     failure/timeout. 'offline' immediately when Supabase isn't configured. */
+  const [connState, setConnState] = useState<ConnState>(
+    isSupabaseConfigured ? 'connecting' : 'offline',
+  );
 
   /* Stable per-session presence id: Supabase uid if logged in, else
      a random guest token that lasts the lifetime of the GamePage. */
@@ -674,6 +699,8 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const channelSubscribedRef = useRef(false);
   // Dedup set for received emote broadcasts — key: `${senderId}:${timestamp}`
   const receivedEmoteKeysRef = useRef<Set<string>>(new Set());
+  // Dedup set for received chat broadcasts — keyed by the message's unique id.
+  const receivedChatIdsRef = useRef<Set<string>>(new Set());
 
   /* ── Interaction zones ── */
   const [nearZone, setNearZone] = useState<NearZone | null>(null);
@@ -803,8 +830,9 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const isLeaderboardOpen = activeAction === 'Leaderboard';
   const [leaderboardTab, setLeaderboardTab] = useState<LeaderboardTab>('Daily');
   const leaderboardRows = [
-    ...LEADERBOARD_NPCS.map(e => ({ name: e.name, rep: e.rep, isPlayer: false })),
-    { name: playerName || 'DegenExplorer', rep, isPlayer: true },
+    ...LEADERBOARD_NPCS.map(e => ({ name: e.name, rep: e.rep, isPlayer: false, isOnline: false })),
+    { name: playerName || 'DegenExplorer', rep, isPlayer: true, isOnline: true },
+    ...onlinePlayers.map(p => ({ name: p.username, rep: p.rep, isPlayer: false, isOnline: true })),
   ]
     .sort((a, b) => b.rep - a.rep)
     .map((row, i) => ({ ...row, rank: i + 1 }));
@@ -1599,11 +1627,14 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     // never sent here so they stay local.  channelSubscribedRef guards
     // against calling send() before the channel is fully subscribed.
     if (channelSubscribedRef.current) {
-      cityChannelRef.current?.send({
-        type: 'broadcast',
-        event: 'chat',
-        payload: { sender: playerName || 'DegenExplorer', text },
-      }).catch(() => {});
+      const payload: ChatBroadcast = {
+        id:        makeChatMessageId(presenceIdRef.current),
+        senderId:  presenceIdRef.current,
+        sender:    playerName || 'DegenExplorer',
+        text,
+        timestamp: Date.now(),
+      };
+      cityChannelRef.current?.send({ type: 'broadcast', event: 'chat', payload }).catch(() => {});
     }
     completeLevelIfMatches('send_chat');
   }, [chatInput, playerName, appendChatMessage, completeLevelIfMatches]);
@@ -1803,54 +1834,131 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
      updates onlineCount and pushes the remote player list to WorldScene.
      Gracefully skipped if Supabase is not configured. ── */
   useEffect(() => {
-    const channel = createCityChannel();
-    if (!channel) return; // Supabase not configured — guest-only mode
+    if (!isSupabaseConfigured) {
+      setConnState('offline');
+      return; // Supabase not configured — guest-only mode
+    }
 
-    cityChannelRef.current = channel;
-    let subscribed = false;
+    // A single connection attempt is wrapped in connect() so it can be retried
+    // on transient failures (network drop, or the React StrictMode double-mount
+    // in dev, which briefly tears down the shared realtime socket). The channel
+    // self-heals instead of latching to Offline on the first close.
+    let disposed = false;
+    let channel: ReturnType<typeof createCityChannel> = null;
+    let broadcastTimer: ReturnType<typeof setInterval> | null = null;
+    let connectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retries = 0;
 
-    channel
-      .on('broadcast', { event: 'chat' }, ({ payload }: { payload: { sender: string; text: string } }) => {
-        // Supabase broadcast does NOT echo back to the sender, so no
-        // self-filtering is needed — just append as a player message.
-        if (payload?.sender && payload?.text) {
-          appendChatMessage(payload.sender, payload.text, 'player');
-        }
-      })
-      .on('broadcast', { event: 'emote' }, ({ payload }: {
-        payload: { senderId: string; sender: string; emoteId: string; timestamp: number };
-      }) => {
-        if (!payload?.senderId || !payload?.emoteId) return;
-        // Dedup — ignore duplicate network deliveries of the same emote
-        const key = `${payload.senderId}:${payload.timestamp}`;
-        if (receivedEmoteKeysRef.current.has(key)) return;
-        if (receivedEmoteKeysRef.current.size > 500) receivedEmoteKeysRef.current.clear();
-        receivedEmoteKeysRef.current.add(key);
-        const emote = EMOTES.find(e => e.id === payload.emoteId);
-        if (!emote) return;
-        sceneRef.current?.showRemotePlayerEmote(
-          payload.senderId,
-          `${emote.icon} ${emote.label}`,
-          EMOTE_BUBBLE_DURATION,
-        );
-      })
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<PresencePayload>();
-        const all: PresencePayload[] = Object.values(state).flat() as PresencePayload[];
-        setOnlineCount(all.length);
-        sceneRef.current?.setRemotePlayers(all, presenceIdRef.current);
-      })
-      .subscribe(async (status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+    const teardownChannel = () => {
+      if (broadcastTimer) { clearInterval(broadcastTimer); broadcastTimer = null; }
+      if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
+      channelSubscribedRef.current = false;
+      if (channel) { removeCityChannel(channel); channel = null; }
+      cityChannelRef.current = null;
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed || retryTimer) return;
+      const delay = Math.min(1500 * 2 ** retries, 8000);
+      retries += 1;
+      retryTimer = setTimeout(() => { retryTimer = null; connect(); }, delay);
+    };
+
+    const connect = () => {
+      if (disposed) return;
+      teardownChannel();
+
+      const ch = createCityChannel();
+      if (!ch) { setConnState('offline'); return; }
+      channel = ch;
+      cityChannelRef.current = ch;
+      setConnState('connecting');
+
+      // Fail-safe: if the channel never reaches SUBSCRIBED, flip to Offline
+      // (never an infinite "Connecting…") and schedule a retry (req 9).
+      connectTimeout = setTimeout(() => {
+        if (!channelSubscribedRef.current && !disposed) {
+          setConnState('offline');
           setPresenceFailed(true);
-          return;
+          scheduleReconnect();
         }
-        if (status !== 'SUBSCRIBED') return;
-        subscribed = true;
-        channelSubscribedRef.current = true;
-        if (userId) updateLastSeen(userId).catch(() => {});
+      }, 10000);
+
+      ch
+        .on('broadcast', { event: 'chat' }, ({ payload }: { payload: Partial<ChatBroadcast> }) => {
+          if (!payload?.sender || !payload?.text) return;
+          // Self-echo safety: never render our own broadcast twice (Supabase
+          // broadcast doesn't echo by default, but guard regardless — req 7).
+          if (payload.senderId && payload.senderId === presenceIdRef.current) return;
+          // Dedup duplicate network deliveries of the same message id (req 7).
+          if (payload.id) {
+            if (receivedChatIdsRef.current.has(payload.id)) return;
+            if (receivedChatIdsRef.current.size > 500) receivedChatIdsRef.current.clear();
+            receivedChatIdsRef.current.add(payload.id);
+          }
+          appendChatMessage(payload.sender, payload.text, 'player');
+        })
+        .on('broadcast', { event: 'emote' }, ({ payload }: {
+          payload: { senderId: string; sender: string; emoteId: string; timestamp: number };
+        }) => {
+          if (!payload?.senderId || !payload?.emoteId) return;
+          // Dedup — ignore duplicate network deliveries of the same emote
+          const key = `${payload.senderId}:${payload.timestamp}`;
+          if (receivedEmoteKeysRef.current.has(key)) return;
+          if (receivedEmoteKeysRef.current.size > 500) receivedEmoteKeysRef.current.clear();
+          receivedEmoteKeysRef.current.add(key);
+          const emote = EMOTES.find(e => e.id === payload.emoteId);
+          if (!emote) return;
+          sceneRef.current?.showRemotePlayerEmote(
+            payload.senderId,
+            `${emote.icon} ${emote.label}`,
+            EMOTE_BUBBLE_DURATION,
+          );
+        })
+        .on('presence', { event: 'sync' }, () => {
+          const state = ch.presenceState<PresencePayload>();
+          const all: PresencePayload[] = Object.values(state).flat() as PresencePayload[];
+          setOnlineCount(all.length);
+          setOnlinePlayers(all.filter(p => p.id !== presenceIdRef.current));
+          sceneRef.current?.setRemotePlayers(all, presenceIdRef.current);
+        })
+        .subscribe(async (status) => {
+          if (disposed) return;
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            channelSubscribedRef.current = false;
+            if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
+            // Show reconnecting rather than a hard Offline while a retry is pending.
+            setConnState('connecting');
+            setPresenceFailed(true);
+            scheduleReconnect();
+            return;
+          }
+          if (status !== 'SUBSCRIBED') return;
+          retries = 0;
+          channelSubscribedRef.current = true;
+          setPresenceFailed(false);
+          setConnState('online');
+          if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
+          if (userId) updateLastSeen(userId).catch(() => {});
+          const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
+          await ch.track({
+            id:         presenceIdRef.current,
+            username:   playerNameRef.current,
+            x:          Math.round(pos.x),
+            y:          Math.round(pos.y),
+            appearance: appearanceRef.current,
+            rep:        repRef.current,
+            holderTier: holderTierRef.current,
+          } as Record<string, unknown>).catch(() => {});
+        });
+
+      // Throttled position + state broadcast — 300ms keeps network light
+      // while still showing other players moving smoothly enough.
+      broadcastTimer = setInterval(() => {
+        if (!channelSubscribedRef.current) return;
         const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
-        await channel.track({
+        ch.track({
           id:         presenceIdRef.current,
           username:   playerNameRef.current,
           x:          Math.round(pos.x),
@@ -1859,29 +1967,15 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           rep:        repRef.current,
           holderTier: holderTierRef.current,
         } as Record<string, unknown>).catch(() => {});
-      });
+      }, 300);
+    };
 
-    // Throttled position + state broadcast — ~150ms matches the requirement.
-    // `subscribed` guard avoids calling track() before the channel is ready.
-    const broadcastTimer = setInterval(() => {
-      if (!subscribed) return;
-      const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
-      channel.track({
-        id:         presenceIdRef.current,
-        username:   playerNameRef.current,
-        x:          Math.round(pos.x),
-        y:          Math.round(pos.y),
-        appearance: appearanceRef.current,
-        rep:        repRef.current,
-        holderTier: holderTierRef.current,
-      } as Record<string, unknown>).catch(() => {});
-    }, 150);
+    connect();
 
     return () => {
-      clearInterval(broadcastTimer);
-      channelSubscribedRef.current = false;
-      channel.unsubscribe();
-      cityChannelRef.current = null;
+      disposed = true;
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      teardownChannel();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2342,16 +2436,14 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
             {/* Quick stats */}
             <div className="quick-stats">
               <div className="qstat">
-                <span className="qstat__dot qstat__dot--live" />
+                <span className={`qstat__dot conn-dot conn-dot--${connState}`} />
                 <span className="qstat__label">Real Players</span>
                 <span className="qstat__value">
-                  {onlineCount !== null
-                    ? onlineCount
-                    : presenceFailed
-                      ? '—'
-                      : isSupabaseConfigured
-                        ? 'Connecting…'
-                        : '—'}
+                  {connState === 'online'
+                    ? (onlineCount ?? 0)
+                    : connState === 'connecting'
+                      ? 'Connecting…'
+                      : 'Offline'}
                 </span>
               </div>
               <div className="qstat">
@@ -2577,6 +2669,15 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
               <div className="panel-header">
                 <span className="panel-header__logo">CITY CHAT</span>
+                <span
+                  className={`conn-indicator conn-indicator--${connState}`}
+                  role="status"
+                  aria-live="polite"
+                  title={`Realtime: ${connState}`}
+                >
+                  <span className="conn-dot" aria-hidden />
+                  {connState === 'online' ? 'Online' : connState === 'connecting' ? 'Connecting…' : 'Offline'}
+                </span>
                 <button
                   className="chat-panel__close"
                   onClick={() => setActiveAction(null)}
@@ -2806,7 +2907,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
               <div className="leaderboard-list">
                 {leaderboardRows.map(row => (
                   <div
-                    key={row.name}
+                    key={`${row.name}-${row.isPlayer ? 'you' : row.isOnline ? 'live' : 'npc'}`}
                     className={`leaderboard-row ${row.isPlayer ? 'leaderboard-row--you' : ''}`}
                   >
                     <span className="leaderboard-row__rank">
@@ -2816,7 +2917,9 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                       {row.name}
                       {row.isPlayer
                         ? <span className="leaderboard-row__tag leaderboard-row__tag--you">You</span>
-                        : <span className="leaderboard-row__tag leaderboard-row__tag--npc">NPC</span>}
+                        : row.isOnline
+                          ? <span className="leaderboard-row__tag leaderboard-row__tag--live">LIVE</span>
+                          : <span className="leaderboard-row__tag leaderboard-row__tag--npc">NPC</span>}
                     </span>
                     <span className="leaderboard-row__rep">{row.rep.toLocaleString()} REP</span>
                   </div>
