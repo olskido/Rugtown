@@ -1,0 +1,342 @@
+[
+  {
+    "id": 1,
+    "name": "Spawn Fountain",
+    "gameId": "fountain",
+    "file": "01-spawn-fountain.png",
+    "cx": 4800,
+    "cy": 3000,
+    "footprintW": 1000,
+    "footprintH": 700,
+    "bbox": {
+      "minX": 4300,
+      "minY": 2650,
+      "maxX": 5299,
+      "maxY": 3349
+    },
+    "samplePixels": 655591
+  },
+  {
+    "id": 2,
+    "name": "Hall of Fame",
+    "gameId": "fame",
+    "file": "02-hall-of-fame.png",
+    "cx": 4800,
+    "cy": 1325,
+    "footprintW": 1400,
+    "footprintH": 850,
+    "bbox": {
+      "minX": 4100,
+      "minY": 900,
+      "maxX": 5499,
+      "maxY": 1749
+    },
+    "samplePixels": 1156917
+  },
+  {
+    "id": 3,
+    "name": "Government Quarter",
+    "gameId": null,
+    "file": "03-government-quarter.png",
+    "cx": 3525,
+    "cy": 2825,
+    "footprintW": 850,
+    "footprintH": 550,
+    "bbox": {
+      "minX": 3100,
+      "minY": 2550,
+      "maxX": 3949,
+      "maxY": 3099
+    },
+    "samplePixels": 448335
+  },
+  {
+    "id": 4,
+    "name": "Meme Market Main Hall",
+    "gameId": "market",
+    "file": "04-meme-market-main-hall.png",
+    "cx": 7700,
+    "cy": 2925,
+    "footprintW": 1000,
+    "footprintH": 750,
+    "bbox": {
+      "minX": 7200,
+      "minY": 2550,
+      "maxX": 8199,
+      "maxY": 3299
+    },
+    "samplePixels": 700238
+  },
+  {
+    "id": 5,
+    "name": "Market Shop",
+    "gameId": null,
+    "file": "05-market-shop.png",
+    "cx": 8350,
+    "cy": 2675,
+    "footprintW": 700,
+    "footprintH": 550,
+    "bbox": {
+      "minX": 8000,
+      "minY": 2400,
+      "maxX": 8699,
+      "maxY": 2949
+    },
+    "samplePixels": 381202
+  },
+  {
+    "id": 6,
+    "name": "Trading Academy",
+    "gameId": null,
+    "file": "06-trading-academy.png",
+    "cx": 7150,
+    "cy": 2475,
+    "footprintW": 700,
+    "footprintH": 550,
+    "bbox": {
+      "minX": 6800,
+      "minY": 2200,
+      "maxX": 7499,
+      "maxY": 2749
+    },
+    "samplePixels": 362843
+  },
+  {
+    "id": 7,
+    "name": "Alpha Lounge",
+    "gameId": "alpha",
+    "file": "07-alpha-lounge.png",
+    "cx": 5750,
+    "cy": 2925,
+    "footprintW": 700,
+    "footprintH": 550,
+    "bbox": {
+      "minX": 5400,
+      "minY": 2650,
+      "maxX": 6099,
+      "maxY": 3199
+    },
+    "samplePixels": 339613
+  },
+  {
+    "id": 8,
+    "name": "NFT Gallery",
+    "gameId": "nft-shop",
+    "file": "08-nft-gallery.png",
+    "cx": 8850,
+    "cy": 1425,
+    "footprintW": 700,
+    "footprintH": 650,
+    "bbox": {
+      "minX": 8500,
+      "minY": 1100,
+      "maxX": 9199,
+      "maxY": 1749
+    },
+    "samplePixels": 337094
+  },
+  {
+    "id": 9,
+    "name": "NFT Creator Studio",
+    "gameId": null,
+    "file": "09-nft-creator-studio.png",
+    "cx": 8125,
+    "cy": 1475,
+    "footprintW": 650,
+    "footprintH": 550,
+    "bbox": {
+      "minX": 7800,
+      "minY": 1200,
+      "maxX": 8449,
+      "maxY": 1749
+    },
+    "samplePixels": 342731
+  },
+  {
+    "id": 10,
+    "name": "Whale Tower",
+    "gameId": "whale",
+    "file": "10-whale-tower.png",
+    "cx": 2020,
+    "cy": 4450,
+    "footprintW": 200,
+    "footprintH": 540,
+    "bbox": {
+      "minX": 1920,
+      "minY": 4180,
+      "maxX": 2119,
+      "maxY": 4719
+    },
+    "samplePixels": 104120
+  },
+  {
+    "id": 11,
+    "name": "Financial Office",
+    "gameId": null,
+    "file": "11-financial-office.png",
+    "cx": 2700,
+    "cy": 4520,
+    "footprintW": 440,
+    "footprintH": 400,
+    "bbox": {
+      "minX": 2480,
+      "minY": 4320,
+      "maxX": 2919,
+      "maxY": 4719
+    },
+    "samplePixels": 151858
+  },
+  {
+    "id": 12,
+    "name": "Research Observatory",
+    "gameId": null,
+    "file": "12-research-observatory.png",
+    "cx": 9135,
+    "cy": 1185,
+    "footprintW": 430,
+    "footprintH": 470,
+    "bbox": {
+      "minX": 8920,
+      "minY": 950,
+      "maxX": 9349,
+      "maxY": 1419
+    },
+    "samplePixels": 89599
+  },
+  {
+    "id": 13,
+    "name": "Cashback Vault",
+    "gameId": "cashback",
+    "file": "13-cashback-vault.png",
+    "cx": 1750,
+    "cy": 4590,
+    "footprintW": 340,
+    "footprintH": 340,
+    "bbox": {
+      "minX": 1580,
+      "minY": 4420,
+      "maxX": 1919,
+      "maxY": 4759
+    },
+    "samplePixels": 115560
+  },
+  {
+    "id": 14,
+    "name": "Holder Bank",
+    "gameId": "cashback",
+    "file": "14-holder-bank.png",
+    "cx": 1320,
+    "cy": 4680,
+    "footprintW": 400,
+    "footprintH": 360,
+    "bbox": {
+      "minX": 1120,
+      "minY": 4500,
+      "maxX": 1519,
+      "maxY": 4859
+    },
+    "samplePixels": 143982
+  },
+  {
+    "id": 15,
+    "name": "Arena",
+    "gameId": "arena",
+    "file": "15-arena.png",
+    "cx": 7850,
+    "cy": 4650,
+    "footprintW": 1300,
+    "footprintH": 900,
+    "bbox": {
+      "minX": 7200,
+      "minY": 4200,
+      "maxX": 8499,
+      "maxY": 5099
+    },
+    "samplePixels": 1081373
+  },
+  {
+    "id": 16,
+    "name": "Tournament Hall",
+    "gameId": "arena",
+    "file": "16-tournament-hall.png",
+    "cx": 6850,
+    "cy": 4400,
+    "footprintW": 700,
+    "footprintH": 600,
+    "bbox": {
+      "minX": 6500,
+      "minY": 4100,
+      "maxX": 7199,
+      "maxY": 4699
+    },
+    "samplePixels": 403923
+  },
+  {
+    "id": 17,
+    "name": "Coffee Shop",
+    "gameId": "coffee",
+    "file": "17-coffee-shop.png",
+    "cx": 1825,
+    "cy": 2775,
+    "footprintW": 550,
+    "footprintH": 450,
+    "bbox": {
+      "minX": 1550,
+      "minY": 2550,
+      "maxX": 2099,
+      "maxY": 2999
+    },
+    "samplePixels": 239236
+  },
+  {
+    "id": 18,
+    "name": "Notice Board",
+    "gameId": "notice",
+    "file": "18-notice-board.png",
+    "cx": 5200,
+    "cy": 2465,
+    "footprintW": 300,
+    "footprintH": 230,
+    "bbox": {
+      "minX": 5050,
+      "minY": 2350,
+      "maxX": 5349,
+      "maxY": 2579
+    },
+    "samplePixels": 68872
+  },
+  {
+    "id": 19,
+    "name": "Park Entrance Gate",
+    "gameId": "park",
+    "file": "19-park-entrance-gate.png",
+    "cx": 1150,
+    "cy": 2325,
+    "footprintW": 500,
+    "footprintH": 450,
+    "bbox": {
+      "minX": 900,
+      "minY": 2100,
+      "maxX": 1399,
+      "maxY": 2549
+    },
+    "samplePixels": 211154
+  },
+  {
+    "id": 20,
+    "name": "Main Bridge",
+    "gameId": "bridge",
+    "file": "20-main-bridge.png",
+    "cx": 2950,
+    "cy": 3000,
+    "footprintW": 900,
+    "footprintH": 300,
+    "bbox": {
+      "minX": 2500,
+      "minY": 2850,
+      "maxX": 3399,
+      "maxY": 3149
+    },
+    "samplePixels": 219840
+  }
+]

@@ -1,0 +1,1710 @@
+[
+  {
+    "id": "headwear_dad_cap_01",
+    "category": "headwear",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "headwear_snapback_01",
+    "category": "headwear",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "headwear_flat_cap_01",
+    "category": "headwear",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "headwear_newsboy_cap_01",
+    "category": "headwear",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "headwear_barista_cap_01",
+    "category": "headwear",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "headwear_festival_hat_01",
+    "category": "headwear",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "headwear_cycling_helmet_01",
+    "category": "headwear",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "hair_mcdem_street_styk_01",
+    "category": "hair",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "accessory_id_chai_roup_sot_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_silver_chain_ot_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": true,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_mple_necklac_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_ather_necklac_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_office_tie_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_oft_winter_scar_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_light_scarf_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_npany_lany_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_vent_lanyai_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_assic_wate_nnniid_a_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_nart_watc_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_leather_bracelet_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_crossbody_bag_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_anvas_backpac_oe_yo_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_odem_backpac_os_a_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_laptop_bag_a_is_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_citizen_badge_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_govemment_badge_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_research_badge_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_market_badge_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_creator_badge_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_founder_badge_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_jolunteer_badgs_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_messenger_bag_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_farket_shopping_ba_ff_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_group_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_and_item_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_wireless_farhide_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "accessory_studio_headphones_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_small_hoop_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "accessory_wedding_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_signet_ring_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_fingerless_gloves_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_driving_gloves_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_coffee_cup_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_travel_mug_prp_err_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_notebook_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_clipboard_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_small_book_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_parcel_box_geaan_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_utility_pouch_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_tool_pouch_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_wallet_holster_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_mall_key_ring_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_modern_belt_bag_ee_re_ae_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_charcoal_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_brown_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_dark_green_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_gray_fh_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_luted_blue_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_burgundy_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_subtle_gold_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_d_silver_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "accessory_na_01",
+    "category": "accessories",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_white_sneakers_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_canvas_sneakers_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_high_top_sneakers_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_running_shoes_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_slip_ons_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_brown_formal_shoes_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_loafers_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_oxford_shoes_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_chetsea_boots_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "shoe_tive_boots_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_government_dress_shoes_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "shoe_official_boots_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "shoe_research_shoes_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_pa_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_work_boots_ai_nd_dai_ette_deferene_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "shoe_utility_boots_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "shoe_i_a_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_modular_asset_connection_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "shoe_cc_tteyvt_coce_oc_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_minimal_white_st_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_minimal_brown_sh_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_black_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_cream_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_dark_green_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_brown_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_gray_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_muted_blue_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_navy_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_burgundy_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_eee_01",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "shoe_eee_02",
+    "category": "shoes",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_on_com_ate_pants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_track_pant_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_training_pan_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_athletic_joggers_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_office_trouse_ic_onmaent_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_formal_blac_trousers_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_ray_dress_pa_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_navy_dress_pants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_wide_fit_pant_inanclai_pi_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_creative_utili_yin_qrants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_layered_street_pants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_track_pant_aconat_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_creative_utility_pants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_layered_street_pants_02",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_governmen_trousers_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_research_pa_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_administrati_slacks_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_premium_tailored_pants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_luxury_chine_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_executive_trousers_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_rain_pants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_winter_pant_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_autumn_chin_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_utility_pant_fference_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_work_trouses_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_vendor_pant_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_aes_eee_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_oe_oe_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_black_jogger_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_gray_jogger_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_dark_casual_pants_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_minimal_trous_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_ee_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "pants_ae_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_veteran_trader_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_young_trader_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_street_vendor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_stall_owner_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_market_courier_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_product_scout_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_auction_assistant_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_cottee_cafe_owner_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_d_coffee_f_coffee_freelance_witter_regul_01",
+    "category": "npcs",
+    "alignmentStatus": "incompatible",
+    "creatorEnabled": false,
+    "reason": "source frame packs multiple reference views (e.g. front + side) into one image — needs re-cropping before it can be creator-enabled"
+  },
+  {
+    "id": "npc_cottee_acoustic_musician_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_avestment_anal_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_wealth_agvisor_ft_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_bank_officer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_d_financial_corporate_lawyer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_executive_asvicta_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_t_senior_auditor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_urnament_competit_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_tournament_coat_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_s_arena_event_referee_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_arena_medic_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_tournament_nienanizer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_excited_spectator_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_digital_astist_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_music_produce_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_sallery_owner_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_feative_directo_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_jijux_designer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_me_level_designer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_bird_watcher_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_morning_jogger_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_evening_walker_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_trave_photographer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_veteran_trader_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_young_trader_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_street_vendor_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_stall_owner_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_maret_market_courier_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_market_kuction_assistat_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_coffee_senior_barista_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_cottee_cale_owner_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_cottee_coffee_cashier_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_loree_pastry_baker_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_s_coffee_freelance_wraer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_comtee_regular_customer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_cottee_acoustic_musician_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_avestment_analy_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_finaocial_ortfolio_manage_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_fioancial_bank_officer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_pinancial_corporate_lawyer_i_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_execotive_assiste_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_finaocial_t_senior_auditor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_remium_resid_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_jeernament_compete_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_jookie_competite_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_tournamert_coac_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_fitness_trainee_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_s_arena_event_referee_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_arena_medic_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_toornament_ovraaniver_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_excited_spectator_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_digital_artist_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_game_develope_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_music_produce_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_creative_direct_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_uwux_designer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_me_level_designer_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_bird_watcher_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_morning_jogger_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_evening_walker_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_trave_photographer_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_rugtown_npc_l_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_ancial_district_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_vottee_coffee_cashier_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_coffee_pastry_baker_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_coffee_acoustic_musician_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_avestment_anat_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_orttollo_manage_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_fmancial_wealth_advisor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_bank_officer_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_pinanctal_corporate_lawyer_i_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_a_senior_auditor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_financial_premium_resid_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_currement_competty_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_cole_corpetit_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_tournament_coad_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_fitness_traines_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_s_arena_event_referee_03",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_arena_medic_03",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_j_arena_tournament_oroanizer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_arena_excited_spectator_03",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_digltat_artist_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_ui_designer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_same_develope_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_photographer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_music_produce_03",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_creator_sallery_owner_02",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_bird_watcher_03",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_t_park_street_musician_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_travel_photographer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_park_picnic_visitor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_overnment_receptio_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_senior_clerk_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_research_officer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_city_planner_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_records_archivist_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_permit_officer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_tax_clerk_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_public_relations_officer_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_administrative_assistant_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_library_curator_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_urban_development_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_city_surveyor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_meeting_coordinato_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_district_manager_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_legal_advisor_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  },
+  {
+    "id": "npc_gov_senior_administratc_01",
+    "category": "npcs",
+    "alignmentStatus": "ok",
+    "creatorEnabled": false,
+    "reason": "category disabled (see phase11b-notes.md)"
+  }
+]

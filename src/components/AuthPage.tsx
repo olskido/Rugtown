@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getAuthEmailRedirectTo } from '../lib/authRedirect';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 /*
@@ -21,6 +22,8 @@ interface AuthPageProps {
   isLoggedIn: boolean;
   loggedInEmail: string | null;
   loggedInUsername: string | null;
+  /** Error from a failed `/auth/callback` exchange (email confirm). */
+  initialError?: string | null;
   /** Logged-in user proceeds to nickname / character creator. */
   onContinue: () => void;
   /** Guest path — clears account session and opens character creator. */
@@ -36,6 +39,7 @@ export function AuthPage({
   isLoggedIn,
   loggedInEmail,
   loggedInUsername,
+  initialError = null,
   onContinue,
   onGuest,
   onSignInAttempt,
@@ -47,12 +51,16 @@ export function AuthPage({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [error, setError]       = useState<string | null>(initialError);
   const [notice, setNotice]     = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [localLoggedIn, setLocalLoggedIn] = useState(isLoggedIn);
 
   const clear = () => { setError(null); setNotice(null); };
+
+  useEffect(() => {
+    if (initialError) setError(initialError);
+  }, [initialError]);
 
   // Sync session state on mount — show logged-in panel without auto-skipping.
   useEffect(() => {
@@ -103,7 +111,12 @@ export function AuthPage({
         password,
         // Carry the chosen username into the auth user's metadata so the
         // profile can be created/updated with it after signup.
-        options: { data: { username: trimmedUsername, display_name: trimmedUsername } },
+        // emailRedirectTo must match an allow-listed Redirect URL in the
+        // Supabase dashboard; origin is always the current host (local or Vercel).
+        options: {
+          emailRedirectTo: getAuthEmailRedirectTo(),
+          data: { username: trimmedUsername, display_name: trimmedUsername },
+        },
       });
       if (authErr) throw authErr;
 

@@ -9,18 +9,9 @@
 
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabase';
-import type { CharacterAppearance } from '../game/world/CharacterAppearance';
+import type { PresenceAppearance, PresencePayload } from './presenceTypes';
 
-/** Payload broadcast by every connected player (real or guest). */
-export interface PresencePayload {
-  id:         string;    // Supabase user id, or guest_<random> for guests
-  username:   string;
-  x:          number;    // world pixel x (rounded)
-  y:          number;    // world pixel y (rounded)
-  appearance: CharacterAppearance;
-  rep:        number;
-  holderTier: string;    // 'None' | 'Bronze' | 'Silver' | 'Gold'
-}
+export type { PresenceAppearance, PresencePayload };
 
 /** Live online-count state for landing page / HUD. */
 export type PresenceCountState =

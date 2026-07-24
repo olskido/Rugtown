@@ -1,0 +1,748 @@
+{
+  "version": "1.0-compact-ring-spoke",
+  "generatedAt": "2026-07-13T10:28:27.931Z",
+  "worldWidth": 3600,
+  "worldHeight": 2400,
+  "roadWidth": 88,
+  "coordinateSource": "scripts/lib/canonical-world.mjs (mirrors src/game/world/RoadNetwork.ts) — do not hand-edit",
+  "plazas": [
+    {
+      "id": "fountain",
+      "x": 1800,
+      "y": 1200,
+      "radius": 165
+    },
+    {
+      "id": "notice",
+      "x": 1800,
+      "y": 821,
+      "radius": 92
+    },
+    {
+      "id": "coffee",
+      "x": 1472,
+      "y": 1010,
+      "radius": 92
+    },
+    {
+      "id": "fame",
+      "x": 1418,
+      "y": 384,
+      "radius": 116
+    },
+    {
+      "id": "government",
+      "x": 1339,
+      "y": 739,
+      "radius": 90
+    },
+    {
+      "id": "trading_academy",
+      "x": 695,
+      "y": 427,
+      "radius": 85
+    },
+    {
+      "id": "whale",
+      "x": 2315,
+      "y": 463,
+      "radius": 112
+    },
+    {
+      "id": "financial_office",
+      "x": 2682,
+      "y": 461,
+      "radius": 95
+    },
+    {
+      "id": "holder_bank",
+      "x": 3024,
+      "y": 631,
+      "radius": 95
+    },
+    {
+      "id": "research_observatory",
+      "x": 3024,
+      "y": 941,
+      "radius": 85
+    },
+    {
+      "id": "market",
+      "x": 2700,
+      "y": 1231,
+      "radius": 112
+    },
+    {
+      "id": "market_shop",
+      "x": 2916,
+      "y": 1478,
+      "radius": 85
+    },
+    {
+      "id": "tournament_hall",
+      "x": 3056,
+      "y": 1814,
+      "radius": 90
+    },
+    {
+      "id": "arena",
+      "x": 2920,
+      "y": 2074,
+      "radius": 160
+    },
+    {
+      "id": "alpha",
+      "x": 932,
+      "y": 1433,
+      "radius": 104
+    },
+    {
+      "id": "nft_gallery",
+      "x": 817,
+      "y": 1889,
+      "radius": 100
+    },
+    {
+      "id": "nft_creator_studio",
+      "x": 914,
+      "y": 2083,
+      "radius": 85
+    },
+    {
+      "id": "park",
+      "x": 1400,
+      "y": 2062,
+      "radius": 104
+    },
+    {
+      "id": "bridge",
+      "x": 1865,
+      "y": 1946,
+      "radius": 100
+    },
+    {
+      "id": "cashback",
+      "x": 1652,
+      "y": 2038,
+      "radius": 140
+    }
+  ],
+  "segments": [
+    {
+      "edgeIndex": 0,
+      "a": "fountain",
+      "b": "notice",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 1800,
+      "y2": 1200,
+      "length": 0
+    },
+    {
+      "edgeIndex": 0,
+      "a": "fountain",
+      "b": "notice",
+      "orientation": "v",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 1800,
+      "y2": 821,
+      "length": 379
+    },
+    {
+      "edgeIndex": 1,
+      "a": "fountain",
+      "b": "coffee",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 1472,
+      "y2": 1200,
+      "length": 328
+    },
+    {
+      "edgeIndex": 1,
+      "a": "fountain",
+      "b": "coffee",
+      "orientation": "v",
+      "x1": 1472,
+      "y1": 1200,
+      "x2": 1472,
+      "y2": 1010,
+      "length": 190
+    },
+    {
+      "edgeIndex": 2,
+      "a": "fountain",
+      "b": "fame",
+      "orientation": "v",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 1800,
+      "y2": 384,
+      "length": 816
+    },
+    {
+      "edgeIndex": 2,
+      "a": "fountain",
+      "b": "fame",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 384,
+      "x2": 1418,
+      "y2": 384,
+      "length": 382
+    },
+    {
+      "edgeIndex": 3,
+      "a": "fountain",
+      "b": "whale",
+      "orientation": "v",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 1800,
+      "y2": 463,
+      "length": 737
+    },
+    {
+      "edgeIndex": 3,
+      "a": "fountain",
+      "b": "whale",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 463,
+      "x2": 2315,
+      "y2": 463,
+      "length": 515
+    },
+    {
+      "edgeIndex": 4,
+      "a": "fountain",
+      "b": "market",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 2700,
+      "y2": 1200,
+      "length": 900
+    },
+    {
+      "edgeIndex": 4,
+      "a": "fountain",
+      "b": "market",
+      "orientation": "v",
+      "x1": 2700,
+      "y1": 1200,
+      "x2": 2700,
+      "y2": 1231,
+      "length": 31
+    },
+    {
+      "edgeIndex": 5,
+      "a": "fountain",
+      "b": "alpha",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 932,
+      "y2": 1200,
+      "length": 868
+    },
+    {
+      "edgeIndex": 5,
+      "a": "fountain",
+      "b": "alpha",
+      "orientation": "v",
+      "x1": 932,
+      "y1": 1200,
+      "x2": 932,
+      "y2": 1433,
+      "length": 233
+    },
+    {
+      "edgeIndex": 6,
+      "a": "fountain",
+      "b": "bridge",
+      "orientation": "v",
+      "x1": 1800,
+      "y1": 1200,
+      "x2": 1800,
+      "y2": 1946,
+      "length": 746
+    },
+    {
+      "edgeIndex": 6,
+      "a": "fountain",
+      "b": "bridge",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 1946,
+      "x2": 1865,
+      "y2": 1946,
+      "length": 65
+    },
+    {
+      "edgeIndex": 7,
+      "a": "notice",
+      "b": "whale",
+      "orientation": "h",
+      "x1": 1800,
+      "y1": 821,
+      "x2": 2315,
+      "y2": 821,
+      "length": 515
+    },
+    {
+      "edgeIndex": 7,
+      "a": "notice",
+      "b": "whale",
+      "orientation": "v",
+      "x1": 2315,
+      "y1": 821,
+      "x2": 2315,
+      "y2": 463,
+      "length": 358
+    },
+    {
+      "edgeIndex": 8,
+      "a": "whale",
+      "b": "market",
+      "orientation": "v",
+      "x1": 2315,
+      "y1": 463,
+      "x2": 2315,
+      "y2": 1231,
+      "length": 768
+    },
+    {
+      "edgeIndex": 8,
+      "a": "whale",
+      "b": "market",
+      "orientation": "h",
+      "x1": 2315,
+      "y1": 1231,
+      "x2": 2700,
+      "y2": 1231,
+      "length": 385
+    },
+    {
+      "edgeIndex": 9,
+      "a": "market",
+      "b": "arena",
+      "orientation": "v",
+      "x1": 2700,
+      "y1": 1231,
+      "x2": 2700,
+      "y2": 2074,
+      "length": 843
+    },
+    {
+      "edgeIndex": 9,
+      "a": "market",
+      "b": "arena",
+      "orientation": "h",
+      "x1": 2700,
+      "y1": 2074,
+      "x2": 2920,
+      "y2": 2074,
+      "length": 220
+    },
+    {
+      "edgeIndex": 10,
+      "a": "arena",
+      "b": "bridge",
+      "orientation": "h",
+      "x1": 2920,
+      "y1": 2074,
+      "x2": 1865,
+      "y2": 2074,
+      "length": 1055
+    },
+    {
+      "edgeIndex": 10,
+      "a": "arena",
+      "b": "bridge",
+      "orientation": "v",
+      "x1": 1865,
+      "y1": 2074,
+      "x2": 1865,
+      "y2": 1946,
+      "length": 128
+    },
+    {
+      "edgeIndex": 11,
+      "a": "bridge",
+      "b": "cashback",
+      "orientation": "h",
+      "x1": 1865,
+      "y1": 1946,
+      "x2": 1652,
+      "y2": 1946,
+      "length": 213
+    },
+    {
+      "edgeIndex": 11,
+      "a": "bridge",
+      "b": "cashback",
+      "orientation": "v",
+      "x1": 1652,
+      "y1": 1946,
+      "x2": 1652,
+      "y2": 2038,
+      "length": 92
+    },
+    {
+      "edgeIndex": 12,
+      "a": "cashback",
+      "b": "park",
+      "orientation": "h",
+      "x1": 1652,
+      "y1": 2038,
+      "x2": 1400,
+      "y2": 2038,
+      "length": 252
+    },
+    {
+      "edgeIndex": 12,
+      "a": "cashback",
+      "b": "park",
+      "orientation": "v",
+      "x1": 1400,
+      "y1": 2038,
+      "x2": 1400,
+      "y2": 2062,
+      "length": 24
+    },
+    {
+      "edgeIndex": 13,
+      "a": "park",
+      "b": "alpha",
+      "orientation": "v",
+      "x1": 1400,
+      "y1": 2062,
+      "x2": 1400,
+      "y2": 1433,
+      "length": 629
+    },
+    {
+      "edgeIndex": 13,
+      "a": "park",
+      "b": "alpha",
+      "orientation": "h",
+      "x1": 1400,
+      "y1": 1433,
+      "x2": 932,
+      "y2": 1433,
+      "length": 468
+    },
+    {
+      "edgeIndex": 14,
+      "a": "alpha",
+      "b": "coffee",
+      "orientation": "v",
+      "x1": 932,
+      "y1": 1433,
+      "x2": 932,
+      "y2": 1010,
+      "length": 423
+    },
+    {
+      "edgeIndex": 14,
+      "a": "alpha",
+      "b": "coffee",
+      "orientation": "h",
+      "x1": 932,
+      "y1": 1010,
+      "x2": 1472,
+      "y2": 1010,
+      "length": 540
+    },
+    {
+      "edgeIndex": 15,
+      "a": "coffee",
+      "b": "fame",
+      "orientation": "v",
+      "x1": 1472,
+      "y1": 1010,
+      "x2": 1472,
+      "y2": 384,
+      "length": 626
+    },
+    {
+      "edgeIndex": 15,
+      "a": "coffee",
+      "b": "fame",
+      "orientation": "h",
+      "x1": 1472,
+      "y1": 384,
+      "x2": 1418,
+      "y2": 384,
+      "length": 54
+    },
+    {
+      "edgeIndex": 16,
+      "a": "fame",
+      "b": "notice",
+      "orientation": "h",
+      "x1": 1418,
+      "y1": 384,
+      "x2": 1800,
+      "y2": 384,
+      "length": 382
+    },
+    {
+      "edgeIndex": 16,
+      "a": "fame",
+      "b": "notice",
+      "orientation": "v",
+      "x1": 1800,
+      "y1": 384,
+      "x2": 1800,
+      "y2": 821,
+      "length": 437
+    },
+    {
+      "edgeIndex": 17,
+      "a": "fame",
+      "b": "government",
+      "orientation": "v",
+      "x1": 1418,
+      "y1": 384,
+      "x2": 1418,
+      "y2": 739,
+      "length": 355
+    },
+    {
+      "edgeIndex": 17,
+      "a": "fame",
+      "b": "government",
+      "orientation": "h",
+      "x1": 1418,
+      "y1": 739,
+      "x2": 1339,
+      "y2": 739,
+      "length": 79
+    },
+    {
+      "edgeIndex": 18,
+      "a": "fame",
+      "b": "trading_academy",
+      "orientation": "h",
+      "x1": 1418,
+      "y1": 384,
+      "x2": 695,
+      "y2": 384,
+      "length": 723
+    },
+    {
+      "edgeIndex": 18,
+      "a": "fame",
+      "b": "trading_academy",
+      "orientation": "v",
+      "x1": 695,
+      "y1": 384,
+      "x2": 695,
+      "y2": 427,
+      "length": 43
+    },
+    {
+      "edgeIndex": 19,
+      "a": "whale",
+      "b": "financial_office",
+      "orientation": "h",
+      "x1": 2315,
+      "y1": 463,
+      "x2": 2682,
+      "y2": 463,
+      "length": 367
+    },
+    {
+      "edgeIndex": 19,
+      "a": "whale",
+      "b": "financial_office",
+      "orientation": "v",
+      "x1": 2682,
+      "y1": 463,
+      "x2": 2682,
+      "y2": 461,
+      "length": 2
+    },
+    {
+      "edgeIndex": 20,
+      "a": "financial_office",
+      "b": "holder_bank",
+      "orientation": "v",
+      "x1": 2682,
+      "y1": 461,
+      "x2": 2682,
+      "y2": 631,
+      "length": 170
+    },
+    {
+      "edgeIndex": 20,
+      "a": "financial_office",
+      "b": "holder_bank",
+      "orientation": "h",
+      "x1": 2682,
+      "y1": 631,
+      "x2": 3024,
+      "y2": 631,
+      "length": 342
+    },
+    {
+      "edgeIndex": 21,
+      "a": "holder_bank",
+      "b": "research_observatory",
+      "orientation": "v",
+      "x1": 3024,
+      "y1": 631,
+      "x2": 3024,
+      "y2": 941,
+      "length": 310
+    },
+    {
+      "edgeIndex": 21,
+      "a": "holder_bank",
+      "b": "research_observatory",
+      "orientation": "h",
+      "x1": 3024,
+      "y1": 941,
+      "x2": 3024,
+      "y2": 941,
+      "length": 0
+    },
+    {
+      "edgeIndex": 22,
+      "a": "market",
+      "b": "market_shop",
+      "orientation": "v",
+      "x1": 2700,
+      "y1": 1231,
+      "x2": 2700,
+      "y2": 1478,
+      "length": 247
+    },
+    {
+      "edgeIndex": 22,
+      "a": "market",
+      "b": "market_shop",
+      "orientation": "h",
+      "x1": 2700,
+      "y1": 1478,
+      "x2": 2916,
+      "y2": 1478,
+      "length": 216
+    },
+    {
+      "edgeIndex": 23,
+      "a": "market_shop",
+      "b": "tournament_hall",
+      "orientation": "v",
+      "x1": 2916,
+      "y1": 1478,
+      "x2": 2916,
+      "y2": 1814,
+      "length": 336
+    },
+    {
+      "edgeIndex": 23,
+      "a": "market_shop",
+      "b": "tournament_hall",
+      "orientation": "h",
+      "x1": 2916,
+      "y1": 1814,
+      "x2": 3056,
+      "y2": 1814,
+      "length": 140
+    },
+    {
+      "edgeIndex": 24,
+      "a": "tournament_hall",
+      "b": "arena",
+      "orientation": "h",
+      "x1": 3056,
+      "y1": 1814,
+      "x2": 2920,
+      "y2": 1814,
+      "length": 136
+    },
+    {
+      "edgeIndex": 24,
+      "a": "tournament_hall",
+      "b": "arena",
+      "orientation": "v",
+      "x1": 2920,
+      "y1": 1814,
+      "x2": 2920,
+      "y2": 2074,
+      "length": 260
+    },
+    {
+      "edgeIndex": 25,
+      "a": "alpha",
+      "b": "nft_gallery",
+      "orientation": "v",
+      "x1": 932,
+      "y1": 1433,
+      "x2": 932,
+      "y2": 1889,
+      "length": 456
+    },
+    {
+      "edgeIndex": 25,
+      "a": "alpha",
+      "b": "nft_gallery",
+      "orientation": "h",
+      "x1": 932,
+      "y1": 1889,
+      "x2": 817,
+      "y2": 1889,
+      "length": 115
+    },
+    {
+      "edgeIndex": 26,
+      "a": "nft_gallery",
+      "b": "nft_creator_studio",
+      "orientation": "h",
+      "x1": 817,
+      "y1": 1889,
+      "x2": 914,
+      "y2": 1889,
+      "length": 97
+    },
+    {
+      "edgeIndex": 26,
+      "a": "nft_gallery",
+      "b": "nft_creator_studio",
+      "orientation": "v",
+      "x1": 914,
+      "y1": 1889,
+      "x2": 914,
+      "y2": 2083,
+      "length": 194
+    },
+    {
+      "edgeIndex": 27,
+      "a": "park",
+      "b": "nft_creator_studio",
+      "orientation": "h",
+      "x1": 1400,
+      "y1": 2062,
+      "x2": 914,
+      "y2": 2062,
+      "length": 486
+    },
+    {
+      "edgeIndex": 27,
+      "a": "park",
+      "b": "nft_creator_studio",
+      "orientation": "v",
+      "x1": 914,
+      "y1": 2062,
+      "x2": 914,
+      "y2": 2083,
+      "length": 21
+    }
+  ]
+}

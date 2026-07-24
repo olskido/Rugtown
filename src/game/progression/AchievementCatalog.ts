@@ -1,0 +1,475 @@
+/**
+ * AchievementCatalog.ts — data-driven achievements (Phase 10F).
+ * Rewards are XP/REP/titles only — never money or tokens.
+ */
+
+import type { AchievementCategory } from './types';
+
+export type AchievementProgressSource =
+  | 'missions_completed'
+  | 'landmarks_visited'
+  | 'districts_visited'
+  | 'interiors_entered'
+  | 'city_events_joined'
+  | 'unique_players_interacted'
+  | 'level'
+  | 'rep'
+  | 'title_equipped'
+  | 'fountain_claimed'
+  | 'wave_sent'
+  | 'specific_district'
+  | 'specific_landmark'
+  | 'specific_interior';
+
+export interface AchievementDef {
+  id: string;
+  category: AchievementCategory;
+  name: string;
+  description: string;
+  hidden: boolean;
+  target: number;
+  progressSource: AchievementProgressSource;
+  /** For specific_* sources */
+  sourceId?: string;
+  xpReward: number;
+  repReward: number;
+  titleUnlockId?: string;
+  icon?: string;
+  repeatable: false;
+}
+
+export const ACHIEVEMENT_CATALOG: AchievementDef[] = [
+  /* ── Exploration ── */
+  {
+    id: 'ach_district_west',
+    category: 'exploration',
+    name: 'West Bound',
+    description: 'Enter the West District.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_district',
+    sourceId: 'west',
+    xpReward: 40,
+    repReward: 5,
+    titleUnlockId: 'title_west_scholar',
+    icon: '◇',
+    repeatable: false,
+  },
+  {
+    id: 'ach_district_spring',
+    category: 'exploration',
+    name: 'Spring Arrival',
+    description: 'Enter Spring Water Core.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_district',
+    sourceId: 'spring_core',
+    xpReward: 40,
+    repReward: 5,
+    titleUnlockId: 'title_spring_regular',
+    repeatable: false,
+  },
+  {
+    id: 'ach_district_east',
+    category: 'exploration',
+    name: 'East Markets',
+    description: 'Enter the East District.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_district',
+    sourceId: 'east',
+    xpReward: 40,
+    repReward: 5,
+    repeatable: false,
+  },
+  {
+    id: 'ach_district_financial',
+    category: 'exploration',
+    name: 'Financial District',
+    description: 'Enter the Financial District.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_district',
+    sourceId: 'financial',
+    xpReward: 45,
+    repReward: 5,
+    repeatable: false,
+  },
+  {
+    id: 'ach_district_arena',
+    category: 'exploration',
+    name: 'Arena Grounds',
+    description: 'Enter the Arena Grounds.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_district',
+    sourceId: 'arena_grounds',
+    xpReward: 50,
+    repReward: 8,
+    titleUnlockId: 'title_arena_prospect',
+    repeatable: false,
+  },
+  {
+    id: 'ach_all_districts',
+    category: 'exploration',
+    name: 'Town Explorer',
+    description: 'Visit all five districts.',
+    hidden: false,
+    target: 5,
+    progressSource: 'districts_visited',
+    xpReward: 120,
+    repReward: 25,
+    titleUnlockId: 'title_town_explorer',
+    repeatable: false,
+  },
+  {
+    id: 'ach_landmarks_5',
+    category: 'exploration',
+    name: 'Curious Walker',
+    description: 'Discover 5 landmarks.',
+    hidden: false,
+    target: 5,
+    progressSource: 'landmarks_visited',
+    xpReward: 60,
+    repReward: 10,
+    repeatable: false,
+  },
+  {
+    id: 'ach_landmarks_10',
+    category: 'exploration',
+    name: 'City Cartographer',
+    description: 'Discover 10 landmarks.',
+    hidden: false,
+    target: 10,
+    progressSource: 'landmarks_visited',
+    xpReward: 100,
+    repReward: 15,
+    repeatable: false,
+  },
+  {
+    id: 'ach_landmarks_20',
+    category: 'exploration',
+    name: 'Living Map',
+    description: 'Discover all 20 landmarks.',
+    hidden: false,
+    target: 20,
+    progressSource: 'landmarks_visited',
+    xpReward: 200,
+    repReward: 40,
+    repeatable: false,
+  },
+  {
+    id: 'ach_landmark_market',
+    category: 'exploration',
+    name: 'Market Wanderer',
+    description: 'Discover the Meme Market.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_landmark',
+    sourceId: 'market',
+    xpReward: 35,
+    repReward: 5,
+    titleUnlockId: 'title_market_wanderer',
+    repeatable: false,
+  },
+  {
+    id: 'ach_landmark_whale',
+    category: 'exploration',
+    name: 'Whale Watcher',
+    description: 'Discover Whale Tower.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_landmark',
+    sourceId: 'whale',
+    xpReward: 35,
+    repReward: 5,
+    titleUnlockId: 'title_whale_watcher',
+    repeatable: false,
+  },
+  {
+    id: 'ach_landmark_bridge',
+    category: 'exploration',
+    name: 'Bridge Crosser',
+    description: 'Discover the Main Bridge.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_landmark',
+    sourceId: 'bridge',
+    xpReward: 40,
+    repReward: 8,
+    titleUnlockId: 'title_bridge_crosser',
+    repeatable: false,
+  },
+  {
+    id: 'ach_interior_alpha',
+    category: 'exploration',
+    name: 'Alpha Seeker',
+    description: 'Enter the Alpha Lounge.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_interior',
+    sourceId: 'alpha-lounge',
+    xpReward: 45,
+    repReward: 8,
+    titleUnlockId: 'title_alpha_seeker',
+    repeatable: false,
+  },
+  {
+    id: 'ach_interior_vault',
+    category: 'exploration',
+    name: 'Vault Visitor',
+    description: 'Enter the Holder Cashback Vault.',
+    hidden: false,
+    target: 1,
+    progressSource: 'specific_interior',
+    sourceId: 'holder-cashback-vault',
+    xpReward: 50,
+    repReward: 10,
+    titleUnlockId: 'title_vault_visitor',
+    repeatable: false,
+  },
+  {
+    id: 'ach_interiors_3',
+    category: 'exploration',
+    name: 'Door Opener',
+    description: 'Enter 3 interiors.',
+    hidden: false,
+    target: 3,
+    progressSource: 'interiors_entered',
+    xpReward: 55,
+    repReward: 10,
+    repeatable: false,
+  },
+
+  /* ── Missions ── */
+  {
+    id: 'ach_missions_1',
+    category: 'missions',
+    name: 'First Mission',
+    description: 'Complete 1 mission.',
+    hidden: false,
+    target: 1,
+    progressSource: 'missions_completed',
+    xpReward: 50,
+    repReward: 5,
+    repeatable: false,
+  },
+  {
+    id: 'ach_missions_5',
+    category: 'missions',
+    name: 'Mission Runner',
+    description: 'Complete 5 missions.',
+    hidden: false,
+    target: 5,
+    progressSource: 'missions_completed',
+    xpReward: 100,
+    repReward: 15,
+    titleUnlockId: 'title_mission_runner',
+    repeatable: false,
+  },
+  {
+    id: 'ach_missions_10',
+    category: 'missions',
+    name: 'Contract Closer',
+    description: 'Complete 10 missions.',
+    hidden: false,
+    target: 10,
+    progressSource: 'missions_completed',
+    xpReward: 150,
+    repReward: 25,
+    repeatable: false,
+  },
+  {
+    id: 'ach_missions_25',
+    category: 'missions',
+    name: 'Mission Veteran',
+    description: 'Complete 25 missions.',
+    hidden: false,
+    target: 25,
+    progressSource: 'missions_completed',
+    xpReward: 250,
+    repReward: 50,
+    repeatable: false,
+  },
+
+  /* ── Social ── */
+  {
+    id: 'ach_social_1',
+    category: 'social',
+    name: 'First Hello',
+    description: 'Interact with another real player.',
+    hidden: false,
+    target: 1,
+    progressSource: 'unique_players_interacted',
+    xpReward: 30,
+    repReward: 5,
+    repeatable: false,
+  },
+  {
+    id: 'ach_social_5',
+    category: 'social',
+    name: 'Social Butterfly',
+    description: 'Interact with 5 unique real players.',
+    hidden: false,
+    target: 5,
+    progressSource: 'unique_players_interacted',
+    xpReward: 90,
+    repReward: 15,
+    titleUnlockId: 'title_social_butterfly',
+    repeatable: false,
+  },
+  {
+    id: 'ach_wave_1',
+    category: 'social',
+    name: 'Friendly Wave',
+    description: 'Wave at another player.',
+    hidden: false,
+    target: 1,
+    progressSource: 'wave_sent',
+    xpReward: 20,
+    repReward: 2,
+    repeatable: false,
+  },
+
+  /* ── Events ── */
+  {
+    id: 'ach_events_1',
+    category: 'events',
+    name: 'Event Curious',
+    description: 'Join a city event.',
+    hidden: false,
+    target: 1,
+    progressSource: 'city_events_joined',
+    xpReward: 40,
+    repReward: 5,
+    repeatable: false,
+  },
+  {
+    id: 'ach_events_3',
+    category: 'events',
+    name: 'Event Regular',
+    description: 'Join 3 city events.',
+    hidden: false,
+    target: 3,
+    progressSource: 'city_events_joined',
+    xpReward: 90,
+    repReward: 15,
+    titleUnlockId: 'title_event_regular',
+    repeatable: false,
+  },
+
+  /* ── Progression ── */
+  {
+    id: 'ach_first_rep',
+    category: 'progression',
+    name: 'First REP',
+    description: 'Claim fountain REP for the first time.',
+    hidden: false,
+    target: 1,
+    progressSource: 'fountain_claimed',
+    xpReward: 25,
+    repReward: 0,
+    titleUnlockId: 'title_early_citizen',
+    repeatable: false,
+  },
+  {
+    id: 'ach_level_5',
+    category: 'progression',
+    name: 'Rising Local',
+    description: 'Reach level 5.',
+    hidden: false,
+    target: 5,
+    progressSource: 'level',
+    xpReward: 40,
+    repReward: 10,
+    repeatable: false,
+  },
+  {
+    id: 'ach_level_10',
+    category: 'progression',
+    name: 'Rug Survivor',
+    description: 'Reach level 10.',
+    hidden: false,
+    target: 10,
+    progressSource: 'level',
+    xpReward: 80,
+    repReward: 20,
+    titleUnlockId: 'title_rug_survivor',
+    repeatable: false,
+  },
+  {
+    id: 'ach_level_25',
+    category: 'progression',
+    name: 'Founder Path',
+    description: 'Reach level 25.',
+    hidden: false,
+    target: 25,
+    progressSource: 'level',
+    xpReward: 150,
+    repReward: 40,
+    titleUnlockId: 'title_founder',
+    repeatable: false,
+  },
+  {
+    id: 'ach_level_50',
+    category: 'progression',
+    name: 'Town Apex',
+    description: 'Reach level 50.',
+    hidden: false,
+    target: 50,
+    progressSource: 'level',
+    xpReward: 0,
+    repReward: 100,
+    repeatable: false,
+  },
+  {
+    id: 'ach_rep_100',
+    category: 'progression',
+    name: 'Reputation Rising',
+    description: 'Earn 100 total REP.',
+    hidden: false,
+    target: 100,
+    progressSource: 'rep',
+    xpReward: 50,
+    repReward: 0,
+    repeatable: false,
+  },
+  {
+    id: 'ach_rep_500',
+    category: 'progression',
+    name: 'Known Name',
+    description: 'Earn 500 total REP.',
+    hidden: false,
+    target: 500,
+    progressSource: 'rep',
+    xpReward: 100,
+    repReward: 0,
+    repeatable: false,
+  },
+  {
+    id: 'ach_title_equipped',
+    category: 'progression',
+    name: 'Identity Chosen',
+    description: 'Equip a title.',
+    hidden: false,
+    target: 1,
+    progressSource: 'title_equipped',
+    xpReward: 15,
+    repReward: 0,
+    repeatable: false,
+  },
+];
+
+export function getAchievement(id: string): AchievementDef | undefined {
+  return ACHIEVEMENT_CATALOG.find((a) => a.id === id);
+}
+
+export function achievementPointsFromProgress(
+  progress: Record<string, { completed: boolean }>,
+): number {
+  let n = 0;
+  for (const a of ACHIEVEMENT_CATALOG) {
+    if (progress[a.id]?.completed) n += 1;
+  }
+  return n;
+}

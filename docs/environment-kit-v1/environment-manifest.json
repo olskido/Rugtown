@@ -1,0 +1,3731 @@
+{
+  "version": "1.0",
+  "sourceStyle": "RugTown_Master_Concept_V1 + rugtown-building-asset-sheet-v1",
+  "palette": [
+    "black obsidian",
+    "dark stone",
+    "bronze",
+    "gold",
+    "warm lantern glow"
+  ],
+  "perspective": "3/4 isometric top-down hybrid (matches Building Asset Pack)",
+  "assets": [
+    {
+      "id": "env-001",
+      "name": "wall-lantern-small",
+      "category": "lanterns",
+      "file": "lanterns/wall-lantern-small.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 112
+      }
+    },
+    {
+      "id": "env-002",
+      "name": "wall-lantern-large",
+      "category": "lanterns",
+      "file": "lanterns/wall-lantern-large.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 112
+      }
+    },
+    {
+      "id": "env-003",
+      "name": "wall-lantern-ornate",
+      "category": "lanterns",
+      "file": "lanterns/wall-lantern-ornate.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 112
+      }
+    },
+    {
+      "id": "env-004",
+      "name": "hanging-lantern-single",
+      "category": "lanterns",
+      "file": "lanterns/hanging-lantern-single.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 88,
+        "height": 120
+      }
+    },
+    {
+      "id": "env-005",
+      "name": "hanging-lantern-triple",
+      "category": "lanterns",
+      "file": "lanterns/hanging-lantern-triple.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 88,
+        "height": 120
+      }
+    },
+    {
+      "id": "env-006",
+      "name": "hanging-lantern-gilded",
+      "category": "lanterns",
+      "file": "lanterns/hanging-lantern-gilded.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 88,
+        "height": 120
+      }
+    },
+    {
+      "id": "env-007",
+      "name": "plaza-lantern-short",
+      "category": "lanterns",
+      "file": "lanterns/plaza-lantern-short.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 148
+      }
+    },
+    {
+      "id": "env-008",
+      "name": "plaza-lantern-tall",
+      "category": "lanterns",
+      "file": "lanterns/plaza-lantern-tall.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 156
+      }
+    },
+    {
+      "id": "env-009",
+      "name": "plaza-lantern-grand",
+      "category": "lanterns",
+      "file": "lanterns/plaza-lantern-grand.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 164
+      }
+    },
+    {
+      "id": "env-010",
+      "name": "bronze-brazier",
+      "category": "lanterns",
+      "file": "lanterns/bronze-brazier.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.45,
+      "recommendedDistricts": [
+        "spawn",
+        "fame",
+        "market",
+        "park",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-011",
+      "name": "stone-bench-straight",
+      "category": "benches",
+      "file": "benches/stone-bench-straight.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-012",
+      "name": "stone-bench-curved",
+      "category": "benches",
+      "file": "benches/stone-bench-curved.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-013",
+      "name": "wood-bench-straight",
+      "category": "benches",
+      "file": "benches/wood-bench-straight.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-014",
+      "name": "wood-bench-curved",
+      "category": "benches",
+      "file": "benches/wood-bench-curved.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-015",
+      "name": "luxury-bench-straight",
+      "category": "benches",
+      "file": "benches/luxury-bench-straight.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-016",
+      "name": "luxury-bench-curved",
+      "category": "benches",
+      "file": "benches/luxury-bench-curved.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-017",
+      "name": "garden-bench-straight",
+      "category": "benches",
+      "file": "benches/garden-bench-straight.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-018",
+      "name": "garden-bench-curved",
+      "category": "benches",
+      "file": "benches/garden-bench-curved.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.28,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 80,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 72
+      }
+    },
+    {
+      "id": "env-019",
+      "name": "oak-tree-a",
+      "category": "trees",
+      "file": "trees/oak-tree-a.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 120
+      }
+    },
+    {
+      "id": "env-020",
+      "name": "oak-tree-b",
+      "category": "trees",
+      "file": "trees/oak-tree-b.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 104,
+        "height": 130
+      }
+    },
+    {
+      "id": "env-021",
+      "name": "pine-tree-a",
+      "category": "trees",
+      "file": "trees/pine-tree-a.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 140
+      }
+    },
+    {
+      "id": "env-022",
+      "name": "pine-tree-b",
+      "category": "trees",
+      "file": "trees/pine-tree-b.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 120,
+        "height": 150
+      }
+    },
+    {
+      "id": "env-023",
+      "name": "dead-tree-a",
+      "category": "trees",
+      "file": "trees/dead-tree-a.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 160
+      }
+    },
+    {
+      "id": "env-024",
+      "name": "dead-tree-b",
+      "category": "trees",
+      "file": "trees/dead-tree-b.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 120
+      }
+    },
+    {
+      "id": "env-025",
+      "name": "decorative-tree-a",
+      "category": "trees",
+      "file": "trees/decorative-tree-a.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 104,
+        "height": 130
+      }
+    },
+    {
+      "id": "env-026",
+      "name": "decorative-tree-b",
+      "category": "trees",
+      "file": "trees/decorative-tree-b.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 140
+      }
+    },
+    {
+      "id": "env-027",
+      "name": "plaza-tree-large",
+      "category": "trees",
+      "file": "trees/plaza-tree-large.png",
+      "recommendedScale": 1.15,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 120,
+        "height": 150
+      }
+    },
+    {
+      "id": "env-028",
+      "name": "plaza-tree-small",
+      "category": "trees",
+      "file": "trees/plaza-tree-small.png",
+      "recommendedScale": 0.85,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 160
+      }
+    },
+    {
+      "id": "env-029",
+      "name": "oak-tree-c",
+      "category": "trees",
+      "file": "trees/oak-tree-c.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 120
+      }
+    },
+    {
+      "id": "env-030",
+      "name": "pine-tree-c",
+      "category": "trees",
+      "file": "trees/pine-tree-c.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.32,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 104,
+        "height": 130
+      }
+    },
+    {
+      "id": "env-031",
+      "name": "bush-cluster-01",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-01.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-032",
+      "name": "bush-cluster-02",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-02.png",
+      "recommendedScale": 0.9500000000000001,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-033",
+      "name": "bush-cluster-03",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-034",
+      "name": "bush-cluster-04",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-04.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-035",
+      "name": "bush-cluster-05",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-05.png",
+      "recommendedScale": 0.9500000000000001,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-036",
+      "name": "bush-cluster-06",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-06.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-037",
+      "name": "bush-cluster-07",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-07.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-038",
+      "name": "bush-cluster-08",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-08.png",
+      "recommendedScale": 0.9500000000000001,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-039",
+      "name": "bush-cluster-09",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-09.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-040",
+      "name": "bush-cluster-10",
+      "category": "bushes",
+      "file": "bushes/bush-cluster-10.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.25,
+      "recommendedDistricts": [
+        "park",
+        "spawn",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 56,
+        "h": 40
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-041",
+      "name": "flower-bed-01",
+      "category": "flowers",
+      "file": "flowers/flower-bed-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-042",
+      "name": "flower-bed-02",
+      "category": "flowers",
+      "file": "flowers/flower-bed-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-043",
+      "name": "flower-bed-03",
+      "category": "flowers",
+      "file": "flowers/flower-bed-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-044",
+      "name": "flower-bed-04",
+      "category": "flowers",
+      "file": "flowers/flower-bed-04.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-045",
+      "name": "flower-bed-05",
+      "category": "flowers",
+      "file": "flowers/flower-bed-05.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-046",
+      "name": "flower-bed-06",
+      "category": "flowers",
+      "file": "flowers/flower-bed-06.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-047",
+      "name": "flower-bed-07",
+      "category": "flowers",
+      "file": "flowers/flower-bed-07.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-048",
+      "name": "flower-bed-08",
+      "category": "flowers",
+      "file": "flowers/flower-bed-08.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-049",
+      "name": "flower-bed-09",
+      "category": "flowers",
+      "file": "flowers/flower-bed-09.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-050",
+      "name": "flower-bed-10",
+      "category": "flowers",
+      "file": "flowers/flower-bed-10.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.22,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "fame",
+        "market"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 28
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 48
+      }
+    },
+    {
+      "id": "env-051",
+      "name": "fence-section-01",
+      "category": "fences",
+      "file": "fences/fence-section-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-052",
+      "name": "fence-section-02",
+      "category": "fences",
+      "file": "fences/fence-section-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-053",
+      "name": "fence-section-03",
+      "category": "fences",
+      "file": "fences/fence-section-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-054",
+      "name": "fence-section-04",
+      "category": "fences",
+      "file": "fences/fence-section-04.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-055",
+      "name": "fence-section-05",
+      "category": "fences",
+      "file": "fences/fence-section-05.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-056",
+      "name": "fence-section-06",
+      "category": "fences",
+      "file": "fences/fence-section-06.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-057",
+      "name": "fence-section-07",
+      "category": "fences",
+      "file": "fences/fence-section-07.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-058",
+      "name": "fence-section-08",
+      "category": "fences",
+      "file": "fences/fence-section-08.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-059",
+      "name": "fence-section-09",
+      "category": "fences",
+      "file": "fences/fence-section-09.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-060",
+      "name": "fence-section-10",
+      "category": "fences",
+      "file": "fences/fence-section-10.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "spawn",
+        "park",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 96,
+        "h": 24
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-061",
+      "name": "stone-wall-01",
+      "category": "walls",
+      "file": "walls/stone-wall-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-062",
+      "name": "stone-wall-02",
+      "category": "walls",
+      "file": "walls/stone-wall-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-063",
+      "name": "stone-wall-03",
+      "category": "walls",
+      "file": "walls/stone-wall-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-064",
+      "name": "stone-wall-04",
+      "category": "walls",
+      "file": "walls/stone-wall-04.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-065",
+      "name": "stone-wall-05",
+      "category": "walls",
+      "file": "walls/stone-wall-05.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-066",
+      "name": "stone-wall-06",
+      "category": "walls",
+      "file": "walls/stone-wall-06.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-067",
+      "name": "stone-wall-07",
+      "category": "walls",
+      "file": "walls/stone-wall-07.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-068",
+      "name": "stone-wall-08",
+      "category": "walls",
+      "file": "walls/stone-wall-08.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-069",
+      "name": "stone-wall-09",
+      "category": "walls",
+      "file": "walls/stone-wall-09.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-070",
+      "name": "stone-wall-10",
+      "category": "walls",
+      "file": "walls/stone-wall-10.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.15,
+      "recommendedDistricts": [
+        "fame",
+        "cashback",
+        "arena",
+        "expansion"
+      ],
+      "collisionRecommendation": "block",
+      "footprintPx": {
+        "w": 96,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-071",
+      "name": "stone-stairs-01",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-072",
+      "name": "stone-stairs-02",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-073",
+      "name": "stone-stairs-03",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-074",
+      "name": "stone-stairs-04",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-04.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-075",
+      "name": "stone-stairs-05",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-05.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-076",
+      "name": "stone-stairs-06",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-06.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-077",
+      "name": "stone-stairs-07",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-07.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-078",
+      "name": "stone-stairs-08",
+      "category": "stairs",
+      "file": "stairs/stone-stairs-08.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.2,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "cashback",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 72,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-079",
+      "name": "stone-arch-01",
+      "category": "arches",
+      "file": "arches/stone-arch-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-080",
+      "name": "stone-arch-02",
+      "category": "arches",
+      "file": "arches/stone-arch-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-081",
+      "name": "stone-arch-03",
+      "category": "arches",
+      "file": "arches/stone-arch-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-082",
+      "name": "stone-arch-04",
+      "category": "arches",
+      "file": "arches/stone-arch-04.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-083",
+      "name": "stone-arch-05",
+      "category": "arches",
+      "file": "arches/stone-arch-05.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-084",
+      "name": "stone-arch-06",
+      "category": "arches",
+      "file": "arches/stone-arch-06.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-085",
+      "name": "stone-arch-07",
+      "category": "arches",
+      "file": "arches/stone-arch-07.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-086",
+      "name": "stone-arch-08",
+      "category": "arches",
+      "file": "arches/stone-arch-08.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.4,
+      "recommendedDistricts": [
+        "fame",
+        "park",
+        "bridge",
+        "spawn"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 88,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-087",
+      "name": "planter-01",
+      "category": "planters",
+      "file": "planters/planter-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-088",
+      "name": "planter-02",
+      "category": "planters",
+      "file": "planters/planter-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-089",
+      "name": "planter-03",
+      "category": "planters",
+      "file": "planters/planter-03.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-090",
+      "name": "planter-04",
+      "category": "planters",
+      "file": "planters/planter-04.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-091",
+      "name": "planter-05",
+      "category": "planters",
+      "file": "planters/planter-05.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-092",
+      "name": "planter-06",
+      "category": "planters",
+      "file": "planters/planter-06.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-093",
+      "name": "planter-07",
+      "category": "planters",
+      "file": "planters/planter-07.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-094",
+      "name": "planter-08",
+      "category": "planters",
+      "file": "planters/planter-08.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-095",
+      "name": "planter-09",
+      "category": "planters",
+      "file": "planters/planter-09.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-096",
+      "name": "planter-10",
+      "category": "planters",
+      "file": "planters/planter-10.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.26,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "park",
+        "alpha"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 40,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 72,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-097",
+      "name": "cart-stall-a",
+      "category": "market",
+      "file": "market/cart-stall-a.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-098",
+      "name": "cart-stall-b",
+      "category": "market",
+      "file": "market/cart-stall-b.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-099",
+      "name": "food-stall-a",
+      "category": "market",
+      "file": "market/food-stall-a.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-100",
+      "name": "food-stall-b",
+      "category": "market",
+      "file": "market/food-stall-b.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-101",
+      "name": "trader-stall-a",
+      "category": "market",
+      "file": "market/trader-stall-a.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-102",
+      "name": "trader-stall-b",
+      "category": "market",
+      "file": "market/trader-stall-b.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-103",
+      "name": "potion-stall-a",
+      "category": "market",
+      "file": "market/potion-stall-a.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-104",
+      "name": "potion-stall-b",
+      "category": "market",
+      "file": "market/potion-stall-b.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-105",
+      "name": "token-stall-a",
+      "category": "market",
+      "file": "market/token-stall-a.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-106",
+      "name": "token-stall-b",
+      "category": "market",
+      "file": "market/token-stall-b.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-107",
+      "name": "auction-stall-a",
+      "category": "market",
+      "file": "market/auction-stall-a.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-108",
+      "name": "auction-stall-b",
+      "category": "market",
+      "file": "market/auction-stall-b.png",
+      "recommendedScale": 1.05,
+      "recommendedDepth": 1.38,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 88,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 112,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-109",
+      "name": "barrel-01",
+      "category": "barrels",
+      "file": "barrels/barrel-01.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-110",
+      "name": "barrel-02",
+      "category": "barrels",
+      "file": "barrels/barrel-02.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-111",
+      "name": "barrel-03",
+      "category": "barrels",
+      "file": "barrels/barrel-03.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-112",
+      "name": "barrel-04",
+      "category": "barrels",
+      "file": "barrels/barrel-04.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-113",
+      "name": "barrel-05",
+      "category": "barrels",
+      "file": "barrels/barrel-05.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-114",
+      "name": "barrel-06",
+      "category": "barrels",
+      "file": "barrels/barrel-06.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-115",
+      "name": "barrel-07",
+      "category": "barrels",
+      "file": "barrels/barrel-07.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-116",
+      "name": "barrel-08",
+      "category": "barrels",
+      "file": "barrels/barrel-08.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "dock"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-117",
+      "name": "crate-01",
+      "category": "crates",
+      "file": "crates/crate-01.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-118",
+      "name": "crate-02",
+      "category": "crates",
+      "file": "crates/crate-02.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-119",
+      "name": "crate-03",
+      "category": "crates",
+      "file": "crates/crate-03.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-120",
+      "name": "crate-04",
+      "category": "crates",
+      "file": "crates/crate-04.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-121",
+      "name": "crate-05",
+      "category": "crates",
+      "file": "crates/crate-05.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-122",
+      "name": "crate-06",
+      "category": "crates",
+      "file": "crates/crate-06.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-123",
+      "name": "crate-07",
+      "category": "crates",
+      "file": "crates/crate-07.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-124",
+      "name": "crate-08",
+      "category": "crates",
+      "file": "crates/crate-08.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.24,
+      "recommendedDistricts": [
+        "market",
+        "spawn"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 32,
+        "h": 32
+      },
+      "pixelSize": {
+        "width": 56,
+        "height": 56
+      }
+    },
+    {
+      "id": "env-125",
+      "name": "decorative-banner-01",
+      "category": "banners",
+      "file": "banners/decorative-banner-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-126",
+      "name": "decorative-banner-02",
+      "category": "banners",
+      "file": "banners/decorative-banner-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-127",
+      "name": "decorative-banner-03",
+      "category": "banners",
+      "file": "banners/decorative-banner-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-128",
+      "name": "district-banner-01",
+      "category": "banners",
+      "file": "banners/district-banner-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-129",
+      "name": "district-banner-02",
+      "category": "banners",
+      "file": "banners/district-banner-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-130",
+      "name": "district-banner-03",
+      "category": "banners",
+      "file": "banners/district-banner-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-131",
+      "name": "guild-banner-01",
+      "category": "banners",
+      "file": "banners/guild-banner-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "fame",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-132",
+      "name": "guild-banner-02",
+      "category": "banners",
+      "file": "banners/guild-banner-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "fame",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-133",
+      "name": "guild-banner-03",
+      "category": "banners",
+      "file": "banners/guild-banner-03.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "fame",
+        "arena"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-134",
+      "name": "decorative-banner-04",
+      "category": "banners",
+      "file": "banners/decorative-banner-04.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.5,
+      "recommendedDistricts": [
+        "market",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 24,
+        "h": 64
+      },
+      "pixelSize": {
+        "width": 64,
+        "height": 96
+      }
+    },
+    {
+      "id": "env-135",
+      "name": "small-bridge-01",
+      "category": "bridges",
+      "file": "bridges/small-bridge-01.png",
+      "recommendedScale": 0.85,
+      "recommendedDepth": 1.1,
+      "recommendedDistricts": [
+        "bridge",
+        "park"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 96,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-136",
+      "name": "small-bridge-02",
+      "category": "bridges",
+      "file": "bridges/small-bridge-02.png",
+      "recommendedScale": 0.85,
+      "recommendedDepth": 1.1,
+      "recommendedDistricts": [
+        "bridge",
+        "park"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 96,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 96,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-137",
+      "name": "medium-bridge-01",
+      "category": "bridges",
+      "file": "bridges/medium-bridge-01.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.1,
+      "recommendedDistricts": [
+        "bridge",
+        "park"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 96,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-138",
+      "name": "medium-bridge-02",
+      "category": "bridges",
+      "file": "bridges/medium-bridge-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.1,
+      "recommendedDistricts": [
+        "bridge",
+        "park"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 96,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-139",
+      "name": "large-bridge-01",
+      "category": "bridges",
+      "file": "bridges/large-bridge-01.png",
+      "recommendedScale": 1.2,
+      "recommendedDepth": 1.1,
+      "recommendedDistricts": [
+        "bridge",
+        "park"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 128,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 160,
+        "height": 80
+      }
+    },
+    {
+      "id": "env-140",
+      "name": "decorative-bridge-02",
+      "category": "bridges",
+      "file": "bridges/decorative-bridge-02.png",
+      "recommendedScale": 1,
+      "recommendedDepth": 1.1,
+      "recommendedDistricts": [
+        "bridge",
+        "park"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 96,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 128,
+        "height": 64
+      }
+    },
+    {
+      "id": "env-141",
+      "name": "street-sign-01",
+      "category": "street",
+      "file": "street/street-sign-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-142",
+      "name": "street-sign-02",
+      "category": "street",
+      "file": "street/street-sign-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-143",
+      "name": "street-coin-statue-01",
+      "category": "street",
+      "file": "street/street-coin-statue-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-144",
+      "name": "street-coin-statue-02",
+      "category": "street",
+      "file": "street/street-coin-statue-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-145",
+      "name": "street-fountain-small-01",
+      "category": "street",
+      "file": "street/street-fountain-small-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-146",
+      "name": "street-fountain-small-02",
+      "category": "street",
+      "file": "street/street-fountain-small-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-147",
+      "name": "street-clock-01",
+      "category": "street",
+      "file": "street/street-clock-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-148",
+      "name": "street-clock-02",
+      "category": "street",
+      "file": "street/street-clock-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-149",
+      "name": "street-rock-01",
+      "category": "street",
+      "file": "street/street-rock-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-150",
+      "name": "street-rock-02",
+      "category": "street",
+      "file": "street/street-rock-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-151",
+      "name": "street-mailbox-01",
+      "category": "street",
+      "file": "street/street-mailbox-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-152",
+      "name": "street-mailbox-02",
+      "category": "street",
+      "file": "street/street-mailbox-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-153",
+      "name": "street-wood-pile-01",
+      "category": "street",
+      "file": "street/street-wood-pile-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-154",
+      "name": "street-wood-pile-02",
+      "category": "street",
+      "file": "street/street-wood-pile-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-155",
+      "name": "street-rope-coil-01",
+      "category": "street",
+      "file": "street/street-rope-coil-01.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-156",
+      "name": "street-rope-coil-02",
+      "category": "street",
+      "file": "street/street-rope-coil-02.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-157",
+      "name": "street-sign-03",
+      "category": "street",
+      "file": "street/street-sign-03.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-158",
+      "name": "street-coin-statue-03",
+      "category": "street",
+      "file": "street/street-coin-statue-03.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-159",
+      "name": "street-rock-03",
+      "category": "street",
+      "file": "street/street-rock-03.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "soft-block",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-160",
+      "name": "street-clock-03",
+      "category": "street",
+      "file": "street/street-clock-03.png",
+      "recommendedScale": 0.95,
+      "recommendedDepth": 1.3,
+      "recommendedDistricts": [
+        "spawn",
+        "market",
+        "fame",
+        "bridge"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 48,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-161",
+      "name": "gold-urn",
+      "category": "decorations",
+      "file": "decorations/gold-urn.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 32,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-162",
+      "name": "stone-urn",
+      "category": "decorations",
+      "file": "decorations/stone-urn.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 32,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-163",
+      "name": "bronze-chalice",
+      "category": "decorations",
+      "file": "decorations/bronze-chalice.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 32,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    },
+    {
+      "id": "env-164",
+      "name": "obsidian-obelisk-small",
+      "category": "decorations",
+      "file": "decorations/obsidian-obelisk-small.png",
+      "recommendedScale": 0.9,
+      "recommendedDepth": 1.35,
+      "recommendedDistricts": [
+        "fame",
+        "spawn",
+        "alpha"
+      ],
+      "collisionRecommendation": "none",
+      "footprintPx": {
+        "w": 32,
+        "h": 48
+      },
+      "pixelSize": {
+        "width": 80,
+        "height": 88
+      }
+    }
+  ],
+  "totalAssets": 164,
+  "generatedAt": "2026-07-09T16:32:03.376Z"
+}

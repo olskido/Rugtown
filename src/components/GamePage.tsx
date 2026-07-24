@@ -2,7 +2,11 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { RugTownGame } from '../game/RugTownGame';
 import { WorldScene, NPC_SPEECH_BY_PERSONALITY, type NpcPersonality } from '../game/scenes/WorldScene';
 import { getWorldObject, WORLD_OBJECTS } from '../game/world/WorldObjects';
-import { JACKET_OPTIONS, DEFAULT_APPEARANCE, type CharacterAppearance } from '../game/world/CharacterAppearance';
+import type { CharacterAppearanceV1 } from '../game/characters/appearance/CharacterAppearanceDefaults';
+import { getCanonicalPlayerAppearance } from '../game/characters/appearance/CanonicalPlayerAppearance';
+import { decodeCharacterAppearance, migrateCharacterAppearance, encodeCharacterAppearance } from '../game/characters/appearance/CharacterAppearanceCodec';
+import { characterAppearanceService } from '../game/characters/appearance/CharacterAppearanceService';
+import { assetExists } from '../game/characters/assets/CharacterAssetRegistry';
 import { soundManager, type SoundChannel } from '../audio/SoundManager';
 import type { EventRarity, EventReward, EventLocation, EventPhase as EnginePhase } from '../game/events/EventTypes';
 import { EVENT_DEFINITIONS } from '../game/events/EventDefinitions';
@@ -12,8 +16,60 @@ import { AlphaLoungePanel } from './AlphaLoungePanel';
 import { HudCharacterPortrait } from './HudCharacterPortrait';
 import { fetchTrendingSolanaTokens, type MarketToken } from '../services/dexscreener';
 import { saveRep, saveBadge, saveInventoryItem, saveDistrictUnlock, updateLastSeen } from '../lib/profile';
+import { loadProgress, patchProgress } from '../lib/progress';
+import {
+  pickLivingCityEvent,
+  LIVING_CITY_EVENT_MIN_GAP,
+  LIVING_CITY_EVENT_MAX_GAP,
+} from '../game/systems/LivingCityEvents';
+import { getDistrictDialogueLines } from '../game/world/NpcDistrictDialogue';
 import { createCityChannel, removeCityChannel, type PresencePayload } from '../lib/presence';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { SocialPlayerCard } from './SocialPlayerCard';
+import { DirectMessagePanel } from './DirectMessagePanel';
+import { SocialHubPanel } from './social/SocialHubPanel';
+import { ReportPlayerDialog, ReportMessageDialog } from './social/ReportDialogs';
+import { ModerationOperationsPanel } from './social/ModerationOperationsPanel';
+import { PartyPanel } from './party/PartyPanel';
+import { WorldEventCentrePanel } from './events/WorldEventCentrePanel';
+import { WorldEventHud } from './events/WorldEventHud';
+import { DayNightOverlay } from './world/DayNightOverlay';
+import { TournamentCentrePanel } from './tournaments/TournamentCentrePanel';
+import { GuildPanel } from './guilds/GuildPanel';
+import { characterService } from '../lib/character';
+import { LevelUpToast } from './LevelUpToast';
+import { PlayerProfilePanel } from './PlayerProfilePanel';
+import { RewardCentrePanel } from './RewardCentrePanel';
+import { RewardOperationsPanel } from './RewardOperationsPanel';
+import {
+  presenceToSocialSummary,
+  toDmRecipient,
+  type DirectMessageRecipient,
+  type SocialPlayerSummary,
+} from '../lib/social';
+import { socialService, sanitizeCityChat, type FriendshipState } from '../lib/social/index';
+import { partyService } from '../lib/party';
+import {
+  progressionService,
+  type LevelUpNotice,
+  type PlayerProgression,
+} from '../game/progression';
+import { rewardService } from '../game/rewards';
+import { achievementService } from '../game/achievements';
+import { AchievementCentrePanel } from './achievements/AchievementCentrePanel';
+import { TitleLockerPanel } from './achievements/TitleLockerPanel';
+import { SeasonPassPanel } from './achievements/SeasonPassPanel';
+import { rankDisplayName } from '../game/progression/RankLadder';
+import { titleDisplayName } from '../game/progression/TitleCatalog';
+import { WORLD_DISTRICTS } from '../game/world/WorldDistricts';
+import { CompactMinimap } from './minimap/CompactMinimap';
+import { ExpandedWorldMap } from './minimap/ExpandedWorldMap';
+import {
+  loadMapFilters,
+  publishMinimapUiDebug,
+  useMinimapLiveData,
+} from './minimap/useMinimapLiveData';
+import { buildMinimapLandmarks } from '../game/minimap/MinimapLandmarks';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { LEVEL_DEFINITIONS, type LevelObjectiveType } from '../game/levels/LevelDefinitions';
 import { notificationQueue } from '../lib/notificationQueue';
 import { NotificationBanner } from './NotificationBanner';
@@ -57,8 +113,67 @@ interface NearZone {
   name: string;
 }
 
+interface NearDoor {
+  id: string;
+  name: string;
+  access: 'open' | 'locked' | 'coming_soon';
+}
+
 interface NearNpc {
   name: string;
+}
+
+interface MissionEntry {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  chapterTitle: string;
+  objectiveHint?: string;
+  rewardXp: number;
+  rewardRep: number;
+}
+
+interface MissionRegistryState {
+  missions: MissionEntry[];
+  highlightZoneId: string | null;
+  completed: boolean;
+  activeMissionId: string | null;
+  activeMissionTitle: string | null;
+  activeMissionDescription: string | null;
+  completedCount: number;
+  totalCount: number;
+  visitedInteriors: string[];
+  visitedInteriorsCount: number;
+}
+
+const EMPTY_MISSION_STATE: MissionRegistryState = {
+  missions: [],
+  highlightZoneId: null,
+  completed: false,
+  activeMissionId: null,
+  activeMissionTitle: null,
+  activeMissionDescription: null,
+  completedCount: 0,
+  totalCount: 0,
+  visitedInteriors: [],
+  visitedInteriorsCount: 0,
+};
+
+interface InteriorRegistryState {
+  active: boolean;
+  buildingId: string | null;
+  displayName: string | null;
+}
+
+interface InteriorPromptState {
+  kind: 'exit' | 'feature';
+  label: string;
+}
+
+interface InteriorPromptState {
+  kind: 'exit' | 'feature';
+  label: string;
 }
 
 interface ChatMessage {
@@ -172,6 +287,10 @@ const ACTION_BAR_ITEMS = [
   { icon: '😄', label: 'Emotes',      key: 'E' },
   { icon: '🎒', label: 'Inventory',   key: 'I' },
   { icon: '📋', label: 'Quests',      key: 'Q' },
+  { icon: '◆', label: 'Rewards',     key: 'R' },
+  { icon: '⏱', label: 'Events',      key: 'V' },
+  { icon: '👥', label: 'Social',      key: 'F' },
+  { icon: '⚔', label: 'Party',       key: 'P' },
   { icon: '🏆', label: 'Leaderboard', key: 'L' },
   { icon: '💎', label: 'Holder',      key: 'H' },
   { icon: '🗺️',  label: 'Map',         key: 'M' },
@@ -183,25 +302,27 @@ const ACTION_BAR_ITEMS = [
    of truth (src/game/world/WorldObjects.ts) drives position/name/icon ─── */
 const LANDMARK_COLORS: Record<string, string> = {
   fountain: '#e8b84b',
-  market:   '#1ecbcb',
-  fame:     '#b08cff',
-  bridge:   '#8fd0ff',
-  alpha:    '#ff6fae',
-  whale:    '#1e88cc',
-  notice:   '#ff9f43',
-  coffee:   '#a0703c',
-  park:     '#3ecf6e',
+  market:   '#d4a030',
+  fame:     '#c8902a',
+  bridge:   '#b07820',
+  alpha:    '#e8c840',
+  whale:    '#a08030',
+  notice:   '#d4a030',
+  coffee:   '#c8902a',
+  park:     '#8a7028',
 };
 
 /* ─── Interaction zone modal content — flavor text only, no backend ─── */
 const ZONE_INFO: Record<string, { title: string; sub: string }> = {
-  fountain: { title: 'The Fountain',   sub: 'Make a wish, degen' },
-  market:   { title: 'Meme Market',    sub: 'Where bags are made and lost' },
-  bridge:   { title: 'The Bridge',     sub: 'Crossing into new districts' },
-  fame:     { title: 'Hall of Fame',   sub: 'Legends of RugTown' },
-  whale:    { title: 'Whale Tower',    sub: 'Watch the big wallets' },
-  notice:   { title: 'Notice Board',   sub: 'Live market notices, pinned fresh' },
-  alpha:    { title: 'Alpha Lounge',   sub: 'Local market read — no external AI' },
+  fountain: { title: 'The Fountain',          sub: 'Make a wish, degen' },
+  market:   { title: 'Meme Market',           sub: 'Where bags are made and lost' },
+  bridge:   { title: 'The Bridge',            sub: 'Crossing into new districts' },
+  fame:     { title: 'Hall of Fame',          sub: 'Legends of RugTown' },
+  whale:    { title: 'Whale Tower',           sub: 'Watch the big wallets' },
+  notice:   { title: 'Notice Board',          sub: 'Live market notices, pinned fresh' },
+  alpha:    { title: 'Alpha Lounge',          sub: 'Local market read — no external AI' },
+  cashback: { title: 'Holder Cashback Vault', sub: 'Locked until $RUGTOWN activation' },
+  arena:    { title: 'Future Arena',          sub: 'The grand stage of RugTown' },
 };
 
 const FAME_LEADERBOARD = [
@@ -366,10 +487,20 @@ const EMOTES: Emote[] = [
   { id: 'gm',            label: 'GM',            icon: '☀️' },
   { id: 'wave',          label: 'Wave',          icon: '👋' },
   { id: 'laugh',         label: 'Laugh',         icon: '😂' },
+  { id: 'bullish',       label: 'Bullish',       icon: '🚀' },
+  { id: 'rug-alert',     label: 'Rug Alert',     icon: '⚠️' },
   { id: 'dance',         label: 'Dance',         icon: '💃' },
   { id: 'point',         label: 'Point',         icon: '👉' },
   { id: 'diamond-hands', label: 'Diamond Hands', icon: '💎' },
 ];
+
+/** Number keys 1–4 in-world (Phase 6). */
+const QUICK_EMOTES: Record<string, Emote> = {
+  wave:      { id: 'wave',      label: 'Wave',      icon: '👋' },
+  laugh:     { id: 'laugh',     label: 'Laugh',     icon: '😂' },
+  bullish:   { id: 'bullish',   label: 'Bullish',   icon: '🚀' },
+  'rug-alert': { id: 'rug-alert', label: 'Rug Alert', icon: '⚠️' },
+};
 
 const EMOTE_BUBBLE_DURATION = 2500; // ms
 
@@ -412,76 +543,6 @@ const QUESTS: Quest[] = [
     reward: 5,
   },
 ];
-
-/* ─── Simulated Live City Events — local-only, no backend/API.
-   Every 10-20s, one random event fires as a toast + chat message, and
-   sometimes (not every time) also as a random NPC's speech bubble. ─── */
-interface CityEventTemplate {
-  type: string;
-  icon: string;
-  messages: string[];
-}
-
-const CITY_EVENTS: CityEventTemplate[] = [
-  {
-    type: 'Whale Alert',
-    icon: '🐳',
-    messages: [
-      'Whale bought 218 SOL near Whale Tower',
-      'Whale Alert: a 540 SOL wallet just woke up',
-      'A whale is circling Whale Tower again',
-    ],
-  },
-  {
-    type: 'Meme Market Pump',
-    icon: '📈',
-    messages: [
-      'Meme Market is pumping BONK +18%',
-      'Meme Market is pumping WIF +24%',
-      'Degens are aping into a new ticker at Meme Market',
-    ],
-  },
-  {
-    type: 'Rug Warning',
-    icon: '⚠️',
-    messages: [
-      'Rug warning detected near Rug Alley',
-      'Liquidity just vanished near Rug Alley — be careful',
-      'Suspicious dev wallet movement spotted near Rug Alley',
-    ],
-  },
-  {
-    type: 'Alpha Call',
-    icon: '🧠',
-    messages: [
-      'New alpha call posted from Alpha Lounge',
-      'Alpha Lounge regulars are whispering about something big',
-      'Fresh alpha just dropped in Alpha Lounge',
-    ],
-  },
-  {
-    type: 'Liquidity Update',
-    icon: '💧',
-    messages: [
-      'Liquidity looks healthy today',
-      'Liquidity pools are deeper than usual tonight',
-      'Slippage across RugTown is looking tight today',
-    ],
-  },
-  {
-    type: 'Hall of Fame Update',
-    icon: '🏛️',
-    messages: [
-      'New trader entered Hall of Fame',
-      'Hall of Fame leaderboard just shuffled',
-      'A new name is climbing the Hall of Fame ranks',
-    ],
-  },
-];
-
-const CITY_EVENT_MIN_GAP = 10000; // ms
-const CITY_EVENT_MAX_GAP = 20000; // ms
-const CITY_EVENT_NPC_SPEECH_CHANCE = 0.5;
 
 /* ─── RugTown Citizens chat activity — local-only, no backend/AI.
    Separate from the per-citizen ambient speech bubbles WorldScene already
@@ -630,8 +691,8 @@ const HOLDER_TIERS: { tier: HolderTier; multiplier: number }[] = [
 interface GamePageProps {
   /** Name chosen on the landing page's guest-entry screen */
   playerName?: string;
-  /** Modular appearance chosen on the pre-game character-creator screen */
-  appearance?: CharacterAppearance;
+  /** Ignored: player appearance is the canonical locked appearance. */
+  appearance?: CharacterAppearanceV1;
   /** Signed-in user's email, or null for guests.  Shown in Settings. */
   userEmail?: string | null;
   /** Supabase user id — null for guests. Enables profile sync. */
@@ -656,8 +717,9 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
   const [ready,  setReady]  = useState(false);
   const [camera, setCamera] = useState<CameraState>({ x: 0, y: 0, zoom: 0.85 });
+  /** Phase 10B — show floating recenter when camera has left follow of the player. */
+  const [camNeedsRecenter, setCamNeedsRecenter] = useState(false);
   const [worldSize, setWorldSize] = useState({ w: 3840, h: 2160 });
-  const [bgMissing, setBgMissing] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
   /* ── RugTown Citizens population — randomized per session by WorldScene
@@ -674,6 +736,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   /* Other online players from presence — excludes self. Populated on every
      presence sync event so the leaderboard reflects the live city. */
   const [onlinePlayers, setOnlinePlayers] = useState<PresencePayload[]>([]);
+  const onlinePlayersRef = useRef<PresencePayload[]>([]);
   /* Visible realtime connection state: Connecting → Online, or Offline on
      failure/timeout. 'offline' immediately when Supabase isn't configured. */
   const [connState, setConnState] = useState<ConnState>(
@@ -690,7 +753,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const repRef        = useRef(initialRep ?? 0);
   const holderTierRef = useRef<string>('None');
   const playerNameRef = useRef(playerName || 'DegenExplorer');
-  const appearanceRef = useRef<CharacterAppearance>(appearance ?? DEFAULT_APPEARANCE);
+  const appearanceRef = useRef<CharacterAppearanceV1>(getCanonicalPlayerAppearance());
   // Holds the active Realtime channel so sendChatMessage / triggerEmote
   // can broadcast without needing to reach into the presence useEffect's closure.
   const cityChannelRef = useRef<ReturnType<typeof createCityChannel>>(null);
@@ -704,9 +767,23 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
   /* ── Interaction zones ── */
   const [nearZone, setNearZone] = useState<NearZone | null>(null);
+  const [nearDoor, setNearDoor] = useState<NearDoor | null>(null);
+  const [activeInteract, setActiveInteract] = useState<{
+    kind: string;
+    id: string;
+    name: string;
+    desktopPrompt: string;
+    mobileLabel: string;
+    access: string | null;
+  } | null>(null);
+  const [nearTownCrier, setNearTownCrier] = useState(false);
+  const [interiorState, setInteriorState] = useState<InteriorRegistryState>({ active: false, buildingId: null, displayName: null });
+  const [interiorPrompt, setInteriorPrompt] = useState<InteriorPromptState | null>(null);
   const [modalZone, setModalZone] = useState<string | null>(null);
   const [modalClosing, setModalClosing] = useState(false);
-  const [rep, setRep] = useState(initialRep ?? 0);
+  const [statusModal, setStatusModal] = useState<{ title: string; text: string; mode: 'locked' | 'coming_soon' | 'info' } | null>(null);
+  const [statusModalClosing, setStatusModalClosing] = useState(false);
+  const [rep, setRep] = useState(() => initialRep ?? loadProgress().rep);
   const [fountainClaimed, setFountainClaimed] = useState(false);
   const [rewardFlash, setRewardFlash] = useState(0);
 
@@ -764,6 +841,16 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const [whaleClaim, setWhaleClaim] = useState<{ claimId: number; amount: number; label: string } | null>(null);
   const whaleClaimIdRef = useRef(0);
 
+  /* ── Phase 3 mission tracker + Phase 5 progress HUD ── */
+  const [missionState, setMissionState] = useState<MissionRegistryState>(EMPTY_MISSION_STATE);
+  const [expandedMapOpen, setExpandedMapOpen] = useState(false);
+  const [mapFilters] = useState(() => loadMapFilters());
+  const [currentDistrict, setCurrentDistrict] = useState('');
+  /** Missions already rewarded (seeded from save so REP is granted once ever). */
+  const rewardedMissionsRef = useRef<Set<string>>(new Set(loadProgress().completedMissions));
+  const spawnPosRef = useRef<{ x: number; y: number } | null>(null);
+  const onboardingDoneRef = useRef(false);
+
   /* ── Hall of Fame statues — permanent fixture, not event-driven. No
      claim/reward (unlike the chest/whale), so there's no *Claim state —
      just the proximity mirror and the inspect modal. ── */
@@ -772,9 +859,34 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const [statueModalClosing, setStatueModalClosing] = useState(false);
 
   /* ── Remote player profile card ── */
-  const [remoteProfile, setRemoteProfile] = useState<PresencePayload | null>(null);
+  const [remoteProfile, setRemoteProfile] = useState<SocialPlayerSummary | null>(null);
   const [remoteProfileClosing, setRemoteProfileClosing] = useState(false);
-  const [followedPlayerIds, setFollowedPlayerIds] = useState<Set<string>>(new Set());
+  const [remoteOfflineNotice, setRemoteOfflineNotice] = useState<string | null>(null);
+  const [dmRecipient, setDmRecipient] = useState<DirectMessageRecipient | null>(null);
+  const [dmClosing, setDmClosing] = useState(false);
+  const [remoteFriendship, setRemoteFriendship] = useState<FriendshipState | null>(null);
+  const [socialHubOpen, setSocialHubOpen] = useState(false);
+  const [partyPanelOpen, setPartyPanelOpen] = useState(false);
+  const [eventCentreOpen, setEventCentreOpen] = useState(false);
+  const [tournamentCentreOpen, setTournamentCentreOpen] = useState(false);
+  const [guildPanelOpen, setGuildPanelOpen] = useState(false);
+  const [partyUnread, setPartyUnread] = useState(0);
+  const [moderationOpen, setModerationOpen] = useState(false);
+  const [reportPlayer, setReportPlayer] = useState<{ playerId: string; username: string } | null>(null);
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
+  const [unreadDmCount, setUnreadDmCount] = useState(0);
+
+  /* ── Phase 10F progression identity ── */
+  const [progression, setProgression] = useState<PlayerProgression | null>(null);
+  const [levelUpQueue, setLevelUpQueue] = useState<LevelUpNotice[]>([]);
+  const [activeLevelUp, setActiveLevelUp] = useState<LevelUpNotice | null>(null);
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false);
+  const [rewardCentreOpen, setRewardCentreOpen] = useState(false);
+  const [rewardOpsOpen, setRewardOpsOpen] = useState(false);
+  const [achievementCentreOpen, setAchievementCentreOpen] = useState(false);
+  const [titleLockerOpen, setTitleLockerOpen] = useState(false);
+  const [seasonPassOpen, setSeasonPassOpen] = useState(false);
+  const progressionRef = useRef<PlayerProgression | null>(null);
 
   /* ── Local city chat (frontend-only, no backend) ── */
   const chatInputRef = useRef<HTMLInputElement>(null);
@@ -809,6 +921,104 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const showToast = useCallback((text: string) => {
     notificationQueue.push({ kind: 'system', text });
   }, []);
+
+  /* Init progression service once per GamePage mount */
+  useEffect(() => {
+    const pid = presenceIdRef.current;
+    const isGuest = !userId;
+    const prog = progressionService.init(pid, isGuest, {
+      seedRep: initialRep ?? loadProgress().rep,
+    });
+    progressionRef.current = prog;
+    setProgression({ ...prog });
+    // Align React REP with migrated progression (never lower seed without reason)
+    setRep((r) => Math.max(r, prog.rep));
+
+    const unsub = progressionService.subscribe((next, meta) => {
+      progressionRef.current = next;
+      setProgression({ ...next, achievementProgress: { ...next.achievementProgress } });
+      setRep(next.rep);
+      if (meta?.levelUps?.length) {
+        setLevelUpQueue((q) => [...q, ...meta.levelUps!]);
+      }
+      sceneRef.current?.game?.registry.set('progressionDebug', progressionService.snapshot());
+    });
+
+    sceneRef.current?.game?.registry.set('progressionDebug', progressionService.snapshot());
+    if (import.meta.env.DEV) {
+      (window as unknown as { __rugtownProgression?: typeof progressionService }).__rugtownProgression =
+        progressionService;
+      (window as unknown as { __rugtownRewards?: typeof rewardService }).__rugtownRewards = rewardService;
+    }
+
+    void rewardService.initForUser({
+      userId: userId ?? null,
+      isGuest: !userId,
+      guestIdentity: presenceIdRef.current,
+    }).then(() => {
+      // Authenticated game session (guests continue local-only, no session).
+      if (userId) {
+        void rewardService.startSession();
+        // Phase 10I: hydrate server achievements / titles / season pass.
+        void achievementService.initForAuthenticatedUser(userId);
+        // Phase 10J: friends, DMs, blocks, presence heartbeat.
+        void socialService.initForAuthenticatedUser(userId).then(() => {
+          setUnreadDmCount(socialService.getUnreadDmCount());
+        });
+        void partyService.initForAuthenticatedUser(userId).then(() => {
+          setPartyUnread(partyService.getUnreadChatCount());
+        });
+        void characterService.initForAuthenticatedUser(userId);
+      } else {
+        socialService.clear();
+        partyService.clear();
+        characterService.clear();
+        setUnreadDmCount(0);
+        setPartyUnread(0);
+      }
+    });
+
+    const unsubSocial = socialService.subscribe(() => {
+      setUnreadDmCount(socialService.getUnreadDmCount());
+    });
+    const unsubParty = partyService.subscribe(() => {
+      setPartyUnread(partyService.getUnreadChatCount());
+    });
+
+    return () => {
+      unsub();
+      unsubSocial();
+      unsubParty();
+      // Release Realtime subscriptions + end the authenticated session.
+      void rewardService.endSession();
+      rewardService.teardown();
+      achievementService.teardown();
+      socialService.clear();
+      partyService.clear();
+      characterService.clear();
+      if (import.meta.env.DEV) {
+        delete (window as unknown as { __rugtownProgression?: unknown }).__rugtownProgression;
+        delete (window as unknown as { __rugtownRewards?: unknown }).__rugtownRewards;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (activeLevelUp || levelUpQueue.length === 0) return;
+    const [next, ...rest] = levelUpQueue;
+    setActiveLevelUp(next);
+    setLevelUpQueue(rest);
+    soundManager.play('reward');
+    notificationQueue.push({
+      kind: 'level',
+      title: 'Level Up',
+      text: `You reached level ${next.toLevel}`,
+      icon: '◆',
+      priority: 'normal',
+      duration: 5000,
+    });
+  }, [activeLevelUp, levelUpQueue]);
 
   /* ── Mock Holder tier ── */
   const [holderTier, setHolderTier] = useState<HolderTier>('None');
@@ -867,6 +1077,10 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   /* ── Settings panel: fullscreen + collision debug ── */
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [collisionDebugOn, setCollisionDebugOn] = useState(false);
+  const [assetBoundsDebugOn, setAssetBoundsDebugOn] = useState(false);
+  const [assetAnchorsDebugOn, setAssetAnchorsDebugOn] = useState(false);
+  const [assetRoadDebugOn, setAssetRoadDebugOn] = useState(false);
+  const [assetPlayerDepthDebugOn, setAssetPlayerDepthDebugOn] = useState(false);
 
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
@@ -888,6 +1102,22 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const toggleCollisionDebug = useCallback(() => {
     sceneRef.current?.setCollisionDebugVisible(!collisionDebugOn);
   }, [collisionDebugOn]);
+
+  const toggleAssetBoundsDebug = useCallback(() => {
+    sceneRef.current?.setAssetBoundsDebugVisible(!assetBoundsDebugOn);
+  }, [assetBoundsDebugOn]);
+
+  const toggleAssetAnchorsDebug = useCallback(() => {
+    sceneRef.current?.setAssetAnchorsDebugVisible(!assetAnchorsDebugOn);
+  }, [assetAnchorsDebugOn]);
+
+  const toggleAssetRoadDebug = useCallback(() => {
+    sceneRef.current?.setAssetRoadClearanceDebugVisible(!assetRoadDebugOn);
+  }, [assetRoadDebugOn]);
+
+  const toggleAssetPlayerDepthDebug = useCallback(() => {
+    sceneRef.current?.setAssetPlayerDepthDebugVisible(!assetPlayerDepthDebugOn);
+  }, [assetPlayerDepthDebugOn]);
 
   useEffect(() => {
     const unlock = () => {
@@ -1034,6 +1264,11 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     setRewardFlash(k => k + 1);
     sceneRef.current?.playRewardEffect(`+${amount} REP`);
     soundManager.play('reward');
+    progressionService.recordExternalRepGrant({
+      amount,
+      reason: `Quest ${id}`,
+      idempotencyKey: `quest:${id}:claim`,
+    });
   }, [questStatus, applyHolderMultiplier]);
 
   const appendChatMessage = useCallback((sender: string, text: string, kind: ChatMessage['kind']) => {
@@ -1073,6 +1308,12 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
       'event',
     );
     setCurrentLevel(lvl + 1);
+    progressionService.recordExternalRepGrant({
+      amount: def.rewardRep,
+      reason: `Tutorial level ${lvl}`,
+      idempotencyKey: `tutorial_level:${lvl}:rep`,
+    });
+    progressionService.onTutorialLevelComplete(lvl);
   }, [showToast, appendChatMessage]);
 
   /* ── Boot Phaser ── */
@@ -1104,16 +1345,13 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
       game = new GameCtor({
       parentId: 'phaser-mount',
-      appearance,
+      appearance: getCanonicalPlayerAppearance(),
+      assetGallery: new URLSearchParams(window.location.search).get('assetGallery') === '1',
       onReady: (scene: WorldScene) => {
         if (cancelled) return;
         sceneRef.current = scene;
         setReady(true);
         setWorldSize(scene.getWorldSize());
-
-        // Read bgMissing flag from registry
-        const missing = scene.game?.registry?.get('bgMissing') ?? false;
-        setBgMissing(missing);
 
         // RugTown Citizens population is randomized per session by
         // WorldScene (createNpcs) and published once — read it here so
@@ -1146,16 +1384,41 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           soundManager.play('modal');
         });
 
+        scene.events.on('door-message', (payload: {
+          buildingId: string;
+          title: string;
+          text: string;
+          mode: 'locked' | 'coming_soon';
+        }) => {
+          if (cancelled) return;
+          setDialogueClosing(false);
+          setDialogue(null);
+          setModalClosing(false);
+          setModalZone(null);
+          setActiveAction(null);
+          setWhaleAlertClosing(false);
+          setWhaleAlert(null);
+          setStatueModalClosing(false);
+          setStatueModal(null);
+          setStatusModalClosing(false);
+          setStatusModal({
+            title: payload.title,
+            text: payload.text,
+            mode: payload.mode,
+          });
+          soundManager.play('modal');
+        });
+
         // Phaser-side E press near an NPC — open a dialogue line.
         // WorldScene won't emit this while a landmark zone is active, but
         // clear any (stale) open modal too, just in case of a fast switch.
-        scene.events.on('npc-interact', (npc: NearNpc & { personality?: NpcPersonality }) => {
+        scene.events.on('npc-interact', (npc: NearNpc & { personality?: NpcPersonality; districtId?: string }) => {
           if (cancelled) return;
-          // Original 10 citizens keep their hand-written flavor lines;
-          // every other citizen (the expanded 40-60 population) falls
-          // back to their personality's ambient speech pool so everyone
-          // has something to say, not just the original names.
-          const lines = NPC_DIALOGUE[npc.name] ?? (npc.personality ? NPC_SPEECH_BY_PERSONALITY[npc.personality] : null);
+          const districtLines = npc.districtId ? getDistrictDialogueLines(npc.districtId) : [];
+          const personalityLines = npc.personality ? NPC_SPEECH_BY_PERSONALITY[npc.personality] : [];
+          const namedLines = NPC_DIALOGUE[npc.name];
+          const lines = namedLines
+            ?? (districtLines.length > 0 ? districtLines : personalityLines);
           if (!lines || lines.length === 0) return;
           setModalClosing(false);
           setModalZone(null);
@@ -1173,6 +1436,12 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         scene.events.on('npc-chat', (msg: { name: string; text: string }) => {
           if (cancelled) return;
           appendChatMessage(msg.name, msg.text, 'npc');
+        });
+
+        scene.events.on('player-quick-emote', (emoteId: string) => {
+          if (cancelled) return;
+          const emote = QUICK_EMOTES[emoteId];
+          if (emote) triggerEmote(emote);
         });
 
         // Treasure Hunt chest opened — WorldScene has already destroyed the
@@ -1224,15 +1493,157 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           appendChatMessage('Town Crier', `🔔 Town Crier announces: ${payload.title}`, 'event');
         });
 
+        scene.events.on('town-crier-interact', (payload: { title: string }) => {
+          if (cancelled) return;
+          setDialogueClosing(false);
+          setDialogue({
+            npcName: 'Town Crier',
+            line: `Hear ye! ${payload.title} is the talk of RugTown today.`,
+          });
+          setModalClosing(false);
+          setModalZone(null);
+          setActiveAction(null);
+          setWhaleAlertClosing(false);
+          setWhaleAlert(null);
+          setStatueModalClosing(false);
+          setStatueModal(null);
+          setStatusModalClosing(false);
+          setStatusModal(null);
+          soundManager.play('modal');
+        });
+
+        scene.events.on('interior-entered', (payload: { buildingId: string; displayName: string }) => {
+          if (cancelled) return;
+          appendChatMessage('City Feed', `🚪 Entered ${payload.displayName}.`, 'event');
+        });
+
+        scene.events.on('interior-feature', (payload: { buildingId: string; title: string; text: string }) => {
+          if (cancelled) return;
+          setDialogueClosing(false);
+          setDialogue(null);
+          setModalClosing(false);
+          setModalZone(null);
+          setActiveAction(null);
+          setWhaleAlertClosing(false);
+          setWhaleAlert(null);
+          setStatueModalClosing(false);
+          setStatueModal(null);
+          setStatusModalClosing(false);
+          setStatusModal({
+            title: payload.title,
+            text: payload.text,
+            mode: 'info',
+          });
+          soundManager.play('modal');
+        });
+
         // Hall of Fame statue inspected — no claim/reward (statues are a
         // permanent fixture, not a one-shot event pickup), just opens the
         // inspect modal and posts a chat message. Clears every other
         // overlay first, same exclusivity rule as the others above.
-        // Remote player clicked in Phaser — open the profile card
-        scene.events.on('remote-player-interact', (payload: PresencePayload) => {
+        // Remote player clicked / E interact — open the social card
+        scene.events.on('remote-player-interact', (payload: SocialPlayerSummary | PresencePayload) => {
           if (cancelled) return;
-          setRemoteProfile(payload);
+          const summary: SocialPlayerSummary = 'playerId' in payload
+            ? (payload as SocialPlayerSummary)
+            : presenceToSocialSummary(payload as PresencePayload);
+          // Enrich from presence optional progression fields
+          if (!('playerId' in payload)) {
+            const p = payload as PresencePayload;
+            summary.level = p.level;
+            summary.rankLabel = p.rankLabel;
+            summary.equippedTitle = p.equippedTitle;
+            summary.holderTier = p.holderTier || 'None';
+          }
+          progressionService.onPlayerInteracted(summary.playerId);
+          void rewardService.reportObjective({ objectiveType: 'meet_player', ref: summary.playerId });
+          if (rewardService.isServerAuthoritative()) {
+            void rewardService.awardGameplay({
+              sourceType: 'player_interact',
+              sourceId: summary.playerId,
+              idempotencyKey: `social:player:${summary.playerId}:interact`,
+            });
+          }
+          setRemoteOfflineNotice(null);
+          setRemoteProfile(summary);
           setRemoteProfileClosing(false);
+        });
+        scene.events.on('remote-player-gone', (payload: { id: string }) => {
+          if (cancelled) return;
+          setRemoteProfile((prev) => {
+            if (!prev || prev.playerId !== payload.id) return prev;
+            setRemoteOfflineNotice('Player is no longer online');
+            return { ...prev, online: false };
+          });
+          setDmRecipient((prev) => (prev?.playerId === payload.id ? null : prev));
+        });
+        scene.events.on('district-entered', (payload: { districtId: string; name: string }) => {
+          if (cancelled) return;
+          if (progressionService.discoverDistrict(payload.districtId, {
+            skipAwards: rewardService.isServerAuthoritative(),
+          })) {
+            const district = WORLD_DISTRICTS.find((d) => d.id === payload.districtId);
+            notificationQueue.push({
+              kind: 'district',
+              icon: '◇',
+              title: 'District Discovered',
+              text: district?.name ?? payload.name,
+              duration: 4500,
+            });
+            // Server path: ledger awards amounts. Local path already awarded inside discoverDistrict.
+            if (rewardService.isServerAuthoritative()) {
+              void rewardService.awardGameplay({
+                sourceType: 'district_first',
+                sourceId: payload.districtId,
+                idempotencyKey: `district:${payload.districtId}:first_visit`,
+              });
+            }
+            void rewardService.reportObjective({ objectiveType: 'visit_district', ref: payload.districtId });
+          }
+        });
+        scene.events.on('landmark-discovered', (payload: { landmarkId: string; name: string }) => {
+          if (cancelled) return;
+          if (progressionService.discoverLandmark(payload.landmarkId, {
+            skipAwards: rewardService.isServerAuthoritative(),
+          })) {
+            notificationQueue.push({
+              kind: 'system',
+              icon: '◆',
+              title: 'Landmark Discovered',
+              text: payload.name,
+              duration: 4000,
+            });
+            if (rewardService.isServerAuthoritative()) {
+              void rewardService.awardGameplay({
+                sourceType: 'landmark_first',
+                sourceId: payload.landmarkId,
+                idempotencyKey: `landmark:${payload.landmarkId}:first_visit`,
+              });
+            }
+            void rewardService.reportObjective({ objectiveType: 'visit_landmark', ref: payload.landmarkId });
+          }
+        });
+        scene.events.on('interior-discovered', (payload: { interiorId: string; name: string }) => {
+          if (cancelled) return;
+          if (progressionService.discoverInterior(payload.interiorId, {
+            skipAwards: rewardService.isServerAuthoritative(),
+          })) {
+            notificationQueue.push({
+              kind: 'system',
+              icon: '◆',
+              title: 'Interior Discovered',
+              text: payload.name,
+              duration: 4000,
+            });
+            if (rewardService.isServerAuthoritative()) {
+              void rewardService.awardGameplay({
+                sourceType: 'interior_first',
+                sourceId: payload.interiorId,
+                idempotencyKey: `interior:${payload.interiorId}:first_visit`,
+              });
+            }
+            void rewardService.reportObjective({ objectiveType: 'enter_interior', ref: payload.interiorId });
+          }
         });
 
         scene.events.on('statue-interact', (payload: { rank: number; name: string; rep: number; isPlayer: boolean }) => {
@@ -1259,6 +1670,8 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     });
 
       gameRef.current = game;
+      // Asset Gallery boot skips WorldScene onReady — dismiss loading overlay.
+      if (game.galleryMode) setReady(true);
 
       /* Poll camera + zone-proximity state from Phaser registry.
          Camera state is only pushed into React when it actually changes, so a
@@ -1275,15 +1688,52 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         lastCamX = cx; lastCamY = cy; lastCamZoom = cz;
         setCamera({ x: cx, y: cy, zoom: cz });
       }
+      setCamNeedsRecenter(!!reg.get('camNeedsRecenter'));
       const nz = reg.get('nearZone') ?? null;
       const nzSig = nz ? nz.id : '';
       if (nzSig !== lastNearZoneSig) { lastNearZoneSig = nzSig; setNearZone(nz); }
+
+      const nd = reg.get('nearDoor') ?? null;
+      setNearDoor(nd);
+      const ait = reg.get('activeInteractTarget') as typeof activeInteract | null;
+      setActiveInteract(ait ? {
+        kind: ait.kind,
+        id: ait.id,
+        name: ait.name,
+        desktopPrompt: (ait as { desktopPrompt?: string }).desktopPrompt ?? '',
+        mobileLabel: (ait as { mobileLabel?: string }).mobileLabel ?? 'Interact',
+        access: (ait as { access?: string | null }).access ?? null,
+      } : null);
+      setNearTownCrier(reg.get('nearTownCrier') ?? false);
+      setInteriorState(reg.get('interiorState') ?? { active: false, buildingId: null, displayName: null });
+      setInteriorPrompt(reg.get('nearInteriorPrompt') ?? null);
+      const nextMissionState = reg.get('missionState') ?? EMPTY_MISSION_STATE;
+      setMissionState({ ...EMPTY_MISSION_STATE, ...nextMissionState });
+      setCurrentDistrict(reg.get('currentDistrict') ?? '');
+
+      const px = reg.get('playerX') ?? 0;
+      const py = reg.get('playerY') ?? 0;
+      if (spawnPosRef.current === null && px > 0) {
+        spawnPosRef.current = { x: px, y: py };
+      }
+      if (!onboardingDoneRef.current && spawnPosRef.current) {
+        const dx = px - spawnPosRef.current.x;
+        const dy = py - spawnPosRef.current.y;
+        if (dx * dx + dy * dy > 70 * 70) {
+          onboardingDoneRef.current = true;
+          setOnboardingDone(true);
+        }
+      }
 
       const nn = reg.get('nearNpc') ?? null;
       const nnSig = nn ? nn.name : '';
       if (nnSig !== lastNearNpcSig) { lastNearNpcSig = nnSig; setNearNpc(nn); }
 
       setCollisionDebugOn(reg.get('collisionDebug') ?? false);
+      setAssetBoundsDebugOn(reg.get('assetBoundsDebug') ?? false);
+      setAssetAnchorsDebugOn(reg.get('assetAnchorsDebug') ?? false);
+      setAssetRoadDebugOn(reg.get('assetRoadDebug') ?? false);
+      setAssetPlayerDepthDebugOn(reg.get('assetPlayerDepthDebug') ?? false);
 
       // Event HUD — read-only registry poll, same pattern as everything
       // else above. WorldScene/EventManager remain the only source of
@@ -1385,17 +1835,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
   /* ── HUD keyboard shortcuts ── */
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // Don't hijack action-bar shortcuts while typing in a text field
-      // (the chat input, namely) — typing "chat" would otherwise toggle
-      // half the action bar.
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-      const hud = ACTION_BAR_ITEMS.find(a => a.key === e.key.toUpperCase());
-      if (!hud) return;
-      // Keep only one overlay on screen at a time — a landmark modal or
-      // NPC dialogue takes priority and shouldn't keep running underneath
-      // a HUD panel opened by its own shortcut.
+    const closeLandmarkOverlays = () => {
       setModalClosing(false);
       setModalZone(null);
       setDialogueClosing(false);
@@ -1404,6 +1844,47 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
       setWhaleAlert(null);
       setStatueModalClosing(false);
       setStatueModal(null);
+    };
+    const closeSpecialPanels = () => {
+      setRewardCentreOpen(false);
+      setSocialHubOpen(false);
+      setPartyPanelOpen(false);
+      setEventCentreOpen(false);
+      setTournamentCentreOpen(false);
+      setGuildPanelOpen(false);
+    };
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      const key = e.key.toUpperCase();
+      const hud = ACTION_BAR_ITEMS.find(a => a.key === key);
+      if (!hud) return;
+      closeLandmarkOverlays();
+      if (hud.label === 'Rewards') {
+        closeSpecialPanels();
+        setActiveAction(null);
+        setRewardCentreOpen((v) => !v);
+        return;
+      }
+      if (hud.label === 'Social') {
+        closeSpecialPanels();
+        setActiveAction(null);
+        setSocialHubOpen((v) => !v);
+        return;
+      }
+      if (hud.label === 'Party') {
+        closeSpecialPanels();
+        setActiveAction(null);
+        setPartyPanelOpen((v) => !v);
+        return;
+      }
+      if (hud.label === 'Events') {
+        closeSpecialPanels();
+        setActiveAction(null);
+        setEventCentreOpen((v) => !v);
+        return;
+      }
+      closeSpecialPanels();
       setActiveAction(prev => prev === hud.label ? null : hud.label);
     };
     window.addEventListener('keydown', handler);
@@ -1414,13 +1895,21 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const zoomIn  = useCallback(() => sceneRef.current?.setTargetZoom(camera.zoom + 0.15), [camera.zoom]);
   const zoomOut = useCallback(() => sceneRef.current?.setTargetZoom(camera.zoom - 0.15), [camera.zoom]);
   const resetView = useCallback(() => {
-    // Resets zoom and re-affirms camera follow — does NOT move the
-    // player. panTo() animates the player's own position via a tween,
-    // which fights live joystick/keyboard input every frame it's
-    // running; that was the cause of the "reset teleports player and
-    // breaks controls" bug.
+    // Resets zoom + smooth recenter to player (WorldCameraController).
+    // Does NOT move the player.
     sceneRef.current?.resetCamera();
   }, []);
+  const recenterView = useCallback(() => {
+    sceneRef.current?.recenterCamera();
+  }, []);
+
+  const mapLive = useMinimapLiveData(
+    sceneRef,
+    onlinePlayers,
+    presenceIdRef.current,
+    missionState.highlightZoneId,
+  );
+  const minimapLandmarks = buildMinimapLandmarks(mapLive.worldW, mapLive.worldH);
 
   /* ── Mobile layout ──
      isMobile drives the virtual joystick/interact button (touch-only
@@ -1432,6 +1921,8 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
   /* Desktop minimap is collapsible to reveal more city — Part B */
   const [desktopMapOpen, setDesktopMapOpen] = useState(true);
+  /* Desktop left profile/missions panel — same collapse pattern as the map */
+  const [desktopPlayerCardOpen, setDesktopPlayerCardOpen] = useState(true);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 600);
@@ -1448,7 +1939,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   /* ── Virtual joystick (movement) — Pointer Events cover touch/mouse/pen
      with one set of handlers; setPointerCapture keeps tracking the same
      finger even if it drifts outside the joystick base. ── */
-  const JOYSTICK_RADIUS = 42; // px, matches .mobile-joystick CSS size
+  const JOYSTICK_RADIUS = 48; // px, matches .mobile-joystick CSS size (~104px base)
   const joystickBaseRef = useRef<HTMLDivElement>(null);
   const joystickPointerIdRef = useRef<number | null>(null);
   const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0 });
@@ -1524,6 +2015,28 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     return () => window.removeEventListener('keydown', handler);
   }, [modalZone, requestCloseModal]);
 
+  const requestCloseStatusModal = useCallback(() => {
+    setStatusModalClosing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!statusModalClosing) return;
+    const t = setTimeout(() => {
+      setStatusModal(null);
+      setStatusModalClosing(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [statusModalClosing]);
+
+  useEffect(() => {
+    if (!statusModal) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestCloseStatusModal();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [statusModal, requestCloseStatusModal]);
+
   /* ── NPC dialogue — same open/close-animation pattern as the modal ── */
   const requestCloseDialogue = useCallback(() => {
     setDialogueClosing(true);
@@ -1581,16 +2094,66 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
      moment the scene event arrived. ── */
   const closeRemoteProfile = useCallback(() => {
     setRemoteProfileClosing(true);
-    setTimeout(() => { setRemoteProfile(null); setRemoteProfileClosing(false); }, 200);
+    setTimeout(() => {
+      setRemoteProfile(null);
+      setRemoteProfileClosing(false);
+      setRemoteOfflineNotice(null);
+    }, 200);
   }, []);
 
-  const toggleFollowRemotePlayer = useCallback((id: string) => {
-    setFollowedPlayerIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const openDirectMessage = useCallback((player: SocialPlayerSummary) => {
+    setDmClosing(false);
+    setDmRecipient(toDmRecipient(player));
+    closeRemoteProfile();
+  }, [closeRemoteProfile]);
+
+  const openDirectMessageById = useCallback((playerId: string, username: string) => {
+    setDmClosing(false);
+    setDmRecipient({ playerId, username, isGuest: playerId.startsWith('guest_') });
+    setSocialHubOpen(false);
   }, []);
+
+  const closeDirectMessage = useCallback(() => {
+    setDmClosing(true);
+    setTimeout(() => {
+      setDmRecipient(null);
+      setDmClosing(false);
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    const reg = sceneRef.current?.game?.registry;
+    if (!reg) return;
+    reg.set('socialCardOpen', !!remoteProfile);
+    reg.set('dmRecipient', dmRecipient);
+  }, [remoteProfile, dmRecipient]);
+
+  useEffect(() => {
+    if (!remoteProfile || !userId || remoteProfile.isGuest) {
+      setRemoteFriendship(null);
+      return;
+    }
+    let active = true;
+    void socialService.getFriendshipState(remoteProfile.playerId).then((state) => {
+      if (active) setRemoteFriendship(state);
+    });
+    return () => { active = false; };
+  }, [remoteProfile, userId]);
+
+  /* ── Phase 10J presence heartbeat (privacy-aware server state) ── */
+  useEffect(() => {
+    if (!userId) return;
+    const tick = () => {
+      void socialService.heartbeatPresence({
+        status: 'online',
+        districtId: currentDistrict || undefined,
+      });
+      void partyService.heartbeat(currentDistrict || undefined);
+    };
+    tick();
+    const id = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(id);
+  }, [userId, currentDistrict]);
 
   const requestCloseStatueModal = useCallback(() => {
     setStatueModalClosing(true);
@@ -1617,8 +2180,16 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
   /* ── Chat panel ── */
   const sendChatMessage = useCallback(() => {
-    const text = chatInput.trim();
-    if (!text) return;
+    const safety = sanitizeCityChat(chatInput);
+    if (!safety.ok) {
+      showToast(
+        safety.reason === 'seed_phrase' || safety.reason === 'scam_language'
+          ? 'Message blocked for safety'
+          : 'Message could not be sent',
+      );
+      return;
+    }
+    const text = safety.safeText;
     appendChatMessage(playerName || 'DegenExplorer', text, 'player');
     setChatInput('');
     sceneRef.current?.showPlayerSpeech(text);
@@ -1626,6 +2197,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     // Broadcast to other real players — NPC and event messages are
     // never sent here so they stay local.  channelSubscribedRef guards
     // against calling send() before the channel is fully subscribed.
+    // Sender display name is local identity only; DMs use server auth.
     if (channelSubscribedRef.current) {
       const payload: ChatBroadcast = {
         id:        makeChatMessageId(presenceIdRef.current),
@@ -1637,7 +2209,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
       cityChannelRef.current?.send({ type: 'broadcast', event: 'chat', payload }).catch(() => {});
     }
     completeLevelIfMatches('send_chat');
-  }, [chatInput, playerName, appendChatMessage, completeLevelIfMatches]);
+  }, [chatInput, playerName, appendChatMessage, completeLevelIfMatches, showToast]);
 
   const handleChatInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') sendChatMessage();
@@ -1671,6 +2243,15 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   const waveAtRemotePlayer = useCallback(() => {
     const waveEmote = EMOTES.find(e => e.id === 'wave');
     if (waveEmote) triggerEmote(waveEmote);
+    progressionService.onWaveSent();
+    void rewardService.reportObjective({ objectiveType: 'wave_player' });
+    if (rewardService.isServerAuthoritative()) {
+      void rewardService.awardGameplay({
+        sourceType: 'wave_once',
+        sourceId: 'wave',
+        idempotencyKey: 'social:wave:once',
+      });
+    }
     closeRemoteProfile();
   }, [triggerEmote, closeRemoteProfile]);
 
@@ -1704,12 +2285,31 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     soundManager.play('reward');
     // Tell WorldScene to stop the onboarding fountain glow.
     sceneRef.current?.game?.registry?.set('fountainClaimed', true);
+    progressionService.recordExternalRepGrant({
+      amount,
+      reason: 'Fountain claim',
+      idempotencyKey: 'fountain:claim:rep',
+    });
+    progressionService.onFountainClaimed();
   }, [fountainClaimed, applyHolderMultiplier]);
 
   /* ── Onboarding: dismiss when fountain REP is claimed ── */
   useEffect(() => {
-    if (fountainClaimed) setOnboardingDone(true);
+    if (fountainClaimed) {
+      onboardingDoneRef.current = true;
+      setOnboardingDone(true);
+    }
   }, [fountainClaimed]);
+
+  /* ── Onboarding: auto-hide after 8 seconds (Phase 7) ── */
+  useEffect(() => {
+    if (!ready || onboardingDone) return;
+    const timer = setTimeout(() => {
+      onboardingDoneRef.current = true;
+      setOnboardingDone(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [ready, onboardingDone]);
 
   /* ── Onboarding: 15-second idle hint ── */
   useEffect(() => {
@@ -1797,11 +2397,70 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
      on initial mount (sceneRef may be null initially; that's fine — the
      onReady callback above handles the initial call). ── */
   useEffect(() => {
-    const zoneId = currentLevelDef?.objectiveType === 'visit_zone'
+    const zoneId = missionState.highlightZoneId ?? (currentLevelDef?.objectiveType === 'visit_zone'
       ? (currentLevelDef.target as string)
-      : null;
+      : null);
     sceneRef.current?.setActiveMissionZone(zoneId ?? null);
-  }, [currentLevelDef]);
+  }, [currentLevelDef, missionState.highlightZoneId]);
+
+  /* ── Phase 5: REP reward on mission completion ────────────────────
+     Watches the mirrored mission list. The first time a mission shows as
+     completed (and hasn't been rewarded before — the ref is seeded from the
+     save so it never double-grants across reloads), award its REP, show the
+     floating reward text in-world, flash, and post feedback. WorldScene has
+     already persisted the completed mission id by the time we see it. ── */
+  useEffect(() => {
+    for (const m of missionState.missions) {
+      if (!m.completed || rewardedMissionsRef.current.has(m.id)) continue;
+      rewardedMissionsRef.current.add(m.id);
+
+      const showCompletion = (xp: number, repAmount: number, repAbsolute?: number) => {
+        if (typeof repAbsolute === 'number') {
+          setRep(repAbsolute);
+        } else {
+          setRep(r => r + repAmount);
+        }
+        setRewardFlash(k => k + 1);
+        sceneRef.current?.playRewardEffect(`+${xp} XP · +${repAmount} REP`);
+        soundManager.play('reward');
+        showToast(`Mission complete: ${m.title} (+${xp} XP, +${repAmount} REP)`);
+        appendChatMessage('City Feed', `✅ Mission complete: ${m.title} — +${xp} XP, +${repAmount} REP`, 'event');
+      };
+
+      if (rewardService.isServerAuthoritative() && m.id.startsWith('ch1_')) {
+        void rewardService.completeChapterMission(m.id).then((result) => {
+          if (result.error && !result.duplicate) {
+            rewardedMissionsRef.current.delete(m.id);
+            showToast(`Mission reward pending — try again shortly.`);
+            return;
+          }
+          const xp = result.xpAwarded ?? m.rewardXp;
+          const repAmount = result.repAwarded ?? m.rewardRep;
+          const repAbsolute = result.progression
+            ? Number(result.progression.rep)
+            : undefined;
+          showCompletion(xp, repAmount, repAbsolute);
+        });
+        continue;
+      }
+
+      const repAmount = m.rewardRep;
+      showCompletion(m.rewardXp, repAmount);
+      progressionService.recordExternalRepGrant({
+        amount: repAmount,
+        reason: `Mission ${m.id}`,
+        idempotencyKey: `mission:${m.id}:complete:rep`,
+      });
+      progressionService.onMissionCompleted(m.id, m.rewardXp);
+    }
+  }, [missionState.missions, showToast, appendChatMessage]);
+
+  /* ── Phase 5: persist REP locally so it survives reloads (guests too).
+     Logged-in users additionally sync to Supabase in the effect below. ── */
+  useEffect(() => {
+    patchProgress({ rep });
+    progressionService.syncRepAbsolute(rep);
+  }, [rep]);
 
   /* ── Debounced REP sync for logged-in users ──────────────────────
      Saves profiles.rep to Supabase 3 s after the last REP change.
@@ -1826,7 +2485,10 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   useEffect(() => { repRef.current = rep; }, [rep]);
   useEffect(() => { holderTierRef.current = holderTier; }, [holderTier]);
   useEffect(() => { playerNameRef.current = playerName || 'DegenExplorer'; }, [playerName]);
-  useEffect(() => { appearanceRef.current = appearance ?? DEFAULT_APPEARANCE; }, [appearance]);
+  useEffect(() => {
+    appearanceRef.current = getCanonicalPlayerAppearance();
+    sceneRef.current?.setAppearance(appearanceRef.current);
+  }, [appearance]);
 
   /* ── Realtime Presence — city channel subscription ───────────────
      Guests get a random guest id, logged-in users use their Supabase
@@ -1849,6 +2511,9 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     let connectTimeout: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let retries = 0;
+    // Once we reach SUBSCRIBED the first time, reconnects happen silently —
+    // no more "Connecting…" flicker on keep-alive cycles or brief drops.
+    let hasEverConnected = false;
 
     const teardownChannel = () => {
       if (broadcastTimer) { clearInterval(broadcastTimer); broadcastTimer = null; }
@@ -1873,13 +2538,14 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
       if (!ch) { setConnState('offline'); return; }
       channel = ch;
       cityChannelRef.current = ch;
-      setConnState('connecting');
+      // Only show "Connecting…" on the first-ever attempt. After that,
+      // stay on 'online' during reconnects so the HUD never flickers.
+      if (!hasEverConnected) setConnState('connecting');
 
-      // Fail-safe: if the channel never reaches SUBSCRIBED, flip to Offline
-      // (never an infinite "Connecting…") and schedule a retry (req 9).
+      // Fail-safe: only flip to Offline on a truly stuck first connection.
       connectTimeout = setTimeout(() => {
         if (!channelSubscribedRef.current && !disposed) {
-          setConnState('offline');
+          if (!hasEverConnected) setConnState('offline');
           setPresenceFailed(true);
           scheduleReconnect();
         }
@@ -1897,7 +2563,16 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
             if (receivedChatIdsRef.current.size > 500) receivedChatIdsRef.current.clear();
             receivedChatIdsRef.current.add(payload.id);
           }
-          appendChatMessage(payload.sender, payload.text, 'player');
+          const safety = sanitizeCityChat(String(payload.text), 140);
+          if (!safety.ok) return;
+          // Prefer presence username for authenticated peers when available
+          // to reduce display-name spoofing in the local log.
+          const peers = onlinePlayersRef.current ?? [];
+          const peer = payload.senderId
+            ? peers.find((p) => p.id === payload.senderId)
+            : undefined;
+          const displaySender = peer?.username || payload.sender;
+          appendChatMessage(displaySender, safety.safeText, 'player');
         })
         .on('broadcast', { event: 'emote' }, ({ payload }: {
           payload: { senderId: string; sender: string; emoteId: string; timestamp: number };
@@ -1920,21 +2595,44 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           const state = ch.presenceState<PresencePayload>();
           const all: PresencePayload[] = Object.values(state).flat() as PresencePayload[];
           setOnlineCount(all.length);
-          setOnlinePlayers(all.filter(p => p.id !== presenceIdRef.current));
+          const remotes = all.filter(p => p.id !== presenceIdRef.current);
+          setOnlinePlayers(remotes);
+          onlinePlayersRef.current = remotes;
           sceneRef.current?.setRemotePlayers(all, presenceIdRef.current);
+          // Overlay server-approved loadouts for authenticated UUID peers.
+          const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          void (async () => {
+            const trusted: Record<string, CharacterAppearanceV1> = {};
+            await Promise.all(remotes.slice(0, 24).map(async (p) => {
+              if (!uuidRe.test(p.id)) return;
+              if (!supabase) return;
+              const { data } = await supabase.rpc('get_public_character_appearance', { p_player: p.id });
+              if (data && data !== 'null') {
+                const row = data as { appearance?: unknown };
+                trusted[p.id] = decodeCharacterAppearance(row.appearance, assetExists);
+              } else {
+                trusted[p.id] = decodeCharacterAppearance(p.appearance, assetExists);
+              }
+            }));
+            if (Object.keys(trusted).length) {
+              sceneRef.current?.applyTrustedRemoteAppearances(trusted);
+            }
+          })();
         })
         .subscribe(async (status) => {
           if (disposed) return;
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             channelSubscribedRef.current = false;
             if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null; }
-            // Show reconnecting rather than a hard Offline while a retry is pending.
-            setConnState('connecting');
+            // Once the player has been online, reconnect silently — never
+            // flash "Connecting…" for keep-alive cycles or brief drops.
+            if (!hasEverConnected) setConnState('connecting');
             setPresenceFailed(true);
             scheduleReconnect();
             return;
           }
           if (status !== 'SUBSCRIBED') return;
+          hasEverConnected = true;
           retries = 0;
           channelSubscribedRef.current = true;
           setPresenceFailed(false);
@@ -1947,25 +2645,40 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
             username:   playerNameRef.current,
             x:          Math.round(pos.x),
             y:          Math.round(pos.y),
-            appearance: appearanceRef.current,
+            appearance: encodeCharacterAppearance(appearanceRef.current),
+            appearanceRev: characterAppearanceService.getRevision(),
             rep:        repRef.current,
             holderTier: holderTierRef.current,
+            level:      progressionRef.current?.level ?? 1,
+            rankLabel:  progressionRef.current
+              ? rankDisplayName(progressionRef.current.rankTier)
+              : 'Drifter',
+            equippedTitle: titleDisplayName(progressionRef.current?.equippedTitleId) ?? undefined,
           } as Record<string, unknown>).catch(() => {});
         });
 
       // Throttled position + state broadcast — 300ms keeps network light
       // while still showing other players moving smoothly enough.
+      // Presence track replaces the full meta blob — always include a
+      // compact appearance string; remotes skip rebuilds via appearanceRev.
       broadcastTimer = setInterval(() => {
         if (!channelSubscribedRef.current) return;
         const pos = sceneRef.current?.getPlayerPos() ?? { x: 0, y: 0 };
+        const rev = characterAppearanceService.getRevision();
         ch.track({
           id:         presenceIdRef.current,
           username:   playerNameRef.current,
           x:          Math.round(pos.x),
           y:          Math.round(pos.y),
-          appearance: appearanceRef.current,
+          appearance: encodeCharacterAppearance(appearanceRef.current),
+          appearanceRev: rev,
           rep:        repRef.current,
           holderTier: holderTierRef.current,
+          level:      progressionRef.current?.level ?? 1,
+          rankLabel:  progressionRef.current
+            ? rankDisplayName(progressionRef.current.rankTier)
+            : 'Drifter',
+          equippedTitle: titleDisplayName(progressionRef.current?.equippedTitleId) ?? undefined,
         } as Record<string, unknown>).catch(() => {});
       }, 300);
     };
@@ -2020,6 +2733,13 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     });
     pushStoryLog(`${name} found the treasure`);
     completeLevelIfMatches('claim_treasure');
+    progressionService.recordExternalRepGrant({
+      amount,
+      reason: 'Treasure claim',
+      idempotencyKey: `event:treasure-hunt:${treasureClaim.claimId}:rep`,
+    });
+    progressionService.onCityEventJoined('treasure-hunt', treasureClaim.claimId);
+    void rewardService.reportObjective({ objectiveType: 'join_event', ref: 'treasure-hunt' });
   }, [treasureClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog, completeLevelIfMatches]);
 
   /* ── Whale Alert claim — same one-shot pattern as the treasure claim
@@ -2043,6 +2763,13 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
     });
     pushStoryLog(`${name} inspected the whale`);
     completeLevelIfMatches('inspect_whale');
+    progressionService.recordExternalRepGrant({
+      amount,
+      reason: 'Whale inspect',
+      idempotencyKey: `event:whale-alert:${whaleClaim.claimId}:rep`,
+    });
+    progressionService.onCityEventJoined('whale-alert', whaleClaim.claimId);
+    void rewardService.reportObjective({ objectiveType: 'join_event', ref: 'whale-alert' });
   }, [whaleClaim, applyHolderMultiplier, unlockBadge, appendChatMessage, playerName, showToast, pushStoryLog, completeLevelIfMatches]);
 
   /* ── District unlocks — same trigger state as the quests/badges above. ── */
@@ -2089,25 +2816,32 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentEvent?.id, eventPhase]);
 
-  /* ── Simulated Live City Events ──
-     Self-rescheduling timer (10-20s, randomized each time so it never
-     settles into a predictable cadence) — fires a fake city event as a
-     toast + chat message, and sometimes as a random NPC's speech bubble. */
+  /* ── Living City Events (Phase 6) ──
+     Self-rescheduling timer (30–60s) — fires a district-themed city event
+     as toast + City Feed, optionally as NPC speech + floating world text. */
   const triggerCityEvent = useCallback(() => {
-    const template = CITY_EVENTS[Math.floor(Math.random() * CITY_EVENTS.length)];
+    const template = pickLivingCityEvent();
     const message = template.messages[Math.floor(Math.random() * template.messages.length)];
     showToast(`${template.icon} ${message}`);
     appendChatMessage('City Feed', `${template.icon} ${message}`, 'event');
     soundManager.play('event');
-    if (Math.random() < CITY_EVENT_NPC_SPEECH_CHANCE) {
+    if (Math.random() < 0.45) {
       sceneRef.current?.showNpcEventSpeech(message);
+    }
+    if (Math.random() < template.worldTextChance) {
+      sceneRef.current?.showDistrictFloatingText(
+        template.fx,
+        template.fy,
+        `${template.icon} ${template.type}`,
+      );
     }
   }, [showToast, appendChatMessage]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const scheduleNext = () => {
-      const delay = CITY_EVENT_MIN_GAP + Math.random() * (CITY_EVENT_MAX_GAP - CITY_EVENT_MIN_GAP);
+      const delay = LIVING_CITY_EVENT_MIN_GAP
+        + Math.random() * (LIVING_CITY_EVENT_MAX_GAP - LIVING_CITY_EVENT_MIN_GAP);
       timer = setTimeout(() => {
         triggerCityEvent();
         scheduleNext();
@@ -2294,32 +3028,53 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         return <NoticeBoardPanel />;
       case 'alpha':
         return <AlphaLoungePanel />;
+      case 'cashback':
+        return (
+          <>
+            <p className="modal-text">
+              Holder Cashback Vault — locked until $RUGTOWN activation.
+            </p>
+            <div className="modal-locked-list">
+              <div className="modal-locked-item">
+                <span className="modal-locked-icon">🔒</span>
+                <span className="modal-locked-desc">
+                  This vault holds automatic cashback rewards for verified $RUGTOWN holders.
+                  It will open when the token launches and holder verification is live.
+                </span>
+                <span className="modal-locked-tag">Locked</span>
+              </div>
+            </div>
+          </>
+        );
+      case 'arena':
+        return (
+          <>
+            <p className="modal-text">
+              Tournament Hall — register for score challenges and view standings.
+              No combat, paid entry, or real-value prizes in this phase.
+            </p>
+            <button
+              type="button"
+              className="profile-action-btn profile-action-btn--primary"
+              onClick={() => {
+                setModalClosing(false);
+                setModalZone(null);
+                setTournamentCentreOpen(true);
+              }}
+            >
+              Open Tournament Centre
+            </button>
+          </>
+        );
       default:
         return null;
     }
   };
 
-  /* ── Minimap click → camera pan ── */
-  const minimapClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!sceneRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top)  / rect.height;
-    sceneRef.current.panTo(px * worldSize.w, py * worldSize.h, 500);
-  }, [worldSize]);
-
-  /* ── Minimap player dot position ── */
-  const playerPos  = sceneRef.current ? sceneRef.current.getPlayerPos() : null;
-  const playerMapX = playerPos ? (playerPos.x / worldSize.w) * 100 : 50;
-  const playerMapY = playerPos ? (playerPos.y / worldSize.h) * 100 : 50;
-
-  /* ── Nearest landmark within its own interaction radius — drives the
-     minimap highlight and the small "current zone" line underneath it.
-     Doesn't touch WorldScene's own zone-proximity system or its actual
-     interaction coordinates; this just re-reads the same WorldObjects
-     data for a purely visual navigation aid. ── */
+  /* ── Nearest landmark within interaction radius (compact map status) ── */
   let nearestLandmark: (typeof WORLD_OBJECTS)[number] | null = null;
-  if (playerPos) {
+  const playerPos = { x: mapLive.live.player.x, y: mapLive.live.player.y };
+  if (playerPos.x > 0 || playerPos.y > 0) {
     let nearestDist = Infinity;
     for (const obj of WORLD_OBJECTS) {
       const dx = playerPos.x - obj.x * worldSize.w;
@@ -2364,25 +3119,24 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
         </div>
       )}
 
-      {/* Asset missing notice */}
-      {ready && bgMissing && (
-        <div className="asset-notice">
-          <span className="asset-notice__icon">ℹ</span>
-          <span>
-            City art not found — place <code>rugtown-city.png</code> in{' '}
-            <code>public/assets/backgrounds/</code> and refresh.
-            Camera, zoom, and HUD are fully functional.
-          </span>
-        </div>
-      )}
-
       {/* ══════════════════════════════════════════════════════════
           HUD OVERLAY
           All panels are positioned absolute over the canvas.
           Match Image 2 layout + Image 3 ornate gold style.
           ══════════════════════════════════════════════════════════ */}
       {ready && (
+        <>
+        <DayNightOverlay />
         <div className="hud" role="complementary" aria-label="Game HUD">
+          <WorldEventHud
+            isGuest={!userId}
+            onOpenCentre={() => {
+              setSocialHubOpen(false);
+              setPartyPanelOpen(false);
+              setRewardCentreOpen(false);
+              setEventCentreOpen(true);
+            }}
+          />
 
           {/* ──────────────────────────────────────────────────────
               TOP-LEFT: RugTown Logo + Player Card
@@ -2391,6 +3145,11 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
               On mobile this collapses into a small toggle button so it
               doesn't permanently cover part of the playfield.
               ────────────────────────────────────────────────────── */}
+          {/* ──────────────────────────────────────────────────────
+              TOP-LEFT: Player card + Chapter One missions
+              Collapsible on desktop (✕) and mobile — same pattern as map.
+              ────────────────────────────────────────────────────── */}
+          {/* Collapsed toggle — mobile */}
           {isMobile && !mobilePlayerCardOpen && (
             <button
               className="mobile-collapsed-btn mobile-collapsed-btn--tl"
@@ -2398,7 +3157,17 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
               aria-label="Show player info"
             >👤</button>
           )}
-          {(!isMobile || mobilePlayerCardOpen) && (
+          {/* Collapsed toggle — desktop */}
+          {!isMobile && !desktopPlayerCardOpen && (
+            <button
+              className="desktop-player-show-btn"
+              onClick={() => setDesktopPlayerCardOpen(true)}
+              aria-label="Show player panel"
+              title="Show player panel"
+              data-ui-block-camera
+            >👤</button>
+          )}
+          {(isMobile ? mobilePlayerCardOpen : desktopPlayerCardOpen) && (
           <div className="hud-panel hud-panel--tl">
             {/* Panel corner ornaments — Image 3 style */}
             <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
@@ -2406,30 +3175,68 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
             <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
             <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
 
-            {isMobile && (
-              <button
-                className="mobile-panel-close"
-                onClick={() => setMobilePlayerCardOpen(false)}
-                aria-label="Close player info"
-              >✕</button>
-            )}
-
-            {/* Panel header bar — gold strip from Image 3 */}
-            <div className="panel-header">
+            {/* Panel header bar — gold strip + always-visible minimize ✕ */}
+            <div className="panel-header panel-header--with-close">
               <span className="panel-header__logo">RUGTOWN</span>
               <span className="panel-header__sub">THE DEGEN CITY</span>
+              <button
+                type="button"
+                className="panel-minimize-btn"
+                onClick={() => {
+                  if (isMobile) setMobilePlayerCardOpen(false);
+                  else setDesktopPlayerCardOpen(false);
+                }}
+                aria-label="Minimize player panel"
+                title="Minimize"
+                data-ui-block-camera
+              >
+                ✕
+              </button>
             </div>
 
             {/* Player card */}
             <div className="player-card">
-              <HudCharacterPortrait appearance={appearance ?? DEFAULT_APPEARANCE} />
+              <HudCharacterPortrait />
               <div className="player-info">
                 <div className="player-name">{playerName || 'DegenExplorer'}</div>
-                <div className="player-title">Wandering Degen</div>
+                <div className="player-title">
+                  {titleDisplayName(progression?.equippedTitleId)
+                    ?? (progression ? rankDisplayName(progression.rankTier) : 'Drifter')}
+                </div>
                 <div className="player-rep">
+                  <span className="rep-label">LVL</span>
+                  <span className="rep-value">{progression?.level ?? 1}</span>
                   <span className="rep-label">REP</span>
                   <span className="rep-value">{rep}</span>
                 </div>
+                <button
+                  type="button"
+                  className="profile-open-btn"
+                  data-ui-block-camera
+                  onClick={() => setProfilePanelOpen(true)}
+                >
+                  View Profile
+                </button>
+              </div>
+            </div>
+
+            {/* Player profile progress (Phase 5) */}
+            <div className="player-progress">
+              <div className="pprog">
+                <span className="pprog__value">{rep}</span>
+                <span className="pprog__label">REP</span>
+              </div>
+              <div className="pprog">
+                <span className="pprog__value">{missionState.completedCount}/{missionState.totalCount || 0}</span>
+                <span className="pprog__label">Missions</span>
+              </div>
+              <div className="pprog">
+                <span className="pprog__value">{missionState.visitedInteriorsCount}</span>
+                <span className="pprog__label">Interiors</span>
+              </div>
+              <div className="pprog pprog--wide">
+                <span className="pprog__value pprog__value--district">{currentDistrict || '—'}</span>
+                <span className="pprog__label">District</span>
               </div>
             </div>
 
@@ -2457,6 +3264,55 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                 <span className="qstat__value">{holderTier} ({holderMultiplier}x)</span>
               </div>
             </div>
+
+            {missionState.missions.length > 0 && (
+              <div className="mission-card">
+                <div className="mission-card__header">
+                  <span>Chapter One: The Missing Ledger</span>
+                  <span className={`mission-card__status${missionState.completed ? ' mission-card__status--done' : ''}`}>
+                    {missionState.completed
+                      ? 'Complete'
+                      : `${missionState.completedCount}/${missionState.totalCount}`}
+                  </span>
+                </div>
+
+                {/* Active mission banner (Phase 5) */}
+                {missionState.completed ? (
+                  <div className="mission-active mission-active--done">
+                    <span className="mission-active__label">All missions complete</span>
+                    <span className="mission-active__title">Nice work, degen 🎉</span>
+                  </div>
+                ) : missionState.activeMissionTitle && (
+                  <div className="mission-active">
+                    <span className="mission-active__label">Active mission</span>
+                    <span className="mission-active__title">{missionState.activeMissionTitle}</span>
+                    {missionState.activeMissionDescription && <span className="mission-row__desc">{missionState.activeMissionDescription}</span>}
+                  </div>
+                )}
+
+                <div className="mission-card__list" data-ui-block-camera>
+                  {missionState.missions.map(mission => {
+                    const isActive = !mission.completed && mission.id === missionState.activeMissionId;
+                    return (
+                      <div
+                        key={mission.id}
+                        className={`mission-row${mission.completed ? ' mission-row--done' : ''}${isActive ? ' mission-row--active' : ''}`}
+                      >
+                        <span className="mission-row__check" aria-hidden>{mission.completed ? '✓' : '○'}</span>
+                        <div className="mission-row__body">
+                          <span className="mission-row__title">{mission.title}</span>
+                          {/* Descriptions only on the active row — keeps the full 10-mission list scannable */}
+                          {isActive && (
+                            <span className="mission-row__desc">{mission.description}</span>
+                          )}
+                        </div>
+                        <span className="mission-row__reward">+{mission.rewardXp} XP<br />+{mission.rewardRep} REP</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Mode badge */}
             <div className="mode-badge">
@@ -2489,9 +3345,22 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
               className="coord-btn coord-btn--reset"
               onClick={resetView}
               aria-label="Reset view"
-              title="Reset view"
+              title="Reset zoom + recenter (0)"
             >⌂</button>
           </div>
+
+          {camNeedsRecenter && (
+            <button
+              type="button"
+              className="camera-recenter-btn"
+              onClick={recenterView}
+              aria-label="Recenter camera on player"
+              title="Recenter camera (Space)"
+              data-ui-block-camera
+            >
+              Recenter
+            </button>
+          )}
 
           {/* ──────────────────────────────────────────────────────
               RIGHT SIDEBAR: Minimap + Zone list
@@ -2545,117 +3414,82 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
               )}
             </div>
 
-            {/* Clickable minimap */}
-            <div
-              className="minimap"
-              onClick={minimapClick}
-              title="Click to pan camera"
-              role="button"
-              aria-label="Minimap — click to navigate"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && minimapClick(e as unknown as React.MouseEvent<HTMLDivElement>)}
-            >
-              {/* Landmark dots — every registered WorldObject, positioned
-                  from the same fractional coordinates WorldScene uses for
-                  actual interaction detection */}
-              {WORLD_OBJECTS.map(obj => {
-                const districtId = WORLD_OBJECT_TO_DISTRICT[obj.id];
-                const districtIsUnlocked = districtId ? districtUnlocked[districtId] : false;
-                return (
-                  <div
-                    key={obj.id}
-                    className={`minimap-zone ${nearestLandmark?.id === obj.id ? 'minimap-zone--active' : ''} ${districtIsUnlocked ? 'minimap-zone--district-unlocked' : ''}`}
-                    style={{
-                      left: `${obj.x * 100}%`,
-                      top: `${obj.y * 100}%`,
-                      background: LANDMARK_COLORS[obj.id] ?? '#e8b84b',
-                    }}
-                    title={`${obj.futureIcon} ${obj.displayName}`}
-                  >
-                    <span className="minimap-zone__label">{obj.futureIcon} {obj.displayName}</span>
-                  </div>
-                );
-              })}
+            <CompactMinimap
+              live={mapLive.live}
+              remotes={mapLive.remotes}
+              missionLandmarkId={mapLive.missionLandmarkId}
+              filters={mapFilters}
+              onOpenExpanded={() => setExpandedMapOpen(true)}
+            />
 
-              {/* Treasure Hunt chest — only rendered while a chest exists
-                  (req. 3/11), position mirrors WorldScene's own spawn point */}
-              {treasureChest && (
-                <div
-                  className="minimap-treasure"
-                  style={{
-                    left: `${(treasureChest.wx / worldSize.w) * 100}%`,
-                    top: `${(treasureChest.wy / worldSize.h) * 100}%`,
-                  }}
-                  title="Treasure Chest"
-                  aria-label="Treasure chest location"
-                />
-              )}
-
-              {/* Whale Alert marker — only rendered while it exists
-                  (req. 3/11), position mirrors WorldScene's own spawn point */}
-              {whaleMarker && (
-                <div
-                  className="minimap-whale"
-                  style={{
-                    left: `${(whaleMarker.wx / worldSize.w) * 100}%`,
-                    top: `${(whaleMarker.wy / worldSize.h) * 100}%`,
-                  }}
-                  title="Whale Alert"
-                  aria-label="Whale alert location"
-                />
-              )}
-
-              {/* Player dot */}
-              <div
-                className="minimap-player"
-                style={{ left: `${playerMapX}%`, top: `${playerMapY}%` }}
-                aria-label="Your position"
-              />
-
-              {/* Camera viewport rectangle */}
-              <div
-                className="minimap-viewport"
-                style={{
-                  left:   `${(camera.x / worldSize.w) * 100}%`,
-                  top:    `${(camera.y / worldSize.h) * 100}%`,
-                  width:  `${((window.innerWidth / camera.zoom) / worldSize.w) * 100}%`,
-                  height: `${((window.innerHeight / camera.zoom) / worldSize.h) * 100}%`,
-                }}
-              />
-            </div>
-
-            {/* Current zone — nearest landmark within its interaction radius */}
             <div className="minimap-status">
               {nearestLandmark
                 ? <>📍 <strong>{nearestLandmark.displayName}</strong></>
-                : 'No landmark nearby'}
+                : currentDistrict || 'Exploring RugTown'}
             </div>
 
-            {/* Landmark legend — every registered WorldObject */}
-            <div className="zone-legend">
-              {WORLD_OBJECTS.map(obj => (
-                <div
-                  key={obj.id}
-                  className={`zone-legend-item ${nearestLandmark?.id === obj.id ? 'zone-legend-item--active' : ''}`}
-                  title={obj.displayName}
-                  onClick={() => {
-                    sceneRef.current?.panTo(obj.x * worldSize.w, obj.y * worldSize.h, 600);
-                  }}
+            <div className="zone-legend zone-legend--compact">
+              {minimapLandmarks.slice(0, 8).map((lm) => (
+                <button
+                  key={lm.id}
+                  type="button"
+                  className={`zone-legend-item ${nearestLandmark?.id === lm.id ? 'zone-legend-item--active' : ''}`}
+                  title={lm.name}
+                  data-ui-block-camera
+                  onClick={() => setExpandedMapOpen(true)}
                 >
-                  <span className="zone-dot" style={{ background: LANDMARK_COLORS[obj.id] ?? '#e8b84b' }} />
-                  <span className="zone-name">{obj.futureIcon} {obj.displayName}</span>
-                </div>
+                  <span className="zone-dot zone-dot--landmark" />
+                  <span className="zone-name">{lm.icon}</span>
+                </button>
               ))}
+              <button
+                type="button"
+                className="zone-legend-item zone-legend-item--more"
+                data-ui-block-camera
+                onClick={() => setExpandedMapOpen(true)}
+              >
+                Full map →
+              </button>
             </div>
 
-            {/* Camera info */}
             <div className="cam-info">
-              <span>Zoom: {zoomPct}%</span>
-              <span>WASD to move player</span>
-              <span>Scroll to zoom</span>
+              <span>Players: {mapLive.remotes.length + 1}</span>
+              <span>NPCs: {mapLive.live.npcs.length}</span>
+              <span>Tap map to expand</span>
             </div>
           </div>
           )}
+
+          <ExpandedWorldMap
+            open={expandedMapOpen}
+            onClose={() => {
+              setExpandedMapOpen(false);
+              publishMinimapUiDebug(sceneRef, null);
+            }}
+            live={mapLive.live}
+            remotes={mapLive.remotes}
+            missionLandmarkId={mapLive.missionLandmarkId}
+            onCenterPlayer={() => sceneRef.current?.recenterCamera()}
+            onDebugUpdate={(d) => publishMinimapUiDebug(sceneRef, d)}
+            onSelectRemote={(remote) => {
+              const full = onlinePlayers.find((p) => p.id === remote.id);
+              const summary = full
+                ? presenceToSocialSummary(full)
+                : presenceToSocialSummary({
+                    id: remote.id,
+                    username: remote.username,
+                    x: remote.x,
+                    y: remote.y,
+                    appearance: getCanonicalPlayerAppearance(),
+                    rep: remote.rep ?? 0,
+                    holderTier: remote.holderTier ?? 'None',
+                  });
+              setRemoteOfflineNotice(null);
+              setRemoteProfile(summary);
+              setRemoteProfileClosing(false);
+              setExpandedMapOpen(false);
+            }}
+          />
 
           {/* ──────────────────────────────────────────────────────
               CITY CHAT — toggled from the action bar's Chat button
@@ -3029,6 +3863,50 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                   </button>
                 </div>
 
+                <div className="settings-mute-row">
+                  <span className="settings-mute-row__label">Asset Bounds Debug</span>
+                  <button
+                    className={`settings-mute-btn ${!assetBoundsDebugOn ? 'settings-mute-btn--muted' : ''}`}
+                    onClick={toggleAssetBoundsDebug}
+                    aria-pressed={assetBoundsDebugOn}
+                  >
+                    {assetBoundsDebugOn ? '🟨 On' : '🟨 Off'}
+                  </button>
+                </div>
+
+                <div className="settings-mute-row">
+                  <span className="settings-mute-row__label">Asset Anchors</span>
+                  <button
+                    className={`settings-mute-btn ${!assetAnchorsDebugOn ? 'settings-mute-btn--muted' : ''}`}
+                    onClick={toggleAssetAnchorsDebug}
+                    aria-pressed={assetAnchorsDebugOn}
+                  >
+                    {assetAnchorsDebugOn ? '📍 On' : '📍 Off'}
+                  </button>
+                </div>
+
+                <div className="settings-mute-row">
+                  <span className="settings-mute-row__label">Road Clearance Overlay</span>
+                  <button
+                    className={`settings-mute-btn ${!assetRoadDebugOn ? 'settings-mute-btn--muted' : ''}`}
+                    onClick={toggleAssetRoadDebug}
+                    aria-pressed={assetRoadDebugOn}
+                  >
+                    {assetRoadDebugOn ? '🛣️ On' : '🛣️ Off'}
+                  </button>
+                </div>
+
+                <div className="settings-mute-row">
+                  <span className="settings-mute-row__label">Player Depth Layer</span>
+                  <button
+                    className={`settings-mute-btn ${!assetPlayerDepthDebugOn ? 'settings-mute-btn--muted' : ''}`}
+                    onClick={toggleAssetPlayerDepthDebug}
+                    aria-pressed={assetPlayerDepthDebugOn}
+                  >
+                    {assetPlayerDepthDebugOn ? '🧍 On' : '🧍 Off'}
+                  </button>
+                </div>
+
                 <button className="settings-action-btn" onClick={resetView}>
                   🎯 Reset Camera
                 </button>
@@ -3279,13 +4157,9 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
             {ACTION_BAR_ITEMS.map((item) => (
               <button
                 key={item.label}
-                className={`action-btn ${activeAction === item.label ? 'action-btn--active' : ''}`}
+                className={`action-btn ${activeAction === item.label || (item.label === 'Rewards' && rewardCentreOpen) || (item.label === 'Social' && socialHubOpen) || (item.label === 'Party' && partyPanelOpen) || (item.label === 'Events' && eventCentreOpen) ? 'action-btn--active' : ''}`}
                 onClick={() => {
                   soundManager.play('click');
-                  // Same rule as the keyboard shortcuts — only one overlay
-                  // (HUD panel vs. landmark modal vs. NPC dialogue vs. the
-                  // Whale Alert modal vs. the Hall of Fame statue modal)
-                  // at a time.
                   setModalClosing(false);
                   setModalZone(null);
                   setDialogueClosing(false);
@@ -3294,6 +4168,39 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                   setWhaleAlert(null);
                   setStatueModalClosing(false);
                   setStatueModal(null);
+                  const closeSpecial = () => {
+                    setRewardCentreOpen(false);
+                    setSocialHubOpen(false);
+                    setPartyPanelOpen(false);
+                    setEventCentreOpen(false);
+                    setTournamentCentreOpen(false);
+                    setGuildPanelOpen(false);
+                  };
+                  if (item.label === 'Rewards') {
+                    setActiveAction(null);
+                    closeSpecial();
+                    setRewardCentreOpen((v) => !v);
+                    return;
+                  }
+                  if (item.label === 'Social') {
+                    setActiveAction(null);
+                    closeSpecial();
+                    setSocialHubOpen((v) => !v);
+                    return;
+                  }
+                  if (item.label === 'Party') {
+                    setActiveAction(null);
+                    closeSpecial();
+                    setPartyPanelOpen((v) => !v);
+                    return;
+                  }
+                  if (item.label === 'Events') {
+                    setActiveAction(null);
+                    closeSpecial();
+                    setEventCentreOpen((v) => !v);
+                    return;
+                  }
+                  closeSpecial();
                   const willOpen = activeAction !== item.label;
                   setActiveAction(prev => prev === item.label ? null : item.label);
                   if (willOpen) {
@@ -3303,18 +4210,38 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                   }
                 }}
                 aria-label={item.label}
-                aria-pressed={activeAction === item.label}
+                aria-pressed={
+                  item.label === 'Rewards'
+                    ? rewardCentreOpen
+                    : item.label === 'Social'
+                      ? socialHubOpen
+                      : item.label === 'Party'
+                        ? partyPanelOpen
+                        : item.label === 'Events'
+                          ? eventCentreOpen
+                          : activeAction === item.label
+                }
                 title={`${item.label}${item.key ? ` (${item.key})` : ''}`}
               >
                 {/* Shimmer on hover */}
                 <span className="action-btn__shimmer" aria-hidden />
                 {/* Corner ornaments for active state */}
-                {activeAction === item.label && <>
+                {(activeAction === item.label || (item.label === 'Social' && socialHubOpen) || (item.label === 'Party' && partyPanelOpen) || (item.label === 'Events' && eventCentreOpen)) && <>
                   <span className="action-btn__corner action-btn__corner--tl" aria-hidden>◆</span>
                   <span className="action-btn__corner action-btn__corner--tr" aria-hidden>◆</span>
                 </>}
                 <span className="action-btn__icon" aria-hidden>{item.icon}</span>
                 <span className="action-btn__label">{item.label}</span>
+                {item.label === 'Social' && unreadDmCount > 0 && (
+                  <span className="social-unread-badge social-unread-badge--hud" aria-label={`${unreadDmCount} unread`}>
+                    {unreadDmCount > 9 ? '9+' : unreadDmCount}
+                  </span>
+                )}
+                {item.label === 'Party' && partyUnread > 0 && (
+                  <span className="social-unread-badge social-unread-badge--hud" aria-label={`${partyUnread} party unread`}>
+                    {partyUnread > 9 ? '9+' : partyUnread}
+                  </span>
+                )}
                 {item.key && (
                   <span className="action-btn__key" aria-hidden>{item.key}</span>
                 )}
@@ -3359,7 +4286,20 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
                 <button className="mobile-zoom-btn" onClick={zoomOut} aria-label="Zoom out">−</button>
                 <button className="mobile-zoom-btn" onClick={zoomIn} aria-label="Zoom in">+</button>
                 <button className="mobile-zoom-btn mobile-zoom-btn--reset" onClick={resetView} aria-label="Reset camera">⌂</button>
-                <button className="mobile-interact-btn" onClick={handleMobileInteract} aria-label="Interact">E</button>
+                <button
+                  className="mobile-interact-btn"
+                  onClick={handleMobileInteract}
+                  aria-label={activeInteract?.mobileLabel ?? 'Interact'}
+                  data-ui-block-camera
+                  style={{ display: (activeInteract || interiorPrompt) ? undefined : 'none' }}
+                >
+                  <span className="mobile-interact-btn__key">E</span>
+                  <span className="mobile-interact-btn__label">
+                    {interiorPrompt
+                      ? (interiorPrompt.kind === 'exit' ? 'Leave' : 'Inspect')
+                      : (activeInteract?.mobileLabel ?? 'Interact')}
+                  </span>
+                </button>
               </div>
             </div>
           )}
@@ -3387,19 +4327,33 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
               once). Hidden while any other overlay (modal, dialogue, or an
               action-bar panel) is already on screen so it can't overlap
               the bottom-center panels (Holder/Leaderboard/Settings/etc). */}
-          {!modalZone && !dialogue && !activeAction && !whaleAlert && !statueModal &&
-            (nearZone || nearNpc || nearTreasure || nearWhale || nearStatue) && (
+          {!modalZone && !dialogue && !activeAction && !whaleAlert && !statueModal && !statusModal &&
+            (activeInteract || nearDoor || nearZone || nearNpc || nearTreasure || nearWhale || nearStatue || nearTownCrier || interiorPrompt) && (
             <div
-              className={`zone-prompt${nearZone?.id === 'fountain' && !fountainClaimed ? ' zone-prompt--fountain-highlight' : ''}`}
+              className={`zone-prompt${(activeInteract?.id === 'fountain' || nearZone?.id === 'fountain') && !fountainClaimed ? ' zone-prompt--fountain-highlight' : ''}${activeInteract?.access === 'locked' || activeInteract?.access === 'coming_soon' ? ' zone-prompt--locked' : ''}`}
               role="status"
+              data-ui-block-camera
             >
               <span className="zone-prompt__key">E</span>
               <span className="zone-prompt__text">
-                {nearZone
+                {interiorPrompt
+                  ? `Press E to ${interiorPrompt.kind === 'exit' ? 'leave' : 'inspect'} — ${interiorPrompt.label}`
+                  : (activeInteract?.id === 'fountain' && !fountainClaimed)
+                    ? 'Press E to Gather — Spring Water'
+                  : activeInteract?.desktopPrompt
+                    ? activeInteract.desktopPrompt
+                  : nearDoor
+                  ? (nearDoor.access === 'open'
+                      ? `Press E to enter — ${nearDoor.name}`
+                      : nearDoor.access === 'coming_soon'
+                        ? `${nearDoor.name} — Coming Soon`
+                        : `${nearDoor.name} — Locked`)
+                  : nearTownCrier
+                  ? 'Press E to talk — Town Crier'
+                  : nearZone
                   ? (nearZone.id === 'fountain' && !fountainClaimed
-                      ? `⛲ Press E to claim REP from the Fountain!`
-                      : `Press E to interact — ${nearZone.name}`)
-
+                      ? `Press E to Gather — Spring Water`
+                      : `Press E to Inspect — ${nearZone.name}`)
                   : nearNpc
                   ? `Press E to talk — ${nearNpc.name}`
                   : nearTreasure
@@ -3412,6 +4366,7 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           )}
 
         </div>
+        </>
       )}
 
       {/* ══════════════════════════════════════════════════════════
@@ -3445,6 +4400,45 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
 
             <div className={`modal-body ${modalZone === 'market' ? 'modal-body--market' : ''} ${modalZone === 'notice' ? 'modal-body--notice' : ''} ${modalZone === 'alpha' ? 'modal-body--alpha' : ''}`}>
               {renderModalBody(modalZone)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {statusModal && (
+        <div
+          className={`modal-overlay ${statusModalClosing ? 'modal-overlay--closing' : ''}`}
+          onClick={requestCloseStatusModal}
+        >
+          <div
+            className={`modal-panel ${statusModalClosing ? 'modal-panel--closing' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
+            <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
+            <span className="modal-panel__shimmer" aria-hidden />
+
+            <div className="modal-header">
+              <span className="modal-header__icon" aria-hidden>
+                {statusModal.mode === 'coming_soon' ? '🏟️' : statusModal.mode === 'locked' ? '🔒' : '✦'}
+              </span>
+              <div className="modal-header__titles">
+                <span className="modal-header__title">{statusModal.title}</span>
+                <span className="modal-header__sub">
+                  {statusModal.mode === 'coming_soon'
+                    ? 'Coming Soon'
+                    : statusModal.mode === 'locked'
+                      ? 'Locked'
+                      : 'Interior'}
+                </span>
+              </div>
+              <button className="modal-close" onClick={requestCloseStatusModal} aria-label="Close">✕</button>
+            </div>
+
+            <div className="modal-body">
+              <p className="modal-text">{statusModal.text}</p>
             </div>
           </div>
         </div>
@@ -3548,79 +4542,215 @@ export function GamePage({ playerName, appearance, userEmail, userId, initialRep
           data the Leaderboard panel uses; title/flavor are rank-based
           (req. 12: no real users, nothing tied to a specific identity).
           ══════════════════════════════════════════════════════════ */}
-      {/* ── Remote player profile card ────────────────────────────── */}
+      {/* ── Remote player social card (Phase 10E/10F) ─────────────────── */}
       {remoteProfile && (
-        <div
-          className={`modal-overlay ${remoteProfileClosing ? 'modal-overlay--closing' : ''}`}
-          onClick={closeRemoteProfile}
-        >
-          <div
-            className="modal-panel player-profile-card"
-            onClick={e => e.stopPropagation()}
-          >
-            <span className="panel-corner panel-corner--tl" aria-hidden>◆</span>
-            <span className="panel-corner panel-corner--tr" aria-hidden>◆</span>
-            <span className="panel-corner panel-corner--bl" aria-hidden>◆</span>
-            <span className="panel-corner panel-corner--br" aria-hidden>◆</span>
-            <span className="modal-panel__shimmer" aria-hidden />
+        <SocialPlayerCard
+          player={remoteProfile}
+          closing={remoteProfileClosing}
+          friendship={remoteFriendship}
+          offlineNotice={remoteOfflineNotice}
+          isGuestViewer={!userId}
+          canMessage={!!userId && !remoteProfile.isGuest && !remoteFriendship?.blocked}
+          onClose={closeRemoteProfile}
+          onWave={waveAtRemotePlayer}
+          onMessage={() => openDirectMessage(remoteProfile)}
+          onAddFriend={async () => {
+            const res = await socialService.sendFriendRequest(remoteProfile.playerId);
+            showToast(res.message ?? '');
+            setRemoteFriendship(await socialService.getFriendshipState(remoteProfile.playerId));
+          }}
+          onInviteParty={async () => {
+            if (!userId || remoteProfile.isGuest) {
+              showToast('Sign in required for party invites');
+              return;
+            }
+            const res = await partyService.invitePlayer(remoteProfile.playerId);
+            showToast(res.message ?? (res.ok ? 'Party invite sent' : 'Invite failed'));
+          }}
+          onAcceptFriend={async () => {
+            const incoming = socialService.getIncomingRequests().find(
+              (r) => r.senderId === remoteProfile.playerId,
+            );
+            if (!incoming) {
+              showToast('No pending request found');
+              return;
+            }
+            const res = await socialService.respondToFriendRequest(incoming.id, true);
+            showToast(res.message ?? '');
+            setRemoteFriendship(await socialService.getFriendshipState(remoteProfile.playerId));
+          }}
+          onBlock={async () => {
+            const res = await socialService.blockPlayer(remoteProfile.playerId);
+            showToast(res.message ?? '');
+            closeRemoteProfile();
+          }}
+          onReport={() => {
+            setReportPlayer({
+              playerId: remoteProfile.playerId,
+              username: remoteProfile.username,
+            });
+          }}
+          onViewProfile={() => {
+            // Public summary already shown; server profile may add bio/title.
+            void socialService.getPublicProfile(remoteProfile.playerId).then((p) => {
+              if (p?.bio) showToast(`Bio: ${p.bio}`);
+              else if (p?.restricted) showToast('Profile is private');
+            });
+          }}
+        />
+      )}
 
-            <div className="modal-header">
-              <span className="modal-header__icon" aria-hidden>👤</span>
-              <div className="modal-header__titles">
-                <span className="modal-header__title">{remoteProfile.username}</span>
-                <span className="modal-header__sub player-real-badge">● REAL PLAYER</span>
-              </div>
-              <button className="modal-close" onClick={closeRemoteProfile} aria-label="Close">✕</button>
-            </div>
+      {progression && (
+        <PlayerProfilePanel
+          open={profilePanelOpen}
+          onClose={() => setProfilePanelOpen(false)}
+          progression={progression}
+          username={playerName || 'DegenExplorer'}
+          holderTier={holderTier}
+          onEquipTitle={(id) => progressionService.equipTitle(id)}
+        />
+      )}
 
-            <div className="modal-body">
-              <div className="whale-alert-row">
-                <span className="whale-alert-row__label">Status</span>
-                <span className="player-online-badge">🟢 Online</span>
-              </div>
-              <div className="whale-alert-row">
-                <span className="whale-alert-row__label">REP</span>
-                <span className="whale-alert-row__value whale-alert-row__value--gold">
-                  {remoteProfile.rep.toLocaleString()}
-                </span>
-              </div>
-              <div className="whale-alert-row">
-                <span className="whale-alert-row__label">Tier</span>
-                <span className="whale-alert-row__value">
-                  <span
-                    className={`qstat__dot qstat__dot--holder-${remoteProfile.holderTier.toLowerCase()}`}
-                    style={{ display: 'inline-block', marginRight: 5, verticalAlign: 'middle' }}
-                  />
-                  {remoteProfile.holderTier}
-                </span>
-              </div>
-              {remoteProfile.appearance?.jacket && (
-                <div className="whale-alert-row">
-                  <span className="whale-alert-row__label">Look</span>
-                  <span className="whale-alert-row__value">
-                    {JACKET_OPTIONS.find(j => j.id === remoteProfile.appearance.jacket)?.name
-                      ?? remoteProfile.appearance.jacket}
-                  </span>
-                </div>
-              )}
-            </div>
+      <LevelUpToast
+        notice={activeLevelUp}
+        onDismiss={() => setActiveLevelUp(null)}
+      />
 
-            <div className="player-profile-actions">
-              <button className="profile-action-btn" onClick={waveAtRemotePlayer}>
-                👋 Wave
-              </button>
-              <button
-                className={`profile-action-btn${followedPlayerIds.has(remoteProfile.id) ? ' profile-action-btn--followed' : ''}`}
-                onClick={() => toggleFollowRemotePlayer(remoteProfile.id)}
-              >
-                {followedPlayerIds.has(remoteProfile.id) ? '✓ Following' : '+ Follow'}
-              </button>
-              <button className="profile-action-btn profile-action-btn--close" onClick={closeRemoteProfile}>
-                ✕ Close
-              </button>
-            </div>
-          </div>
-        </div>
+      <RewardCentrePanel
+        open={rewardCentreOpen}
+        onClose={() => setRewardCentreOpen(false)}
+        isGuest={!userId}
+        onToast={(text) => showToast(text)}
+        onOpenOps={() => {
+          setRewardCentreOpen(false);
+          setRewardOpsOpen(true);
+        }}
+        onOpenAchievements={() => {
+          setRewardCentreOpen(false);
+          setAchievementCentreOpen(true);
+        }}
+      />
+
+      <RewardOperationsPanel
+        open={rewardOpsOpen}
+        onClose={() => setRewardOpsOpen(false)}
+        onToast={(text) => showToast(text)}
+      />
+
+      <AchievementCentrePanel
+        open={achievementCentreOpen}
+        onClose={() => setAchievementCentreOpen(false)}
+        isGuest={!userId}
+        onToast={(text) => showToast(text)}
+        onOpenTitles={() => {
+          setAchievementCentreOpen(false);
+          setTitleLockerOpen(true);
+        }}
+        onOpenSeasonPass={() => {
+          setAchievementCentreOpen(false);
+          setSeasonPassOpen(true);
+        }}
+      />
+
+      <TitleLockerPanel
+        open={titleLockerOpen}
+        onClose={() => setTitleLockerOpen(false)}
+        isGuest={!userId}
+        onToast={(text) => showToast(text)}
+      />
+
+      <SeasonPassPanel
+        open={seasonPassOpen}
+        onClose={() => setSeasonPassOpen(false)}
+        isGuest={!userId}
+        onToast={(text) => showToast(text)}
+      />
+
+      {dmRecipient && (
+        <DirectMessagePanel
+          recipient={dmRecipient}
+          closing={dmClosing}
+          isGuest={!userId}
+          userId={userId}
+          onClose={closeDirectMessage}
+          onToast={(text) => showToast(text)}
+          onReportMessage={(id) => setReportMessageId(id)}
+          onBlock={async (playerId) => {
+            const res = await socialService.blockPlayer(playerId);
+            showToast(res.message ?? '');
+            closeDirectMessage();
+          }}
+        />
+      )}
+
+      <SocialHubPanel
+        open={socialHubOpen}
+        isGuest={!userId}
+        unreadDmCount={unreadDmCount}
+        onClose={() => setSocialHubOpen(false)}
+        onToast={(text) => showToast(text)}
+        onOpenConversation={openDirectMessageById}
+        onOpenModeration={() => {
+          setSocialHubOpen(false);
+          setModerationOpen(true);
+        }}
+        onOpenGuild={() => {
+          setSocialHubOpen(false);
+          setGuildPanelOpen(true);
+        }}
+      />
+
+      <PartyPanel
+        open={partyPanelOpen}
+        isGuest={!userId}
+        onClose={() => setPartyPanelOpen(false)}
+        onToast={(text) => showToast(text)}
+      />
+
+      <WorldEventCentrePanel
+        open={eventCentreOpen}
+        isGuest={!userId}
+        onClose={() => setEventCentreOpen(false)}
+        onToast={(text) => showToast(text)}
+      />
+
+      <TournamentCentrePanel
+        open={tournamentCentreOpen}
+        isGuest={!userId}
+        onClose={() => setTournamentCentreOpen(false)}
+        onToast={(text) => showToast(text)}
+      />
+
+      <GuildPanel
+        open={guildPanelOpen}
+        isGuest={!userId}
+        onClose={() => setGuildPanelOpen(false)}
+        onToast={(text) => showToast(text)}
+      />
+
+      <ModerationOperationsPanel
+        open={moderationOpen}
+        onClose={() => setModerationOpen(false)}
+        onToast={(text) => showToast(text)}
+      />
+
+      {reportPlayer && (
+        <ReportPlayerDialog
+          open
+          playerId={reportPlayer.playerId}
+          username={reportPlayer.username}
+          onClose={() => setReportPlayer(null)}
+          onToast={(text) => showToast(text)}
+        />
+      )}
+
+      {reportMessageId && (
+        <ReportMessageDialog
+          open
+          messageId={reportMessageId}
+          onClose={() => setReportMessageId(null)}
+          onToast={(text) => showToast(text)}
+        />
       )}
 
       {statueModal && (

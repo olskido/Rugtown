@@ -1,83 +1,137 @@
 import Phaser from 'phaser';
 import { getLiveWorldObjects, getWorldObject, toWorldPosition, WORLD_OBJECTS } from '../world/WorldObjects';
-import { buildWalkableRects, isWalkablePoint, type WalkRect } from '../world/RoadNetwork';
+import { CollisionSystem } from '../systems/CollisionSystem';
+import { InteractionSystem } from '../systems/InteractionSystem';
+import { BuildingGenerator } from '../worldEngine/BuildingGenerator';
+import { DecorationGenerator } from '../worldEngine/DecorationGenerator';
+import { WorldTerrainLayer } from '../worldEngine/WorldTerrainLayer';
+import { NewWorldDebugOverlay } from '../worldEngine/NewWorldDebugOverlay';
+import { CompactWorldAmbience } from '../systems/CompactWorldAmbience';
+import { CompactRoadRenderer } from '../worldEngine/CompactRoadRenderer';
+import { clearMinimapData, getMinimapData, addMinimapRoad, addMinimapBuilding } from '../worldEngine/WorldMinimapData';
 import {
-  generateRandomAppearance, resolveAppearance, DEFAULT_APPEARANCE,
-  type CharacterAppearance, type ResolvedAppearance,
-} from '../world/CharacterAppearance';
+  WORLD_W as NEW_WORLD_W, WORLD_H as NEW_WORLD_H,
+  SPAWN_X as NEW_SPAWN_X, SPAWN_Y as NEW_SPAWN_Y,
+  FOUNTAIN_X as NEW_FOUNTAIN_X, FOUNTAIN_Y as NEW_FOUNTAIN_Y,
+  CAMERA_ZOOM_DEFAULT, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX,
+  WORLD_COLLISION_ENABLED, PLAYER_SPEED as CANONICAL_PLAYER_SPEED,
+  spawnPointForSlot,
+  buildWalkableRects as buildNewWalkableRects,
+  type CanonicalBuildingPlot,
+} from '../world/NewCanonicalWorld';
+import { WorldCameraController } from '../camera/WorldCameraController';
+import type { MinimapEventMarker, MinimapLiveSnapshot } from '../minimap/MinimapTypes';
+import {
+  formatInteractPrompt,
+  PRIORITY,
+  resolveInteractTarget,
+  type InteractCandidate,
+} from '../interaction/InteractionTargetResolver';
+import {
+  buildLandmarkCatalog,
+  type LandmarkMeta,
+} from '../interaction/LandmarkCatalog';
+import {
+  PLAYER_FACING_CONE,
+  PLAYER_INTERACT_RADIUS,
+  isPresenceStale,
+  presenceToSocialSummary,
+} from '../../lib/social';
+import { getDistrictAtWorld, WORLD_DISTRICTS } from '../world/WorldDistricts';
+import { MissionSystem, createStarterMissionSystem } from '../systems/MissionSystem';
+import { loadProgress, patchProgress } from '../../lib/progress';
+import {
+  buildEnterableDoorZones,
+  getEnterableBuilding,
+  getWorldReturnPosition,
+  type ResolvedDoorZone,
+} from '../world/EnterableBuildings';
+import { InteriorScene } from './InteriorScene';
 import { EventManager } from '../events/EventManager';
 import { EVENT_DEFINITIONS } from '../events/EventDefinitions';
 import type { EventDefinition, EventInstance, EventPhase } from '../events/EventTypes';
 import { soundManager } from '../../audio/SoundManager';
-import { drawHumanoid, CHAR_W, CHAR_H, SHADOW_W, SHADOW_H, type HumanoidPose, type Direction } from '../render/HumanoidRenderer';
+import { queueWorldCharacterLoads } from '../characters/assets/CharacterAssetLoader';
+import { hydrateCharacterRegistryFromScene, listNpcBodies, assetExists } from '../characters/assets/CharacterAssetRegistry';
+import { charPerfMark, charPerfMeasure } from '../characters/dev/CharacterPerfMarks';
+import { BitmapCharacter, npcAppearanceFromId } from '../characters/render/BitmapCharacter';
+import {
+  PLAYER_VISUAL_SCALE, REMOTE_PLAYER_VISUAL_SCALE, NPC_VISUAL_SCALE,
+  TARGET_DISPLAY_HEIGHT,
+} from '../characters/render/CharacterVisualScale';
+import type { CharacterAppearanceV1 } from '../characters/appearance/CharacterAppearanceDefaults';
+import { getDefaultCharacterAppearance } from '../characters/appearance/CharacterAppearanceDefaults';
+import { decodeCharacterAppearance, encodeCharacterAppearance } from '../characters/appearance/CharacterAppearanceCodec';
+import type { Direction } from '../characters/animation/CharacterDirection';
+import {
+  FOOT_COLLIDER_W, FOOT_COLLIDER_H, FOOT_OFFSET_Y,
+} from '../systems/CollisionSystem';
 import type { PresencePayload } from '../../lib/presence';
+import { getDistrictForLandmark, getRandomDistrictLine } from '../world/NpcDistrictDialogue';
+import { ROAD_EDGES } from '../world/RoadNetwork';
+
+/** Footprint used for movement clamps / hit tests (not bitmap render size). */
+const CHAR_W = 22;
+const CHAR_H = 34;
+
+function coerceAppearanceV1(appearance: unknown): CharacterAppearanceV1 {
+  return decodeCharacterAppearance(appearance, assetExists);
+}
+
+/** Phase 9C — standalone landmark PNGs are no longer overlaid; the final
+ *  master already bakes buildings into the terrain. Kept only as a comment
+ *  reference for the five former test asset paths. */
+const FIVE_TEST_BUILDING_ASSETS: Record<string, string> = {
+  fame:   'landmarks/hall_of_fame.png',
+  market: 'landmarks/meme_market_main_hall.png',
+  whale:  'landmarks/whale_tower.png',
+  coffee: 'landmarks/coffee_shop.png',
+  arena:  'landmarks/arena.png',
+};
+
+/** Live citizen population — 3× the previous calibration count (11 → 33).
+ *  Culling, speech caps, and staggered spawn keep frame cost stable. */
+const CALIBRATION_NPC_COUNT = 33;
+
+/** Phase 8K Task 9 — NPC nameplates hide beyond this distance from the
+ *  player; the local player's own label is always shown regardless. */
+const NPC_LABEL_VISIBLE_RADIUS = 400;
+
+/** Phase 8K Task 10 — at most this many city-event banners/messages are
+ *  visible over the plaza at once (a short FIFO queue, not deleted). */
+const MAX_VISIBLE_EVENT_MESSAGES = 1;
 
 /*
   WorldScene.ts — Player Movement + NPC Citizens Edition
   ─────────────────────────────────────────
-  Source of truth:
-    Image 1: rugtown-city.png — fountain is at ~38% x, 58% y of the image
-    Character Bible: small pixel-art degens — dark coat/hoodie, visible head,
-      gold accent details, readable silhouette at small scale
-    Image 3: gameplay — player + NPCs render ON the city, camera follows player
-
-  - WASD/arrows MOVE THE PLAYER, camera follows with smooth lerp
-  - Player + NPCs rendered as pixel-art characters drawn with Phaser.Graphics,
-    sharing one drawHumanoid() helper so NPCs match the player's style
-  - NPCs are ambient citizens: idle/walk/pause loops anchored near landmarks,
-    desynchronized per-NPC timing, occasional speech bubbles, [NPC] tag
-  - Camera clamped to world bounds — can never show outside image
-  - Public API preserved: panTo, setTargetZoom, getPlayerPos, teleportTo
+  Procedural world (3600×2400, Phase 8B compact). Spawn at Spring Water,
+  the exact world centre (50% x, 50% y).
+  Player + NPCs are pixel-art humanoids; camera follows with smooth lerp.
+  Public API: panTo, setTargetZoom, getPlayerPos, teleportTo
 */
 
 /* ─── Tuning constants ─── */
-const DEFAULT_WORLD_W   = 3840;
-const DEFAULT_WORLD_H   = 2160;
+// Phase 9C — world size derives from NewCanonicalWorld.ts (1:1 with
+// RugTown_World_Master_Final_Upscaled.png native 949×1024).
+const DEFAULT_WORLD_W   = NEW_WORLD_W;
+const DEFAULT_WORLD_H   = NEW_WORLD_H;
 
 // Player movement — instant velocity, delta-timed, frame-rate independent.
-// 196 px/s (30% below the previous 280) — a calmer, more controllable pace.
-const PLAYER_SPEED      = 196;
+// Phase 10B: 252 → 176 (−30%). Canonical constant lives in WorldMapScale.
+const PLAYER_SPEED      = CANONICAL_PLAYER_SPEED;
 const PLAYER_DIAG       = 0.7071;       // diagonal normalization
 
-// Camera follow — responsive without overshooting.
-const CAM_LERP          = 0.22;
-const CAM_DEADZONE_X    = 18;
-const CAM_DEADZONE_Y    = 12;
-
-// World-edge safe zone: player can't walk closer than this to any world
-// boundary, giving the camera room to stay centred near the edges.
-const WORLD_PAD = 120;
-
-// Zoom
-const ZOOM_MIN          = 0.35;        // absolute floor; the dynamic per-frame zoomMin (see computeZoomMin) is usually the binding constraint and is normally higher than this
-const ZOOM_MAX          = 2.2;
+// Zoom — Phase 10B practical band (controller also enforces cover-floor).
+const ZOOM_MIN          = CAMERA_ZOOM_MIN;
+const ZOOM_MAX          = CAMERA_ZOOM_MAX;
 const ZOOM_STEP         = 0.08;
-const ZOOM_LERP         = 0.10;
-const ZOOM_DEFAULT      = 0.6;          // 60% zoom — shows a comfortable amount of the city around the player
+const ZOOM_DEFAULT      = CAMERA_ZOOM_DEFAULT;
 
-// Spawn — fountain area (~38% x, 58% y of the city image)
-const SPAWN_FX          = 0.38;
-const SPAWN_FY          = 0.58;
-
-// Player/NPC visual footprint — CHAR_W/CHAR_H/SHADOW_W/SHADOW_H now live in
-// HumanoidRenderer.ts (imported above) since they're render geometry, not
-// gameplay state; re-used here for movement clamps/NPC spawn math.
-
-// Walk animation (shared by player + NPCs)
-const WALK_CYCLE_SPEED   = 8;     // step frequency
-const LEG_STAGGER_Y       = 4;     // alternating vertical leg offset while walking
-const LEG_LIFT            = 6;     // forward-leg lift — increased from 5 for more natural stride
-const LEG_SWING_X         = 2.8;   // fore/aft leg swing — increased from 2.2 for better foot placement
-const BODY_BOB_WALK       = 2.4;   // torso bob — slightly more than 2 for less robotic walk
-const ARM_SWING_WALK      = 4.2;   // arm swing — increased from 3.6 for more natural counter-swing
-
-// Idle animation (shared) — always running, so characters never look frozen
-const IDLE_BREATH_SPEED   = 1.7;    // breathing cycle speed
-const IDLE_BREATH_SCALE   = 0.035;  // torso squash/stretch fraction while idle
-const IDLE_BOB            = 0.6;    // tiny vertical bob while idle
-const IDLE_SWAY           = 0.045;  // radians — gentle idle lean side to side
-const IDLE_ARM_SWAY       = 0.4;    // px — barely-there arm drift while idle
-const IDLE_HEAD_BOB       = 0.5;    // px — tiny independent head movement, separate from body sway
+// Phase 9C — Spring Water sits at LANDMARK_ANCHORS.fountain on the final
+// master; player spawns just south of the basin on plaza paving
+// (NewCanonicalWorld.SPAWN_X/Y), not inside the fountain.
+const SPAWN_FX          = NEW_SPAWN_X / NEW_WORLD_W;
+const SPAWN_FY          = NEW_SPAWN_Y / NEW_WORLD_H;
 
 // Turn smoothing — player
 const LEAN_MAX            = 0.11;   // radians (~6°) max lean
@@ -86,14 +140,27 @@ const LEAN_SMOOTH         = 0.12;   // per-frame lerp factor for the lean
 // Emote "pop" animation — a brief squash/stretch pulse layered on top of
 // the player's existing breathing scale, doesn't touch movement at all
 const EMOTE_PULSE_DURATION = 500;   // ms
-const EMOTE_PULSE_AMOUNT   = 0.18;  // extra scale at the peak of the pulse
 
 /* ─── NPC tuning ─── */
-const NPC_SCALE           = 0.82;   // smaller than the player
-const NPC_ALPHA           = 0.88;   // subtler than the player
-const NPC_SPEED_MIN       = 40;
-const NPC_SPEED_MAX       = 100;
-const NPC_ACCEL_TIME      = 0.25;
+const NPC_SCALE           = NPC_VISUAL_SCALE;
+const NPC_ALPHA           = 0.94;   // clearer on screen
+// Phase 11C: 0.25s → 0.45s. NPCs snapped to full speed almost
+// instantly, which read as "stiff/robotic"; the longer ramp makes
+// starts and stops feel like a citizen choosing to walk rather than a
+// switch flipping.
+const NPC_ACCEL_TIME      = 0.45;
+/** Phase 11C — brief "look before you walk" beat inserted between a
+ *  finished pause and the start of the next walk (Task 14 lookAround). */
+const NPC_LOOK_AROUND_MS  = 380;
+/** Phase 11C — minimum time between facing changes; prevents the
+ *  diagonal-velocity jitter where facing flickered between two cardinal
+ *  directions frame to frame while accelerating near a 45° heading. */
+const NPC_FACING_MIN_INTERVAL_MS = 220;
+/** Phase 11C Task 17 — lightweight personal-space separation. Cheap:
+ *  O(n²) over the current ~11-citizen population is trivial; would need
+ *  a spatial grid well before this became a real cost. */
+const NPC_PERSONAL_SPACE_RADIUS = 24;
+const NPC_SEPARATION_PUSH = 55; // px/s of extra lateral velocity when crowded
 const NPC_ARRIVE_DIST     = 6;      // px — close enough to call it "arrived"
 const NPC_LEAN_MAX        = 0.09;
 const NPC_LEAN_SMOOTH     = 0.10;
@@ -104,63 +171,162 @@ const NPC_SPEECH_CHANCE   = 0.55;   // odds a given attempt actually shows a lin
 const NPC_SPEECH_MAX_VISIBLE = 4;   // hard cap on simultaneous citizen speech bubbles (any source)
 const NPC_LABEL_NEAR_RADIUS = 70;   // px — close-encounter radius; names are hidden by default (see updateNpcs)
 
-// Population is randomized once per session — small enough for solid FPS.
-const NPC_POPULATION_MIN = 15;
-const NPC_POPULATION_MAX = 20;
+/* ─── Phase 8H — compact-world population model ───
+   Centralizes the tuning that's specific to rebalancing NPC population for
+   the 3600×2400 world (as opposed to the animation/rendering constants
+   above, which aren't world-size-dependent). Population/district
+   allocation is deterministic (NPC_HOME_LANDMARKS below); only per-NPC
+   flavor (name/appearance/exact jitter/timing) still varies per session. */
+const COMPACT_NPC_CONFIG = {
+  /** Total citizens — matches CALIBRATION_NPC_COUNT (33 = 3× prior 11). */
+  totalPopulation: 33,
+  /** Nothing may idle/spawn closer than this to Spring Water (1800,1200). */
+  spawnClearanceRadius: 130,
+  /** Max NPCs simultaneously within the bridge plaza radius (Task 13). */
+  bridgeCapacity: 2,
+  /** Chance a 'roamer' re-homes to an ADJACENT (road-connected) district
+   *  on each pause, instead of staying local (Task 8: ~15-25% cross-district).
+   *  Phase 8J Task 11: forced to 0 — the old landmark-graph re-homing code
+   *  (updateNpcs) still reads WORLD_OBJECTS/ROAD_ADJACENCY, which is stale
+   *  for the new background; disable it rather than let NPCs re-home onto
+   *  old-world coordinates outside the confirmed-walkable plaza. */
+  crossDistrictChance: 0,
+  /** NPC walk speed range, px/s.
+   *  Phase 11C audit: PLAYER_SPEED is now 176 (WorldMapScale.ts), but this
+   *  range was last tuned against the OLD 252 player speed and never
+   *  revisited — speedMax (195) was actually FASTER than the current
+   *  player (176), which is exactly the "NPCs feel too fast" complaint.
+   *  OLD: speedMin 145, speedMax 195 (up to 111% of player speed).
+   *  NEW: speedMin 62, speedMax 108 (35–61% of player speed) — every
+   *  citizen is now visibly slower than the player during ordinary
+   *  wandering. District/behavior multipliers (NPC_DISTRICT_SPEED_MULT
+   *  below) scale within this range; even the busiest market multiplier
+   *  (1.2) tops out at 130, still 26% under the player. */
+  speedMin: 62,
+  speedMax: 108,
+} as const;
+const NPC_SPEED_MIN = COMPACT_NPC_CONFIG.speedMin;
+const NPC_SPEED_MAX = COMPACT_NPC_CONFIG.speedMax;
+
+/** Phase 11C Task 16 — per-district speed/pause feel. Keyed by the REAL
+ *  WorldDistricts.ts district ids (west / spring_core / east / financial
+ *  / arena_grounds) — the only districts that actually exist as geometry
+ *  today. The prompt's named districts (Market/Government/Park/Coffee/
+ *  Bridge) don't have 1:1 geometry yet, so this maps the closest real
+ *  district to the intended feel: spring_core = fountain gatherings,
+ *  east = the busiest/market-like band, financial = deliberate/office
+ *  pace, west = slow/residential-ish, arena_grounds = purposeful. */
+const NPC_DISTRICT_SPEED_MULT: Record<string, number> = {
+  spring_core: 0.85,
+  east: 1.2,
+  financial: 0.72,
+  west: 0.68,
+  arena_grounds: 0.9,
+};
+const NPC_DISTRICT_PAUSE_MULT: Record<string, number> = {
+  spring_core: 1.15,
+  east: 0.8,
+  financial: 1.35,
+  west: 1.4,
+  arena_grounds: 1.0,
+};
+
+/** Deterministic district-weighted home assignment (Task 4) — one entry
+ *  per citizen, in spawn order. Reuses the same 8-district grouping as
+ *  CompactWorldAmbience.ts's DISTRICT_GROUPS for consistency. Counts:
+ *  plaza 3, government 2, market 5, financial 5, creator 2, arena 2,
+ *  park 1, waterfront 2 = 22 (COMPACT_NPC_CONFIG.totalPopulation). */
+const NPC_HOME_LANDMARKS: string[] = [
+  'fountain', 'fountain', 'notice', 'coffee', 'coffee',
+  'fame', 'government', 'government',
+  'market', 'market', 'market', 'market', 'market_shop', 'market_shop', 'market_shop',
+  'whale', 'financial_office', 'financial_office', 'holder_bank', 'research_observatory', 'alpha', 'alpha',
+  'nft_gallery', 'nft_creator_studio', 'nft_gallery',
+  'arena', 'tournament_hall', 'arena',
+  'park', 'park',
+  'bridge', 'cashback', 'bridge',
+];
+
+/** landmarkId -> directly road-connected landmarkIds (one hop), built once
+ *  from ROAD_EDGES — keeps roamer cross-district movement following actual
+ *  connected roads (Task 8) instead of jumping to any random landmark. */
+const ROAD_ADJACENCY: Record<string, string[]> = {};
+for (const e of ROAD_EDGES) {
+  (ROAD_ADJACENCY[e.a] ??= []).push(e.b);
+  (ROAD_ADJACENCY[e.b] ??= []).push(e.a);
+}
 
 // Redraw citizens + remote players at ~20fps max (every 50ms). Their
 // geometry rebuild is the dominant per-frame cost with a crowd on screen;
 // capping at 20fps frees the main thread while movement stays smooth.
-// NPCs move slowly (~40-100px/s), so 20fps animation is imperceptibly
-// different from 30fps at normal play distance.
+// NPCs move at a modest fraction of player speed (COMPACT_NPC_CONFIG),
+// so 20fps animation is imperceptibly different from 30fps at normal play
+// distance.
 const CHAR_DRAW_INTERVAL = 50;
 
 // Ambient speech bubbles also get pushed into the city chat panel, but
 // that must NOT scale with population — this is a single GLOBAL cooldown
 // shared by all citizens, independent of how many of them exist.
-const NPC_CHAT_GLOBAL_COOLDOWN = 5500; // ms minimum between any two ambient npc-chat posts
-
-/* ─── RugTown Citizen names ───
-   A large pool so 40-60 citizens can each get a unique one — shuffled
-   and sliced down to the session's population count in createNpcs(). */
-const NPC_NAMES = [
-  'JeetBot', 'PumpGoblin', 'LiquidityLarry', 'AlphaAisha', 'ChartChad',
-  'BagHolderBen', 'WhaleGhost', 'RugSlayerNPC', 'MoonboyNPC', 'DumpDemon',
-  'DiamondHandDan', 'PaperHandPaula', 'SnipeKing', 'GasFeeGary', 'SlippageSam',
-  'ApeInAndy', 'FudFiona', 'ShillShane', 'RektRicky', 'CopeCarl',
-  'YieldYara', 'StakeSteve', 'FarmerFelix', 'BridgeBetty', 'AirdropAva',
-  'WenLambo', 'ToTheMoonTia', 'BearMarketBob', 'BullRunBella', 'HodlHank',
-  'DexDexter', 'CexCindy', 'OracleOwen', 'ValidatorVic', 'NodeNina',
-  'GweiGwen', 'MempoolMax', 'BlockBlake', 'ChainChloe', 'TokenTara',
-  'NftNeil', 'FloorPriceFay', 'MintMia', 'WhitelistWill', 'PresaleParker',
-  'LaunchLuna', 'VestingVince', 'TreasuryTrent', 'DaoDana', 'GovernanceGus',
-  'PumpAndDumpPete', 'RugPullRita', 'HoneypotHugo', 'ScamSentinel', 'AuditAaron',
-  'KycKyle', 'AnonAlex', 'DegenDave', 'SerSerena', 'FrenFreddy',
-  'GmGabby', 'WagmiWyatt', 'NgmiNoel', 'ProbablyNothingPaz', 'BasedBea',
-  'CopiumCody', 'HopiumHazel', 'MaxiMaya', 'LaserEyesLeo', 'OgOliver',
-];
-
-// Skin tone now lives in CharacterAppearance.ts's SKIN_TONES — picked as
-// part of generateRandomAppearance() below, not a separate palette here.
+const NPC_CHAT_GLOBAL_COOLDOWN = 6500; // slightly longer with denser crowds
 
 /* ─── Personalities ───
-   Drives which outfit (from the shared CharacterStyles registry) a
-   citizen wears and which slice of the ambient speech pool they draw
-   lines from. Combined with the reaction/district/reply/welcome lines
-   GamePage owns for the chat panel, the full system spans 80+ lines. */
+   Drives outfit, speech pool, and correlated display names. */
 export type NpcPersonality = 'degen' | 'whale' | 'alpha' | 'trader' | 'informant' | 'builder' | 'memelord';
 
 const NPC_PERSONALITIES: NpcPersonality[] = ['degen', 'whale', 'alpha', 'trader', 'informant', 'builder', 'memelord'];
 
-const NPC_PERSONALITY_STYLE: Record<NpcPersonality, string> = {
-  degen:     'degenHoodie',
-  whale:     'whaleSuit',
-  alpha:     'alphaAnalyst',
-  trader:    'marketTrader',
-  informant: 'rugAlleyInformant',
-  builder:   'builderJacket',
-  memelord:  'memeLord',
+/* ─── RugTown citizen names by personality ───
+   Names are drawn from the personality pool so a whale looks/reads like a
+   whale and a trader reads like a trader — not a random mash of slang. */
+const NPC_NAMES_BY_PERSONALITY: Record<NpcPersonality, string[]> = {
+  degen: [
+    'Degen Dave', 'Rekt Ricky', 'Ape Andy', 'Cope Carl', 'Hopium Hazel',
+    'Paper Paula', 'Moonboy Max', 'Jeet Jerry', 'Dip Buyer Bea', 'Bag Goblin',
+  ],
+  whale: [
+    'Whale Wren', 'Big Bag Ben', 'Quiet Quinn', 'Ledger Lane', 'Vault Vera',
+    'Deep Pocket Pat', 'Silent Sybil', 'Reserve Remy', 'Titan Tess', 'Oracle Owen',
+  ],
+  alpha: [
+    'Alpha Aisha', 'Signal Sage', 'Chart Chad', 'Edge Ezra', 'Scout Selene',
+    'Tipster Tia', 'Radar Rhea', 'Pulse Parker', 'Early Elise', 'Callen Cole',
+  ],
+  trader: [
+    'Trader Trent', 'Slippage Sam', 'Liquidity Larry', 'Spread Serena', 'Order Owen',
+    'Bid Bella', 'Ask Avery', 'Floor Fay', 'Market Mia', 'Ticket Tess',
+  ],
+  informant: [
+    'Informant Ivy', 'Rumour Rex', 'Whisper Will', 'Notice Nora', 'Courier Cade',
+    'Ledger Lila', 'Hint Hank', 'Source Sybil', 'Brief Blake', 'Town Tess',
+  ],
+  builder: [
+    'Builder Bram', 'Forge Felix', 'Scaffold Sam', 'Mortar Maya', 'Beam Bella',
+    'Plaza Piper', 'Stone Sterling', 'Craft Casey', 'Arch Avery', 'Mason Milo',
+  ],
+  memelord: [
+    'Meme Marlowe', 'Wagmi Wyatt', 'Based Bea', 'Fren Freddy', 'GM Gabby',
+    'Probably Paz', 'Copium Cody', 'Laser Leo', 'Ser Serena', 'OG Oliver',
+  ],
 };
+
+const NPC_NAME_FALLBACK = [
+  'Citizen Cam', 'Plaza Pat', 'Bridge Betty', 'Fountain Finn', 'Market Mae',
+  'Arena Ari', 'Tower Tate', 'Coffee Cole', 'Bank Bri', 'Park Piper',
+];
+
+function pickNpcName(personality: NpcPersonality, used: Set<string>): string {
+  const pool = NPC_NAMES_BY_PERSONALITY[personality] ?? NPC_NAME_FALLBACK;
+  const available = pool.filter((n) => !used.has(n));
+  const source = available.length > 0 ? available : NPC_NAME_FALLBACK.filter((n) => !used.has(n));
+  const name = source.length > 0
+    ? Phaser.Utils.Array.GetRandom(source)
+    : `${personality[0].toUpperCase()}${personality.slice(1)} ${used.size + 1}`;
+  used.add(name);
+  return name;
+}
+
+// Skin tone now lives in CharacterAppearance.ts's SKIN_TONES — picked as
+// part of generateRandomAppearance() below, not a separate palette here.
 
 export const NPC_SPEECH_BY_PERSONALITY: Record<NpcPersonality, string[]> = {
   degen: [
@@ -259,46 +425,6 @@ function pickWeighted<T extends { weight: number }>(items: T[]): T {
   return items[items.length - 1];
 }
 
-/* ─── Interaction zones ───
-   Coordinates, radii, and display names all come from the World Object
-   registry (src/game/world/WorldObjects.ts) — the single source of truth
-   for every landmark. This scene only turns the currently "live" subset
-   of that registry into runtime trigger circles; it no longer hardcodes
-   any landmark position itself. */
-interface ActiveZone { id: string; name: string; wx: number; wy: number; radius: number; }
-
-/* ─── Spawn Plaza ambience ───
-   Purely cosmetic dressing around the fountain/spawn area — particles,
-   tweens, and a few small Graphics props. No gameplay effect; nothing
-   here is collidable or interactive. Offsets are relative to the plaza
-   center (the same point the player spawns at) since the exact pixel
-   layout of the background art isn't mapped out — these are tasteful,
-   tunable estimates rather than precise art-matched coordinates. */
-const PLAZA_RADIUS = 260;            // rough visual extent, world px
-
-const FOUNTAIN_GLOW_COLOR  = 0x9fe8ff;
-const FOUNTAIN_PULSE_MIN   = 0.16;
-const FOUNTAIN_PULSE_MAX   = 0.34;
-
-const LAMP_OFFSETS: { x: number; y: number }[] = [
-  { x: -95, y: -55 },
-  { x:  95, y: -55 },
-  { x: -95, y:  65 },
-  { x:  95, y:  65 },
-];
-
-const SIGN_OFFSETS: { x: number; y: number }[] = [
-  { x: -150, y: -15 },
-  { x: -165, y:  35 },
-  { x:  140, y:  -5 },
-];
-
-const TREE_OFFSETS: { x: number; y: number }[] = [
-  { x: -180, y: 55 },
-  { x:  175, y: 40 },
-];
-
-const CANAL_OFFSET = { x: 195, y: -70, w: 90, h: 26 };
 
 // NPCs occasionally turn to face a nearby NPC when they pause
 const NPC_FACE_RADIUS  = 70;         // px
@@ -343,10 +469,12 @@ const CROWD_REACTION_LINES = [
   'This city is alive.',
 ];
 
-// Direction and HumanoidPose now live in HumanoidRenderer.ts (imported above).
-
 /* ─── NPC state ─── */
-type NpcState = 'idle' | 'walk' | 'pause';
+// Phase 11C: added 'look' — a brief anticipation beat between a finished
+// pause and the start of the next walk (Task 14: "occasionally turn
+// their head before moving"). Navigation/collision/target-picking are
+// unchanged; 'look' only holds the NPC still and re-faces it once.
+type NpcState = 'idle' | 'walk' | 'pause' | 'look';
 
 interface NpcData {
   name: string;
@@ -370,15 +498,14 @@ interface NpcData {
   walkMax: number;
   animTick: number;
   lean: number;
-  /** Procedurally generated once at spawn — see generateRandomAppearance()
-   *  in CharacterAppearance.ts. `resolvedAppearance` is the same data
-   *  pre-resolved to concrete draw values so drawNpc() never re-resolves
-   *  per frame. */
-  appearance: CharacterAppearance;
-  resolvedAppearance: ResolvedAppearance;
   personality: NpcPersonality;
   behaviorType: NpcBehaviorType;
   homeLandmarkIndex: number;
+  /** Landmark id at homeLandmarkIndex — cached so roamer re-homing (Task 8)
+   *  can look up road-adjacent landmarks by id without an array lookup. */
+  homeLandmarkId: string;
+  /** Phase 6 — district this citizen belongs to (derived from home landmark). */
+  districtId: string;
   speechTimerNext: number;
   speechShowUntil: number;
   /** Small per-citizen jitter applied to speech-bubble position so
@@ -393,8 +520,14 @@ interface NpcData {
    *  already used above. */
   blinkTimerNext: number;
   blinkUntil: number;
-  shadow: Phaser.GameObjects.Graphics;
-  body: Phaser.GameObjects.Graphics;
+  /** Phase 11C — ms-timestamp (animTick-relative) of the last facing
+   *  change, so near-diagonal velocity can't flicker facing every frame. */
+  lastFacingChangeMs: number;
+  /** Phase 11C — target position queued during the 'look' anticipation
+   *  beat, applied once 'look' finishes and 'walk' begins. */
+  pendingTargetX: number;
+  pendingTargetY: number;
+  bitmap: BitmapCharacter;
   label: Phaser.GameObjects.Text;
   speech: Phaser.GameObjects.Text;
 }
@@ -402,8 +535,7 @@ interface NpcData {
 /** Phaser graphics + interpolation state for one remote real player. */
 interface RemotePlayerEntry {
   glow:    Phaser.GameObjects.Graphics;
-  shadow:  Phaser.GameObjects.Graphics;
-  body:    Phaser.GameObjects.Graphics;
+  bitmap:  BitmapCharacter;
   label:   Phaser.GameObjects.Text;
   speech:  Phaser.GameObjects.Text;   // emote bubble (hidden when idle)
   px:      number;     // current lerped world-pixel x
@@ -413,7 +545,12 @@ interface RemotePlayerEntry {
   animTick: number;
   facing:  Direction;
   isMoving: boolean;
-  resolvedAppearance: ResolvedAppearance;
+  /** Phase 8I — remote players now blink too, for animation-model parity
+   *  with the local player/NPCs (Task 16). Purely visual/local; not
+   *  synced over the network. */
+  blinkTimerNext: number;
+  blinkUntil: number;
+  appearanceRev?: number;
   username: string;
   speechUntil:    number;   // ms until emote bubble hides
   emotePulseUntil: number;  // ms until emote pulse ends
@@ -421,38 +558,44 @@ interface RemotePlayerEntry {
   presenceId:    string;
   rep:           number;
   holderTier:    string;
-  rawAppearance: CharacterAppearance;
+  rawAppearance: CharacterAppearanceV1;
+  /** Phase 10F optional presence progression. */
+  level?: number;
+  rankLabel?: string;
+  equippedTitle?: string;
+  /** Client clock when presence last updated this entry. */
+  lastSeenAt: number;
+  /** Selected as interaction target — cyan ring accent. */
+  selected: boolean;
 }
 
 export class WorldScene extends Phaser.Scene {
 
-  /* ── Background ── */
-  private background!: Phaser.GameObjects.Image;
+  /* ── World dimensions ── */
   private worldW = DEFAULT_WORLD_W;
   private worldH = DEFAULT_WORLD_H;
-  private bgMissing = false;
 
   /* ── Player ── */
   private player!: Phaser.GameObjects.Container;
-  private playerBody!: Phaser.GameObjects.Graphics;
-  private playerShadow!: Phaser.GameObjects.Graphics;
+  private bitmapPlayer: BitmapCharacter | null = null;
   private playerGlow!: Phaser.GameObjects.Graphics;   // depth below player
   private playerLabel!: Phaser.GameObjects.Text;
   private playerSpeech!: Phaser.GameObjects.Text;
   private playerSpeechUntil = 0;
   private emotePulseUntil = 0;
-  private appearance: CharacterAppearance = DEFAULT_APPEARANCE;
-  private resolvedAppearance: ResolvedAppearance = resolveAppearance(DEFAULT_APPEARANCE);
+  private appearance: CharacterAppearanceV1 = getDefaultCharacterAppearance();
   /** Blink timing — same shape as the per-NPC fields. */
   private playerBlinkTimerNext = Phaser.Math.Between(2000, 6000);
   private playerBlinkUntil = 0;
+  /** Last clamped frame delta (ms) — used when drawPlayer is called outside update. */
+  private lastDeltaMs = 16;
 
   // Movement state
   private velX = 0;
   private velY = 0;
   private facing: Direction = 'down';
   private isMoving = false;
-  private animTick = 0;                 // for walk cycle frame counter
+  private animTick = 0;                 // for glow / label timing
   private lean = 0;                     // smoothed body lean (turn smoothing)
 
   // World position
@@ -476,10 +619,6 @@ export class WorldScene extends Phaser.Scene {
   private charDrawAccum = 0;
   private charDrawThisFrame = true;
 
-  /* ── Interaction zones ── */
-  private zones: ActiveZone[] = [];
-  private nearZoneId: string | null = null;
-
   /* ── NPC dialogue proximity ── */
   private nearNpcName: string | null = null;
 
@@ -493,15 +632,50 @@ export class WorldScene extends Phaser.Scene {
   /* ── Reward feedback (floating text above player) ── */
   private floatingTexts: { obj: Phaser.GameObjects.Text; vy: number; life: number; maxLife: number }[] = [];
 
-  /* ── Spawn Plaza ambience ── */
+  /* ── Plaza origin — used by event positioning (applyEventCitizenGather,
+     pickTownCrierSpawnPosition, triggerLiveCrowdReaction) and the
+     fallback randomWalkablePoint. Set in create() after worldW/H are known. ── */
   private plazaX = 0;
   private plazaY = 0;
 
-  /* ── Walkability (road-only movement) — player AND citizens are confined
-     to the road/plaza/bridge network built from RoadNetwork.ts. ── */
-  private walkableRects: WalkRect[] = [];
-  private collisionDebugGraphics!: Phaser.GameObjects.Graphics;
-  private collisionDebugVisible = false;
+  /* ── Phase 1 systems ── */
+  private collision!: CollisionSystem;
+  private interaction!: InteractionSystem;
+  /** Phase 10B — single authoritative camera owner (no startFollow). */
+  private worldCamera!: WorldCameraController;
+  /** Phase 10D — landmark catalog + interaction debug. */
+  private landmarkCatalog: LandmarkMeta[] = [];
+  private lastInteractFeedbackAt = 0;
+  private lockedFeedbackSpamMs = 1400;
+  /** Phase 10E — sticky interaction target hysteresis. */
+  private stickyInteractId: string | null = null;
+  private stickyInteractSince = 0;
+  private lastSocialCardOpenAt = 0;
+  private socialCardCooldownMs = 450;
+  private selectedRemotePlayerId: string | null = null;
+  private mission: MissionSystem = createStarterMissionSystem();
+  /* ── Phase 4 World Engine generators ── */
+  private buildingGenerator!: BuildingGenerator;
+  private decorationGenerator!: DecorationGenerator;
+  private compactAmbience?: CompactWorldAmbience;
+  private compactRoadRenderer?: CompactRoadRenderer;
+  /** Phase 8A — F9 architecture blueprint overlay (dev only). */
+  private architectureOverlay: NewWorldDebugOverlay | null = null;
+  /** Phase 8K Task 4 — actual placed anchor of each of the 5 test
+   *  buildings, for the F9 calibration crosshair (plot vs sprite). */
+  private testBuildingSprites: { plot: CanonicalBuildingPlot; anchorX: number; anchorY: number }[] = [];
+  /* ── Phase 3 systems ── */
+  private enterableDoors: ResolvedDoorZone[] = [];
+  private nearDoorId: string | null = null;
+  private interiorActive = false;
+
+  /* ── Phase 5 gameplay loop / save ── */
+  private visitedInteriors = new Set<string>();
+  private currentDistrictName = '';
+  private currentDistrictId: string | null = null;
+  /** Landmark proximity hysteresis for first-visit discovery. */
+  private landmarkDiscoverArmed = new Set<string>();
+  private lastDiscoveryCheckAt = 0;
 
   /* ── Input ── */
   private keyW!:     Phaser.Input.Keyboard.Key;
@@ -515,7 +689,12 @@ export class WorldScene extends Phaser.Scene {
   private keyZoomIn!:    Phaser.Input.Keyboard.Key;
   private keyZoomOut!:   Phaser.Input.Keyboard.Key;
   private keyZoomReset!: Phaser.Input.Keyboard.Key;
+  private keyRecenter!:  Phaser.Input.Keyboard.Key;
   private keyE!:         Phaser.Input.Keyboard.Key;
+  private keyEmote1!:     Phaser.Input.Keyboard.Key;
+  private keyEmote2!:     Phaser.Input.Keyboard.Key;
+  private keyEmote3!:     Phaser.Input.Keyboard.Key;
+  private keyEmote4!:     Phaser.Input.Keyboard.Key;
   // keyC removed — collision debug is Settings-only in public demo
 
   /* ── Zoom ── */
@@ -569,8 +748,7 @@ export class WorldScene extends Phaser.Scene {
   private townCrier: {
     wx: number;
     wy: number;
-    shadow: Phaser.GameObjects.Graphics;
-    body: Phaser.GameObjects.Graphics;
+    bitmap: BitmapCharacter;
     bell: Phaser.GameObjects.Text;
     label: Phaser.GameObjects.Text;
     speech: Phaser.GameObjects.Text;
@@ -578,11 +756,8 @@ export class WorldScene extends Phaser.Scene {
     lineIndex: number;
     lineTimer: number;
     animTick: number;
-    /** Resolved once at spawn — gold jacket, otherwise the default look
-     *  (no hat/glasses/accessory), matching the crier's existing
-     *  pre-creator appearance exactly. */
-    resolvedAppearance: ResolvedAppearance;
   } | null = null;
+  private nearTownCrier = false;
 
   /* ── Hall of Fame statues — a permanent (not event-driven) fixture
      near the 'fame' landmark. Rebuilt whenever GamePage pushes fresh
@@ -610,14 +785,6 @@ export class WorldScene extends Phaser.Scene {
      eventGatherSnapshot. ── */
   private crowdReactionSnapshot: { npc: NpcData; homeX: number; homeY: number; wanderRadius: number }[] | null = null;
 
-  /* ── Landmark labels (Part D) — created 80ms after world is visible ── */
-  private landmarkLabels: Phaser.GameObjects.Text[] = [];
-  private landmarkLabelIds: string[] = [];
-  private missionZoneId: string | null = null;
-
-  /* ── Fountain onboarding guide — pulsing glow until player claims REP ── */
-  private fountainGuide: Phaser.GameObjects.Graphics | null = null;
-  private fountainGuideAnimTick = 0;
 
   /* ── Ready callback — called after NPCs are fully spawned so the loading
      screen stays visible until the city is populated and the first frame
@@ -633,125 +800,157 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /* ═══════════════════════════════════════════════════════════
-     PRELOAD
+     PRELOAD — Phase 9C: final master terrain only. Standalone landmark
+     PNGs and the modular prop/filler library are NOT queued for the live
+     city (already baked into the master).
      ═══════════════════════════════════════════════════════════ */
   preload() {
-    this.load.on('loaderror', () => { this.bgMissing = true; });
-    this.load.image('rugtown-city', '/assets/backgrounds/rugtown-city.png');
+    WorldTerrainLayer.preloadScene(this);
+    queueWorldCharacterLoads(this);
   }
 
   /* ═══════════════════════════════════════════════════════════
      CREATE
      ═══════════════════════════════════════════════════════════ */
   create() {
-    /* ── Background ── */
-    if (!this.bgMissing && this.textures.exists('rugtown-city')) {
-      this.background = this.add.image(0, 0, 'rugtown-city')
-        .setOrigin(0, 0)
-        .setDepth(0);
+    charPerfMark('WorldScene.characterRegistryHydrate.start');
+    hydrateCharacterRegistryFromScene(this);
+    charPerfMark('WorldScene.characterRegistryHydrate.end');
+    charPerfMeasure(
+      'WorldScene.characterRegistryHydrate',
+      'WorldScene.characterRegistryHydrate.start',
+      'WorldScene.characterRegistryHydrate.end',
+    );
+    this.worldW = DEFAULT_WORLD_W;
+    this.worldH = DEFAULT_WORLD_H;
 
-      this.worldW = this.background.width;
-      this.worldH = this.background.height;
+    /* Plaza origin — needed by event positioning throughout the session */
+    this.plazaX = this.worldW * SPAWN_FX;
+    this.plazaY = this.worldH * SPAWN_FY;
 
-      // If image is unusually small, scale up so there's room to pan
-      if (this.worldW < 1920) {
-        const s = Math.max(1920 / this.worldW, 1080 / this.worldH);
-        this.background.setScale(s);
-        this.worldW = Math.round(this.worldW * s);
-        this.worldH = Math.round(this.worldH * s);
+    /* Dev QA: F8 opens Asset Gallery (Phase 7A) — not permanent gameplay UI */
+    this.input.keyboard?.on('keydown-F8', () => {
+      if (this.scene.isActive('AssetGalleryScene')) return;
+      this.scene.sleep();
+      this.scene.launch('AssetGalleryScene');
+    });
+
+    /* Dev QA: F9 toggles final-master geometry overlay (Phase 10A.1) */
+    this.input.keyboard?.on('keydown-F9', () => {
+      if (!this.collision) return;
+      if (!this.architectureOverlay) {
+        this.architectureOverlay = new NewWorldDebugOverlay(this);
       }
-    } else {
-      this.bgMissing = true;
-      this.worldW = DEFAULT_WORLD_W;
-      this.worldH = DEFAULT_WORLD_H;
-      this.drawFallback();
-    }
+      this.architectureOverlay.setCollisionSystem(this.collision);
+      this.architectureOverlay.setDoorZones(
+        this.enterableDoors.map((d) => ({
+          id: d.building.id,
+          wx: d.wx,
+          wy: d.wy,
+          radius: d.radius,
+        })),
+      );
+      this.architectureOverlay.setInteractZones(
+        getLiveWorldObjects().map((o) => {
+          const { wx, wy } = toWorldPosition(o, this.worldW, this.worldH);
+          return { id: o.id, wx, wy, radius: o.interactionRadius };
+        }),
+      );
+      this.architectureOverlay.setNpcFeet(this.npcs.map((n) => ({ x: n.px, y: n.py })));
+      this.architectureOverlay.toggle(this.worldW, this.worldH, this.px, this.py, this.testBuildingSprites);
+    });
 
-    /* ── Camera bounds — player can walk to edge but camera clamps ── */
-    this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
-    this.cameras.main.setZoom(this.currentZoom);
+    /* ── Spawn player in Spring Water spawn zone (slot 0) ── */
+    const spawn = spawnPointForSlot(0);
+    this.px = spawn.x;
+    this.py = spawn.y;
 
-    /* ── Spawn player at fountain area ── */
-    this.px = this.worldW * SPAWN_FX;
-    this.py = this.worldH * SPAWN_FY;
-
-    /* ── Create player graphics layers (depth order: glow < shadow < body < label) ── */
+    /* ── Create player layers (glow + bitmap body + label) ── */
     this.playerGlow  = this.add.graphics().setDepth(8);
-    this.playerShadow = this.add.graphics().setDepth(9);
-    this.playerBody  = this.add.graphics().setDepth(10);
     this.playerLabel = this.add.text(0, 0, 'You', {
       fontFamily: '"Cinzel", serif',
-      fontSize:   '8px',
-      color:      '#f0e0b8',
-      backgroundColor: 'rgba(4,8,12,0.92)',
-      padding: { x: 4, y: 2 },
+      fontSize:   '11px',
+      fontStyle:  'bold',
+      color:      '#ffe88a',
+      backgroundColor: 'rgba(4,8,12,0.94)',
+      padding: { x: 5, y: 2 },
       stroke: '#000000',
-      strokeThickness: 3,
-      resolution: Math.max(2, window.devicePixelRatio || 1),
+      strokeThickness: 4,
+      resolution: 2,
     }).setOrigin(0.5, 1).setDepth(11);
 
     this.playerSpeech = this.add.text(0, 0, '', {
       fontFamily: '"Cinzel", serif',
-      fontSize:   '9px',
+      fontSize:   '12px',
       color:      '#e8d8c0',
-      backgroundColor: 'rgba(10,14,18,0.92)',
-      padding: { x: 6, y: 4 },
+      backgroundColor: 'rgba(10,14,18,0.94)',
+      padding: { x: 7, y: 4 },
+      stroke: '#000000',
+      strokeThickness: 3,
       align: 'center',
+      resolution: 2,
     }).setOrigin(0.5, 1).setDepth(12).setVisible(false);
 
-    // Container for camera-follow target
+    // Container for character transform (camera no longer startFollows this)
     this.player = this.add.container(this.px, this.py).setDepth(10);
 
-    /* ── Camera follow the container ── */
-    this.cameras.main.startFollow(
-      this.player,
-      true,         // round pixels
-      CAM_LERP,     // lerpX
-      CAM_LERP,     // lerpY
-    );
-    this.cameras.main.setDeadzone(CAM_DEADZONE_X, CAM_DEADZONE_Y);
+    this.bitmapPlayer = new BitmapCharacter(this, this.appearance, {
+      depth: 10,
+      visualScale: PLAYER_VISUAL_SCALE,
+    });
+    this.bitmapPlayer.setPosition(this.px, this.py);
+    this.bitmapPlayer.setFacing(this.facing);
+
+    /* ── Phase 10B camera — exclusive owner of scroll/zoom ── */
+    this.worldCamera = new WorldCameraController(this);
+    this.worldCamera.attach(this.worldW, this.worldH, this.currentZoom);
+    this.worldCamera.snapFollowToPlayer(this.px, this.py);
+    this.worldCamera.canStartPan = (pointer) => !this.hitRemotePlayerAt(pointer);
 
     /* ── Input ── */
     this.setupInput();
-
-    /* ── Scroll-wheel zoom ── */
-    this.input.on('wheel', (_p: unknown, _g: unknown, _dx: number, dy: number) => {
-      const dir = dy > 0 ? -1 : 1;
-      this.targetZoom = Phaser.Math.Clamp(
-        this.targetZoom + dir * ZOOM_STEP * 1.5,
-        this.zoomMin, ZOOM_MAX
-      );
-    });
 
     /* ── Remote player click-to-profile ──────────────────────────────
        pointer.worldX/Y accounts for camera scroll + zoom, so the hit
        test works at any zoom level. Uses a generous radius (CHAR_H * 0.65)
        so small pixel-art figures are tappable on mobile too. ── */
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const hitR2 = (CHAR_H * 0.65) ** 2;
-      for (const entry of this.remotePlayerEntries.values()) {
-        const dx = pointer.worldX - entry.px;
-        const dy = pointer.worldY - entry.py;
-        if (dx * dx + dy * dy <= hitR2) {
-          this.events.emit('remote-player-interact', {
-            id:         entry.presenceId,
-            username:   entry.username,
-            x:          entry.px,
-            y:          entry.py,
-            appearance: entry.rawAppearance,
-            rep:        entry.rep,
-            holderTier: entry.holderTier,
-          });
-          break; // only one card at a time
-        }
-      }
+      const entry = this.remoteAtPointer(pointer);
+      if (!entry) return;
+      if (isPresenceStale(entry.lastSeenAt)) return;
+      const now = this.time.now;
+      if (now - this.lastSocialCardOpenAt < this.socialCardCooldownMs) return;
+      this.lastSocialCardOpenAt = now;
+      this.events.emit('remote-player-interact', presenceToSocialSummary({
+        id:         entry.presenceId,
+        username:   entry.username,
+        x:          entry.px,
+        y:          entry.py,
+        appearance: entry.rawAppearance,
+        rep:        entry.rep,
+        holderTier: entry.holderTier,
+        level:      entry.level,
+        rankLabel:  entry.rankLabel,
+        equippedTitle: entry.equippedTitle,
+      }, {
+        worldX: entry.px,
+        worldY: entry.py,
+        direction: entry.facing,
+        lastSeenAt: entry.lastSeenAt,
+        online: true,
+      }));
     });
 
-    /* ── Interaction zones ── */
-    this.createZones();
-
-    /* ── Collision (player-only walkable boundaries) ── */
-    this.createCollision();
+    /* ── Systems: collision + interaction (synchronous — need worldW/worldH) ── */
+    this.collision = new CollisionSystem(this);
+    // Phase 8J — walkable geometry now comes from NewCanonicalWorld.ts
+    // (the "+"-shaped plaza+spoke approximation of the new background's
+    // ring road), not the old RoadNetwork.ts default.
+    this.collision.init(this.worldW, this.worldH, buildNewWalkableRects(this.worldW, this.worldH));
+    this.interaction = new InteractionSystem(this);
+    this.interaction.init(this.worldW, this.worldH);
+    this.enterableDoors = buildEnterableDoorZones(this.worldW, this.worldH);
+    this.landmarkCatalog = buildLandmarkCatalog(this.worldW, this.worldH);
 
     /* ── Weather graphics — must exist before update() runs ── */
     this.weatherGraphics = this.add.graphics().setDepth(40).setVisible(false);
@@ -765,6 +964,9 @@ export class WorldScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.eventManagerUnsubscribe?.();
       this.eventManager.destroy();
+      this.compactAmbience?.destroy();
+      this.compactRoadRenderer?.destroy();
+      this.worldCamera?.destroy();
     });
 
     /* ── Initial draw ── */
@@ -776,11 +978,26 @@ export class WorldScene extends Phaser.Scene {
     this.registry.set('worldH',    this.worldH);
     this.registry.set('playerX',   this.px);
     this.registry.set('playerY',   this.py);
-    this.registry.set('bgMissing', this.bgMissing);
     this.registry.set('zoom',      this.currentZoom);
     this.registry.set('nearZone',  null);
+    this.registry.set('nearDoor',  null);
     this.registry.set('nearNpc',   null);
+    this.registry.set('nearTownCrier', false);
+    this.registry.set('nearInteriorPrompt', null);
+    this.registry.set('interiorState', { active: false, buildingId: null, displayName: null });
+
+    /* ── Phase 5: rehydrate saved progress so completed missions stay
+         completed and visited interiors persist across reloads. ── */
+    const savedProgress = loadProgress();
+    this.mission.restoreCompleted(savedProgress.completedMissions);
+    this.visitedInteriors = new Set(savedProgress.visitedInteriors);
+    this.registry.set('currentDistrict', '');
+    this.publishMissionState();
     this.registry.set('collisionDebug', false);
+    this.registry.set('assetBoundsDebug', false);
+    this.registry.set('assetAnchorsDebug', false);
+    this.registry.set('assetRoadDebug', false);
+    this.registry.set('assetPlayerDepthDebug', false);
 
     /* ── Defer NPC citizens — short delay so the first frame renders before
          any expensive work starts, then spawn in batches of 5 at 20ms gaps.
@@ -788,15 +1005,59 @@ export class WorldScene extends Phaser.Scene {
          remains visible until the city is fully populated — no GPU texture
          uploads mid-gameplay. ── */
     this.time.delayedCall(80, () => {
+      charPerfMark('WorldScene.createNpcs.start');
       this.createNpcs();
+      charPerfMark('WorldScene.createNpcs.end');
+      charPerfMeasure(
+        'WorldScene.createNpcs',
+        'WorldScene.createNpcs.start',
+        'WorldScene.createNpcs.end',
+      );
     });
 
-    /* ── Part A: Defer plaza ambience + landmark labels — purely decorative,
-         safe to arrive 80ms after the city is already visible ── */
+    /* ── Phase 9C: place final master terrain only ──
+       Standalone landmark sprites and the old modular generators remain
+       disconnected so they cannot duplicate buildings/roads/props already
+       baked into RugTown_World_Master_Final_Upscaled.png. ── */
     this.time.delayedCall(80, () => {
-      this.createPlazaAmbience();
-      this.createLandmarkLabels();
-      this.createFountainGuide();
+      clearMinimapData();
+
+      WorldTerrainLayer.generate(this, this.worldW, this.worldH);
+
+      // Publish walkable + landmark geometry for the React minimap
+      // (fractional coords relative to the final master dimensions).
+      for (const r of buildNewWalkableRects(this.worldW, this.worldH)) {
+        if (r.kind === 'road' || r.kind === 'plaza') {
+          addMinimapRoad(r.x / this.worldW, r.y / this.worldH, r.w / this.worldW, r.h / this.worldH);
+        }
+      }
+      for (const obj of WORLD_OBJECTS) {
+        const s = 0.018;
+        addMinimapBuilding(obj.x - s / 2, obj.y - s / 2, s, s);
+      }
+
+      this.registry.set('minimapWorld', getMinimapData());
+    });
+
+    const interior = this.scene.get('InteriorScene') as InteriorScene;
+    interior.events.on('interior-exit', (payload: { buildingId: string | null }) => {
+      if (payload.buildingId) this.exitInterior(payload.buildingId);
+    });
+    interior.events.on('interior-feature', (payload: { buildingId: string | null; label: string }) => {
+      if (!payload.buildingId) return;
+      if (payload.buildingId === 'hall-of-fame') {
+        this.events.emit('interior-feature', {
+          buildingId: payload.buildingId,
+          title: 'Hall of Fame',
+          text: 'Legacy plaques record the top citizens of RugTown. The monument remains active outside too.',
+        });
+      } else {
+        this.events.emit('interior-feature', {
+          buildingId: payload.buildingId,
+          title: getEnterableBuilding(payload.buildingId)?.displayName ?? 'Interior',
+          text: `${payload.label} hums with future mission hooks and city services.`,
+        });
+      }
     });
   }
 
@@ -809,11 +1070,13 @@ export class WorldScene extends Phaser.Scene {
     // in a single frame, which looks like teleporting.
     const clampedDelta = Math.min(delta, 100);
     const dt = clampedDelta / 1000;  // seconds
+    this.lastDeltaMs = clampedDelta;
     this.tick += clampedDelta;
     this.animTick += clampedDelta;
 
-    // Decide once per frame whether the throttled characters (citizens +
-    // remote players) redraw this frame. The local player always redraws.
+    // NPC citizens redraw at 20fps to save GPU tessellation cost — they move
+    // slowly enough that 20fps is imperceptible at play distance. The local
+    // player and remote real players always draw every frame.
     this.charDrawAccum += clampedDelta;
     this.charDrawThisFrame = this.charDrawAccum >= CHAR_DRAW_INTERVAL;
     if (this.charDrawThisFrame) this.charDrawAccum = 0;
@@ -862,17 +1125,34 @@ export class WorldScene extends Phaser.Scene {
     this.velX = tvx;
     this.velY = tvy;
 
-    /* ── Apply movement — road-only walkability with axis sliding, then a
-       world-boundary clamp. resolveWalk() confines the player to the road /
-       plaza / bridge network and slides along edges so there's no jitter or
-       sticking (buildings, rivers, walls and gardens are all non-walkable). ── */
-    const resolved = this.resolveWalk(this.px, this.py, this.velX, this.velY, dt);
-    const newX = Phaser.Math.Clamp(resolved.x, WORLD_PAD, this.worldW - WORLD_PAD);
-    const newY = Phaser.Math.Clamp(resolved.y, WORLD_PAD, this.worldH - WORLD_PAD);
+    /* ── Phase 10B — WORLD_COLLISION_ENABLED gates solids.
+       Movement: velocity × dt, optional resolveWalk (dormant when flag false),
+       then world-edge clamp. Player must stay inside 4344×1448. ── */
+    const resolved = this.collision.resolveWalk(this.px, this.py, this.velX, this.velY, dt);
+    const margin = Math.max(FOOT_COLLIDER_W, FOOT_COLLIDER_H);
+    const newX = Phaser.Math.Clamp(resolved.x, margin, this.worldW - margin);
+    const newY = Phaser.Math.Clamp(resolved.y, margin, this.worldH - margin);
 
     const moved = Math.abs(newX - this.px) > 0.1 || Math.abs(newY - this.py) > 0.1;
     this.px = newX;
     this.py = newY;
+
+    if (
+      import.meta.env.DEV &&
+      WORLD_COLLISION_ENABLED &&
+      this.architectureOverlay?.isVisible() &&
+      (Math.abs(this.velX) > 1 || Math.abs(this.velY) > 1)
+    ) {
+      console.debug(
+        '[col]',
+        `foot=(${Math.round(this.px)},${Math.round(this.py + FOOT_OFFSET_Y)})`,
+        `prop=(${Math.round(this.collision.lastProposedX)},${Math.round(this.collision.lastProposedY)})`,
+        `res=(${Math.round(newX)},${Math.round(newY)})`,
+        `solids=${resolved.solidsChecked}`,
+        `hit=${resolved.hitId ?? '-'}`,
+        resolved.rejected ? 'REJECT' : resolved.hit ? 'SLIDE' : 'OK',
+      );
+    }
 
     /* ── Update facing direction ── */
     if (Math.abs(this.velX) > 10 || Math.abs(this.velY) > 10) {
@@ -894,16 +1174,31 @@ export class WorldScene extends Phaser.Scene {
     /* ── Move the container (camera follows this) ── */
     this.player.setPosition(this.px, this.py);
 
-    /* ── Frame-rate-independent camera smoothing ──────────────────────
-       Phaser applies camera.lerp as a fixed fraction PER FRAME, so the
-       camera's catch-up speed silently depends on the current FPS: at a
-       low startup frame rate it crawls behind, then rushes to catch up
-       when FPS recovers — read on screen as "everything lags, then moves
-       very fast". Recomputing the lerp from dt each frame makes it close
-       the same fraction of the gap per unit TIME instead, so movement is
-       identical at 20fps or 60fps. (dt*60 == 1 at 60fps → base CAM_LERP.) ── */
-    const camLerp = CAM_LERP >= 1 ? 1 : 1 - Math.pow(1 - CAM_LERP, dt * 60);
-    this.cameras.main.lerp.set(camLerp, camLerp);
+    if (this.architectureOverlay?.isVisible()) {
+      const camDiag = this.worldCamera?.getDiagnostics();
+      this.architectureOverlay.syncLive(
+        this.px,
+        this.py,
+        this.npcs.map((n) => ({ x: n.px, y: n.py })),
+        {
+          cameraMode: camDiag?.mode ?? 'FOLLOWING',
+          scrollX: camDiag?.scrollX ?? 0,
+          scrollY: camDiag?.scrollY ?? 0,
+          zoom: camDiag?.zoom ?? this.currentZoom,
+          targetZoom: camDiag?.targetZoom ?? this.targetZoom,
+          distToPlayer: camDiag?.distToPlayer ?? 0,
+          worldCollisionEnabled: WORLD_COLLISION_ENABLED,
+          playerSpeed: PLAYER_SPEED,
+        },
+      );
+    }
+
+    /* ── Phase 10B — WorldCameraController owns follow/pan/zoom ── */
+    if (this.worldCamera && !this.interiorActive) {
+      this.worldCamera.update(dt, this.px, this.py);
+      this.currentZoom = this.worldCamera.getZoom();
+      this.targetZoom = this.worldCamera.getTargetZoom();
+    }
 
     /* ── Redraw player every frame ── */
     this.drawPlayer();
@@ -924,40 +1219,33 @@ export class WorldScene extends Phaser.Scene {
     this.updateWhaleMarker();
     this.updateTownCrier(clampedDelta);
     this.updateHallOfFameStatues();
-    this.updateFountainGuide(clampedDelta);
+    if (this.decorationGenerator) this.decorationGenerator.updateFountainGuide(clampedDelta, this.px, this.py, this.worldW, this.worldH);
 
-    /* ── Landmark label visibility — fade out when zoomed far out;
-       pulse gold on the label whose zone matches the current mission. ── */
-    if (this.landmarkLabels.length > 0) {
-      const z = this.currentZoom;
-      const baseA = z >= 0.55 ? 0.88 : z >= 0.30 ? (z - 0.30) / 0.25 * 0.88 : 0;
-      const pulseT = (Math.sin(this.animTick / 400) + 1) / 2;
-      for (let i = 0; i < this.landmarkLabels.length; i++) {
-        const lbl = this.landmarkLabels[i];
-        if (this.landmarkLabelIds[i] === this.missionZoneId && baseA > 0) {
-          lbl.setAlpha(Math.max(0.4, baseA * (0.7 + 0.3 * pulseT)));
-          lbl.setTint(0xffe060);
-        } else {
-          lbl.setAlpha(baseA);
-          lbl.clearTint();
-        }
-      }
+    /* ── Landmark label visibility / mission pulse ── */
+    if (this.buildingGenerator) {
+      this.buildingGenerator.updateLabels(this.currentZoom, this.animTick, this.px, this.py, this.worldW, this.worldH);
+      this.buildingGenerator.updateBuildingVisuals(this.px, this.py, this.worldW, this.worldH);
+      this.buildingGenerator.getWorldAssetLoader()?.updatePlayerDepthDebug(this.px, this.py);
     }
 
-    /* ── Interaction zones ── */
-    this.updateZoneProximity();
+    if (!this.interiorActive) {
+      /* ── Phase 10D — single interaction target (doors/zones/NPCs/events) ── */
+      this.updateInteractionsUnified();
 
-    /* ── NPC dialogue proximity ── */
-    this.updateNpcProximity();
-
-    /* ── Treasure Hunt chest proximity (no-op unless one exists) ── */
-    this.updateTreasureProximity();
-
-    /* ── Whale Alert marker proximity (no-op unless one exists) ── */
-    this.updateWhaleProximity();
-
-    /* ── Hall of Fame statue proximity (no-op unless any exist) ── */
-    this.updateStatueProximity();
+      /* ── Phase 6 quick emotes (number keys 1–4) ── */
+      this.updateQuickEmoteKeys();
+    } else {
+      if (this.nearDoorId !== null) {
+        this.nearDoorId = null;
+        this.registry.set('nearDoor', null);
+      }
+      if (this.nearTownCrier) {
+        this.nearTownCrier = false;
+        this.registry.set('nearTownCrier', false);
+      }
+      this.registry.set('activeInteractTarget', null);
+      this.buildingGenerator?.setSelectedInteractTarget(null);
+    }
 
     /* ── Reward feedback (floating text) ── */
     this.updateFloatingTexts(delta);
@@ -981,42 +1269,115 @@ export class WorldScene extends Phaser.Scene {
        every frame (not just on new input) means a resize, rotation, or
        fullscreen toggle can never leave empty space showing, even if
        nothing zooms in response. ── */
-    this.zoomMin = this.computeZoomMin();
-    if (this.targetZoom < this.zoomMin) this.targetZoom = this.zoomMin;
-    if (this.currentZoom < this.zoomMin) this.currentZoom = this.zoomMin;
-
-    /* ── Zoom key input ── */
-    if (Phaser.Input.Keyboard.JustDown(this.keyZoomIn)) {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom + ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keyZoomOut)) {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom - ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keyZoomReset)) {
-      this.targetZoom = ZOOM_DEFAULT;
-    }
-
-    /* ── Smooth zoom ── */
-    if (Math.abs(this.currentZoom - this.targetZoom) > 0.001) {
-      this.currentZoom = Phaser.Math.Linear(this.currentZoom, this.targetZoom, ZOOM_LERP);
-    }
-
-    /* ── Apply zoom only when it actually changes. A perfectly still
-       player then yields a perfectly still camera — no per-frame zoom
-       churn and no sub-pixel shimmer from roundPixels re-rounding the
-       scroll offset every frame. ── */
-    if (this.cameras.main.zoom !== this.currentZoom) {
-      this.cameras.main.setZoom(this.currentZoom);
+    /* ── Zoom / recenter keys → WorldCameraController ── */
+    if (this.worldCamera && !this.interiorActive) {
+      if (Phaser.Input.Keyboard.JustDown(this.keyZoomIn)) {
+        this.worldCamera.setTargetZoom(this.worldCamera.getTargetZoom() + ZOOM_STEP * 2);
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.keyZoomOut)) {
+        this.worldCamera.setTargetZoom(this.worldCamera.getTargetZoom() - ZOOM_STEP * 2);
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.keyZoomReset)) {
+        this.worldCamera.requestRecenter(true);
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.keyRecenter)) {
+        this.worldCamera.requestRecenter(false);
+      }
     }
 
     /* ── Publish state to React (throttled to every ~100ms) ── */
     if (this.tick > 100) {
       this.tick = 0;
+      const camDiag = this.worldCamera?.getDiagnostics();
       this.registry.set('playerX', this.px);
       this.registry.set('playerY', this.py);
       this.registry.set('camX',    this.cameras.main.scrollX);
       this.registry.set('camY',    this.cameras.main.scrollY);
       this.registry.set('zoom',    this.currentZoom);
+      this.registry.set('camMode', camDiag?.mode ?? 'FOLLOWING');
+      this.registry.set('camNeedsRecenter', camDiag?.needsRecenterButton ?? false);
+      this.registry.set('worldCollisionEnabled', WORLD_COLLISION_ENABLED);
+      this.registry.set('playerSpeed', PLAYER_SPEED);
+      this.publishMinimapLive();
+      this.updateCurrentDistrict();
+      this.updateLandmarkDiscovery(this.time.now);
+    }
+  }
+
+  /** Phase 10C — live minimap marker snapshot for React map UI. */
+  private publishMinimapLive(): void {
+    const cam = this.cameras.main;
+    const zoom = cam.zoom || 1;
+    const viewW = cam.width / zoom;
+    const viewH = cam.height / zoom;
+
+    const events: MinimapEventMarker[] = [];
+    if (this.treasureChest) {
+      events.push({ kind: 'treasure', x: this.treasureChest.wx, y: this.treasureChest.wy, label: 'Treasure' });
+    }
+    if (this.whaleMarker) {
+      events.push({ kind: 'whale', x: this.whaleMarker.wx, y: this.whaleMarker.wy, label: 'Whale Alert' });
+    }
+    if (this.townCrier) {
+      events.push({ kind: 'town_crier', x: this.townCrier.wx, y: this.townCrier.wy, label: 'Town Crier' });
+    }
+    const currentEvent = this.registry.get('currentEvent') as { id?: string; phase?: string } | null;
+    if (currentEvent?.id && currentEvent.phase === 'live') {
+      events.push({ kind: 'event', x: this.plazaX, y: this.plazaY, label: currentEvent.id });
+    }
+
+    const snapshot: MinimapLiveSnapshot = {
+      player: { x: this.px, y: this.py, facing: this.facing },
+      npcs: this.npcs.map((n) => ({
+        x: n.px,
+        y: n.py,
+        roaming: n.behaviorType === 'roamer',
+      })),
+      camera: {
+        scrollX: cam.scrollX,
+        scrollY: cam.scrollY,
+        viewW,
+        viewH,
+      },
+      events,
+    };
+    this.registry.set('minimapLive', snapshot);
+    this.registry.set('playerFacing', this.facing);
+  }
+
+  /** Publish the district under the player (Phase 10A WORLD_DISTRICTS). */
+  private updateCurrentDistrict() {
+    const d = getDistrictAtWorld(this.px, this.py);
+    const best = d?.name ?? WORLD_DISTRICTS[0]?.name ?? '';
+    const id = d?.id ?? WORLD_DISTRICTS[0]?.id ?? null;
+    if (best !== this.currentDistrictName) {
+      this.currentDistrictName = best;
+      this.registry.set('currentDistrict', best);
+    }
+    if (id && id !== this.currentDistrictId) {
+      this.currentDistrictId = id;
+      this.registry.set('currentDistrictId', id);
+      this.events.emit('district-entered', { districtId: id, name: best });
+    }
+  }
+
+  /** Phase 10F — first-visit landmark discovery (~10 Hz, enter hysteresis). */
+  private updateLandmarkDiscovery(time: number): void {
+    if (time - this.lastDiscoveryCheckAt < 100) return;
+    this.lastDiscoveryCheckAt = time;
+    const zones = this.interaction?.getZones?.() ?? [];
+    for (const z of zones) {
+      const dist = Phaser.Math.Distance.Between(this.px, this.py, z.wx, z.wy);
+      const enterR = Math.max(36, (z.radius ?? 60) * 0.85);
+      const exitR = enterR + 28;
+      const armed = this.landmarkDiscoverArmed.has(z.id);
+      if (!armed && dist <= enterR) {
+        this.landmarkDiscoverArmed.add(z.id);
+        this.events.emit('landmark-discovered', { landmarkId: z.id, name: z.name ?? z.id });
+        if (this.mission.markZoneVisited(z.id)) this.publishMissionState();
+      } else if (armed && dist > exitR) {
+        this.landmarkDiscoverArmed.delete(z.id);
+      }
     }
   }
 
@@ -1024,88 +1385,70 @@ export class WorldScene extends Phaser.Scene {
      DRAW PLAYER
      ═══════════════════════════════════════════════════════════ */
   private drawPlayer() {
-    const t = this.animTick / 1000;   // seconds
+    if (!this.bitmapPlayer) return;
 
-    const breathPhase = t * IDLE_BREATH_SPEED;
-    const breathe      = Math.sin(breathPhase);
-    const idleBob       = Math.abs(breathe) * IDLE_BOB;
-    const idleSway       = Math.sin(breathPhase * 0.55) * IDLE_SWAY;
-    const breathScale     = this.isMoving ? 1 : 1 + breathe * IDLE_BREATH_SCALE;
+    this.player.setPosition(this.px, this.py);
+    this.bitmapPlayer.setPosition(this.px, this.py);
+    this.bitmapPlayer.setFacing(this.facing);
+    this.bitmapPlayer.update(this.lastDeltaMs, this.velX, this.velY, this.isMoving);
 
-    const walkPhase = t * WALK_CYCLE_SPEED * Math.PI;
-    const stepL      = Math.sin(walkPhase);
-    const stepR       = -stepL;
-    const legLiftL      = this.isMoving ? Math.max(0, stepL) * LEG_LIFT : 0;
-    const legLiftR       = this.isMoving ? Math.max(0, stepR) * LEG_LIFT : 0;
-    const legStagger        = this.isMoving ? stepL * LEG_STAGGER_Y : 0;
-    const legSwingX           = this.isMoving ? stepL * LEG_SWING_X : 0;
-    const walkBob             = this.isMoving ? Math.abs(stepL) * BODY_BOB_WALK : 0;
-    const armSwing              = this.isMoving
-      ? stepL * ARM_SWING_WALK
-      : Math.sin(breathPhase * 0.55) * IDLE_ARM_SWAY;
-    const idleHeadBob            = this.isMoving ? 0 : Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB;
-
-    const bodyBob = this.isMoving ? walkBob : idleBob;
-    const sway    = this.isMoving ? 0 : idleSway;
-
-    /* ── Emote pulse — a quick squash/stretch "pop", independent of movement ── */
-    const emoteProgress = this.emotePulseUntil / EMOTE_PULSE_DURATION;
-    const emotePulse = emoteProgress > 0 ? 1 + Math.sin(emoteProgress * Math.PI) * EMOTE_PULSE_AMOUNT : 1;
-
-    /* ── Shadow — two layers (soft halo + denser core) for a stronger,
-       more grounded look. Stays flat on the ground regardless of lean. ── */
-    this.playerShadow.clear();
-    this.playerShadow.fillStyle(0x000000, 0.20);
-    this.playerShadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 5) * (1 - bodyBob * 0.05), SHADOW_H + 2);
-    this.playerShadow.fillStyle(0x000000, 0.42);
-    this.playerShadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * (1 - bodyBob * 0.05), SHADOW_H);
-    this.playerShadow.setPosition(this.px, this.py);
-
-    /* ── Glow (gold pulse below feet) — player only, marks the main character.
-       3 layers instead of 6 — visually identical at play distance, half the
-       WebGL shape ops per frame. ── */
+    /* ── Glow (gold pulse below feet) — player only, marks the main character. ── */
     this.playerGlow.clear();
     const glowT = (Math.sin(this.animTick / 600) + 1) / 2;
     const glowA = 0.08 + glowT * 0.08;
     for (const r of [26, 16, 7]) {
       this.playerGlow.fillStyle(0xe8b84b, glowA * (1 - r / 28));
-      this.playerGlow.fillCircle(0, CHAR_H / 4, r);
+      this.playerGlow.fillCircle(0, TARGET_DISPLAY_HEIGHT * 0.15, r * PLAYER_VISUAL_SCALE);
     }
     this.playerGlow.setPosition(this.px, this.py);
 
-    /* ── Body — shared humanoid renderer. Player uses the modular
-       appearance picked on the character-creator screen (see
-       CharacterAppearance.ts) and is drawn at full scale/alpha (no
-       NPC_SCALE/NPC_ALPHA), keeping the player slightly more prominent
-       than citizens. ── */
-    drawHumanoid(this.playerBody, this.px, this.py, {
-      facing: this.facing,
-      bodyBob,
-      legStagger,
-      legLiftL,
-      legLiftR,
-      armSwing,
-      legSwingX,
-      headBob: idleHeadBob,
-      // slowSway: a very slow (35s period) sine layered onto the idle
-      // lean — simulates a subtle weight shift without any extra state or
-      // timers. Vanishes while walking (same as regular sway).
-      rotation: this.lean + sway + (this.isMoving ? 0 : Math.sin((this.animTick / 1000) * 0.18) * 0.06),
-      breathScale: breathScale * emotePulse,
-      appearance: this.resolvedAppearance,
-      blink: this.playerBlinkUntil > 0 ? 1 : 0,
-    });
-
-    /* ── Label / speech bubble — stay upright regardless of body lean ── */
-    const headYLocal = -bodyBob - CHAR_H * 0.5;
-    this.playerLabel.setPosition(Math.round(this.px), Math.round(this.py + headYLocal - 6));
-    this.playerSpeech.setPosition(this.px, this.py + headYLocal - 18);
+    const headYLocal = -TARGET_DISPLAY_HEIGHT * PLAYER_VISUAL_SCALE * 0.55;
+    this.playerLabel.setPosition(Math.round(this.px), Math.round(this.py + headYLocal - 4));
+    this.playerSpeech.setPosition(this.px, this.py + headYLocal - 14);
   }
 
-  // drawHumanoid() now lives in HumanoidRenderer.ts (imported above) — the
-  // extraction lets the character-creator preview render through the
-  // literal same function. This call site and the NPC/Town Crier ones
-  // below just call the imported `drawHumanoid(...)` instead.
+  /* ═══════════════════════════════════════════════════════════
+     Phase 9C — placeFiveTestBuildings disabled.
+     The final master already includes baked buildings. Method retained
+     as a no-op so any lingering references fail safely; do not re-enable
+     without introducing duplicate overlaid landmark sprites.
+     ═══════════════════════════════════════════════════════════ */
+  private placeFiveTestBuildings(): void {
+    this.testBuildingSprites = [];
+    // Intentionally empty — FIVE_TEST_BUILDING_ASSETS kept for reference only.
+    void FIVE_TEST_BUILDING_ASSETS;
+  }
+
+  /** Phase 8K Task 8 — picks a raw (pre-snap) candidate home point inside
+   *  one of the 5 confirmed-walkable zones (central plaza, then N/E/S/W
+   *  spokes in that order, matching CollisionSystem's rects), cycling by
+   *  NPC index so population spreads across all 5 instead of clustering
+   *  in one ring. Plaza candidates avoid the fountain's spawn-clearance
+   *  radius; spoke candidates are a uniform point inside that corridor. */
+  private npcHomeCandidateForZone(npcIndex: number): { x: number; y: number } {
+    const rects = this.collision.getRects();
+    const plazaRect = rects.find((r) => r.kind === 'plaza');
+    const roadRects = rects.filter((r) => r.kind === 'road'); // [N, S, E, W]
+    const zones = plazaRect ? [plazaRect, ...roadRects] : roadRects;
+    if (zones.length === 0) return { x: NEW_FOUNTAIN_X, y: NEW_FOUNTAIN_Y };
+
+    const zone = zones[npcIndex % zones.length];
+    if (zone.kind === 'plaza') {
+      const angle = Math.random() * Math.PI * 2;
+      const maxRadius = Math.max(20, Math.min(zone.w, zone.h) / 2 - 30);
+      const minRadius = Math.min(COMPACT_NPC_CONFIG.spawnClearanceRadius + 20, maxRadius);
+      const radius = Phaser.Math.FloatBetween(minRadius, maxRadius);
+      return {
+        x: zone.x + zone.w / 2 + Math.cos(angle) * radius,
+        y: zone.y + zone.h / 2 + Math.sin(angle) * radius,
+      };
+    }
+    const pad = 14;
+    return {
+      x: Phaser.Math.FloatBetween(zone.x + pad, zone.x + Math.max(zone.w - pad, pad)),
+      y: Phaser.Math.FloatBetween(zone.y + pad, zone.y + Math.max(zone.h - pad, pad)),
+    };
+  }
 
   /* ═══════════════════════════════════════════════════════════
      NPC CITIZENS
@@ -1114,13 +1457,23 @@ export class WorldScene extends Phaser.Scene {
      pause), with per-NPC speed/timing so nothing is synchronized.
      ═══════════════════════════════════════════════════════════ */
   private createNpcs() {
-    // Population re-rolled each session — not the same headcount every time.
-    const population = Phaser.Math.Between(NPC_POPULATION_MIN, NPC_POPULATION_MAX);
-    const names = Phaser.Utils.Array.Shuffle(NPC_NAMES.slice()).slice(0, population);
+    // Phase 8H — fixed population + district allocation. Per-NPC flavor
+    // (personality-correlated name / appearance / timing) varies per session.
+    // Population is CALIBRATION_NPC_COUNT (33 = 3× prior calibration).
+    const population = Math.min(CALIBRATION_NPC_COUNT, COMPACT_NPC_CONFIG.totalPopulation);
+    const usedNames = new Set<string>();
+    const roster: { name: string; personality: NpcPersonality }[] = [];
+    for (let i = 0; i < population; i++) {
+      const personality = Phaser.Utils.Array.GetRandom(NPC_PERSONALITIES);
+      roster.push({ name: pickNpcName(personality, usedNames), personality });
+    }
+    const names = roster.map((r) => r.name);
+    const npcHomePositions: { x: number; y: number }[] = [];
+    const NPC_MIN_SPACING = 72; // slightly tighter with denser crowds; still avoids stacking
 
-    // Anchor citizens across ALL registered landmarks (not just the 5 with
-    // live interactions), so the population spreads across the whole city
-    // instead of clustering only around the fountain/market/etc.
+    // Full landmark registry — still needed so roamers can look up ANY
+    // district by name (adjacency-constrained, see updateNpcs), even
+    // though initial homes are now assigned from NPC_HOME_LANDMARKS below.
     const landmarks = WORLD_OBJECTS.map(o => ({
       name: o.id,
       fx: o.x,
@@ -1135,34 +1488,49 @@ export class WorldScene extends Phaser.Scene {
     this.registry.set('npcNames', names);
     this.registry.set('npcCount', names.length);
 
-    const spawnNpc = (name: string, i: number) => {
-      const personality = Phaser.Utils.Array.GetRandom(NPC_PERSONALITIES);
-      // Jacket stays personality-biased (preserves "alpha analysts wear
-      // teal" flavor); every other slot is independently randomized —
-      // see generateRandomAppearance()'s doc comment for why no
-      // dedup/uniqueness bookkeeping is needed across 40-60 citizens.
-      const appearance = generateRandomAppearance(NPC_PERSONALITY_STYLE[personality]);
-      const resolvedAppearance = resolveAppearance(appearance);
+    const spawnNpc = (entry: { name: string; personality: NpcPersonality }, i: number) => {
+      const { name, personality } = entry;
       const behaviorType = pickWeighted(NPC_BEHAVIOR_WEIGHTS).type;
 
-      // Round-robin through landmarks first (guarantees every landmark gets
-      // citizens), then random for the remainder once every landmark has one.
-      const homeLandmarkIndex = i < landmarks.length
-        ? i
-        : Phaser.Math.Between(0, landmarks.length - 1);
-      const landmark = landmarks[homeLandmarkIndex];
+      // Phase 8J Task 11 / Phase 8K Task 8 — NPCs no longer home to the
+      // old WORLD_OBJECTS landmark fractions; that geometry belongs to
+      // the previous compact-world visual layout, not the new
+      // background. Instead they're distributed across the 5 confirmed-
+      // walkable zones (central plaza + N/E/S/W spokes) so the plaza
+      // doesn't get overcrowded, with a minimum-spacing check between
+      // initial home points. homeLandmarkId/Index are kept as inert
+      // placeholders (COMPACT_NPC_CONFIG.crossDistrictChance is 0 this
+      // phase, so the old landmark-graph re-homing code never fires —
+      // see updateNpcs()).
+      const homeLandmarkId = 'fountain';
+      const homeLandmarkIndex = 0;
+      const npcHomeRadiusBase = 110;
 
-      // Home + spawn are snapped onto the road network so citizens always
-      // start on a walkable road/plaza (req: NPCs respect the road network).
-      const home = this.snapToWalkable(
-        this.worldW * landmark.fx + Phaser.Math.Between(-20, 20),
-        this.worldH * landmark.fy + Phaser.Math.Between(-20, 20),
-      );
-      const homeX = home.x;
-      const homeY = home.y;
+      let homeX = NEW_FOUNTAIN_X, homeY = NEW_FOUNTAIN_Y;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const candidate = this.npcHomeCandidateForZone(i);
+        const snapped = this.snapToWalkable(candidate.x, candidate.y);
+        const farEnough = npcHomePositions.every(
+          (p) => Math.hypot(p.x - snapped.x, p.y - snapped.y) >= NPC_MIN_SPACING,
+        );
+        if (farEnough || attempt === 19) {
+          homeX = snapped.x;
+          homeY = snapped.y;
+          break;
+        }
+      }
+      npcHomePositions.push({ x: homeX, y: homeY });
+
+      // Phase 11C Task 16 — real district lookup (was hardcoded 'spawn').
+      // Computed once from the NPC's home, not re-evaluated every frame:
+      // homes are fixed, and re-checking per-frame would risk visible
+      // behavior flicker for NPCs wandering near a district boundary.
+      const districtId = getDistrictAtWorld(homeX, homeY)?.id ?? 'spring_core';
+      const speedMult = NPC_DISTRICT_SPEED_MULT[districtId] ?? 1;
+      const pauseMult = NPC_DISTRICT_PAUSE_MULT[districtId] ?? 1;
 
       const spawnAngle = Math.random() * Math.PI * 2;
-      const spawnDist  = Math.random() * landmark.radius * 0.6;
+      const spawnDist  = Math.random() * npcHomeRadiusBase * 0.3;
       const spawn = this.snapToWalkable(
         homeX + Math.cos(spawnAngle) * spawnDist,
         homeY + Math.sin(spawnAngle) * spawnDist,
@@ -1170,8 +1538,13 @@ export class WorldScene extends Phaser.Scene {
       const px = spawn.x;
       const py = spawn.y;
 
-      const shadow = this.add.graphics().setDepth(6);
-      const body   = this.add.graphics().setDepth(7);
+      const bitmap = new BitmapCharacter(
+        this,
+        npcAppearanceFromId(`${name}${i}`, listNpcBodies()),
+        { depth: 7, visualScale: NPC_SCALE, alpha: NPC_ALPHA },
+      );
+      bitmap.setPosition(px, py);
+
       // Just the short name by default — the honesty rule ("RugTown
       // Citizens, never real users") is still satisfied via the "·
       // Citizen" suffix shown up close (see updateNpcs()) and the
@@ -1179,22 +1552,25 @@ export class WorldScene extends Phaser.Scene {
       // citizen's head with text all the time (req. C).
       const label  = this.add.text(0, 0, name, {
         fontFamily: '"Cinzel", serif',
-        fontSize:   '7px',
-        color:      '#b8c8d0',
-        backgroundColor: 'rgba(4,8,12,0.88)',
-        padding: { x: 3, y: 1 },
+        fontSize:   '10px',
+        color:      '#d0dce8',
+        backgroundColor: 'rgba(4,8,12,0.90)',
+        padding: { x: 4, y: 2 },
         stroke: '#000000',
-        strokeThickness: 2,
-        resolution: 1,
+        strokeThickness: 3,
+        resolution: 2,
       }).setOrigin(0.5, 1).setDepth(7.2);
 
       const speech = this.add.text(0, 0, '', {
         fontFamily: '"Cinzel", serif',
-        fontSize:   '8px',
+        fontSize:   '12px',
         color:      '#e8d8c0',
-        backgroundColor: 'rgba(10,14,18,0.92)',
-        padding: { x: 5, y: 3 },
+        backgroundColor: 'rgba(10,14,18,0.94)',
+        padding: { x: 6, y: 3 },
+        stroke: '#000000',
+        strokeThickness: 3,
         align: 'center',
+        resolution: 2,
       }).setOrigin(0.5, 1).setDepth(7.4).setVisible(false);
 
       // Idle-leaning citizens pause longer and wander less; gatherers stay
@@ -1209,23 +1585,23 @@ export class WorldScene extends Phaser.Scene {
         velX: 0, velY: 0,
         facing: 'down',
         isMoving: false,
-        speed: Phaser.Math.FloatBetween(NPC_SPEED_MIN, NPC_SPEED_MAX) * (behaviorType === 'idle' ? 0.8 : 1),
+        speed: Phaser.Math.FloatBetween(NPC_SPEED_MIN, NPC_SPEED_MAX) * (behaviorType === 'idle' ? 0.8 : 1) * speedMult,
         homeX, homeY,
-        wanderRadius: landmark.radius * Phaser.Math.FloatBetween(0.7, 1.15) * radiusScale,
+        wanderRadius: npcHomeRadiusBase * Phaser.Math.FloatBetween(0.7, 1.15) * radiusScale,
         targetX: px, targetY: py,
         state: 'idle',
         stateTimer: Phaser.Math.Between(200, 2000),          // stagger first decisions
-        pauseMin: Phaser.Math.Between(900, 1800) * pauseScale,
-        pauseMax: Phaser.Math.Between(2200, 4500) * pauseScale,
+        pauseMin: Phaser.Math.Between(900, 1800) * pauseScale * pauseMult,
+        pauseMax: Phaser.Math.Between(2200, 4500) * pauseScale * pauseMult,
         walkMin: Phaser.Math.Between(900, 1600),
         walkMax: Phaser.Math.Between(1800, 3200),
         animTick: Phaser.Math.Between(0, 4000),               // random phase offset
         lean: 0,
-        appearance,
-        resolvedAppearance,
         personality,
         behaviorType,
         homeLandmarkIndex,
+        homeLandmarkId,
+        districtId,
         speechTimerNext: Phaser.Math.Between(NPC_SPEECH_MIN_GAP, NPC_SPEECH_MAX_GAP),
         speechShowUntil: 0,
         speechOffsetX: Phaser.Math.Between(-7, 7),
@@ -1233,20 +1609,21 @@ export class WorldScene extends Phaser.Scene {
         labelNear: false,
         blinkTimerNext: Phaser.Math.Between(2000, 6000),
         blinkUntil: 0,
-        shadow, body, label, speech,
+        lastFacingChangeMs: 0,
+        pendingTargetX: px,
+        pendingTargetY: py,
+        bitmap, label, speech,
       });
     };
 
-    // 5 citizens per 20ms batch — fully populated in ~80ms, well within the
-    // loading-screen window. The ready callback fires after the final batch
-    // so the player never enters a cold city mid-frame.
+    // Staggered spawn keeps load smooth with denser crowds (~7 batches).
     const BATCH = 5;
     let idx = 0;
     const spawnBatch = () => {
-      const end = Math.min(idx + BATCH, names.length);
-      for (let i = idx; i < end; i++) spawnNpc(names[i], i);
+      const end = Math.min(idx + BATCH, roster.length);
+      for (let i = idx; i < end; i++) spawnNpc(roster[i], i);
       idx = end;
-      if (idx < names.length) {
+      if (idx < roster.length) {
         this.time.delayedCall(20, spawnBatch);
       } else {
         // All NPCs spawned — signal that the scene is truly ready.
@@ -1263,7 +1640,7 @@ export class WorldScene extends Phaser.Scene {
     // in/out right at the screen edge). Computed once per frame, not
     // per-NPC, so scaling to 60 citizens stays cheap.
     const view = this.cameras.main.worldView;
-    const cullMargin = 140;
+    const cullMargin = 260;
     const viewLeft   = view.x - cullMargin;
     const viewRight  = view.x + view.width + cullMargin;
     const viewTop    = view.y - cullMargin;
@@ -1275,7 +1652,10 @@ export class WorldScene extends Phaser.Scene {
       n.animTick += delta;
       n.stateTimer -= delta;
 
-      /* ── State machine: idle/pause → walk → idle/pause → ... ── */
+      /* ── State machine: idle/pause → look → walk → idle/pause → ... ──
+         Phase 11C added 'look' as a brief anticipation beat: NPCs now
+         choose their next destination and turn to face it BEFORE they
+         start moving, instead of snapping straight into a walk. ── */
       if (n.state === 'walk') {
         const dx = n.targetX - n.px;
         const dy = n.targetY - n.py;
@@ -1284,27 +1664,60 @@ export class WorldScene extends Phaser.Scene {
         if (dist < NPC_ARRIVE_DIST || n.stateTimer <= 0) {
           n.state = 'pause';
           n.stateTimer = Phaser.Math.Between(n.pauseMin, n.pauseMax);
-          // Ambience only — sometimes turn to face whoever's nearby before idling
-          if (Math.random() < NPC_FACE_CHANCE) this.faceNearbyNpc(n);
+          // Ambience — face a nearby citizen, a random direction, or stay put
+          if (Math.random() < NPC_FACE_CHANCE) {
+            if (Math.random() < 0.55) this.faceNearbyNpc(n);
+            else this.faceRandomDirection(n);
+          } else if (Math.random() < 0.4) {
+            this.faceRandomDirection(n);
+          }
+          n.lastFacingChangeMs = n.animTick;
 
-          // Roamers occasionally adopt a different landmark as their new
-          // home so they move between districts instead of staying glued
-          // to their spawn area forever.
-          if (n.behaviorType === 'roamer' && this.npcLandmarks.length > 1 && Math.random() < 0.3) {
-            let idx = n.homeLandmarkIndex;
-            while (idx === n.homeLandmarkIndex) idx = Phaser.Math.Between(0, this.npcLandmarks.length - 1);
-            const lm = this.npcLandmarks[idx];
-            n.homeLandmarkIndex = idx;
-            n.homeX = Phaser.Math.Clamp(this.worldW * lm.fx + Phaser.Math.Between(-20, 20), CHAR_W, this.worldW - CHAR_W);
-            n.homeY = Phaser.Math.Clamp(this.worldH * lm.fy + Phaser.Math.Between(-20, 20), CHAR_H, this.worldH - CHAR_H);
-            n.wanderRadius = lm.radius * Phaser.Math.FloatBetween(0.7, 1.15) * 1.6;
+          // Roamers occasionally adopt a road-ADJACENT landmark as their new
+          // home (Task 8: cross-district movement follows connected roads,
+          // stays mostly local — COMPACT_NPC_CONFIG.crossDistrictChance).
+          if (n.behaviorType === 'roamer' && Math.random() < COMPACT_NPC_CONFIG.crossDistrictChance) {
+            const neighborIds = ROAD_ADJACENCY[n.homeLandmarkId] ?? [];
+            if (neighborIds.length > 0) {
+              const nextId = Phaser.Utils.Array.GetRandom(neighborIds);
+              const idx = this.npcLandmarks.findIndex(l => l.name === nextId);
+              if (idx >= 0) {
+                const lm = this.npcLandmarks[idx];
+                n.homeLandmarkIndex = idx;
+                n.homeLandmarkId = nextId;
+                n.districtId = getDistrictForLandmark(lm.name);
+                const snapped = this.snapToWalkable(
+                  this.worldW * lm.fx + Phaser.Math.Between(-20, 20),
+                  this.worldH * lm.fy + Phaser.Math.Between(-20, 20),
+                );
+                n.homeX = snapped.x;
+                n.homeY = snapped.y;
+                n.wanderRadius = lm.radius * Phaser.Math.FloatBetween(0.7, 1.15) * 1.6;
+              }
+            }
           }
         } else {
           const accel = Math.min(dt / NPC_ACCEL_TIME, 1);
-          n.velX = Phaser.Math.Linear(n.velX, (dx / dist) * n.speed, accel);
-          n.velY = Phaser.Math.Linear(n.velY, (dy / dist) * n.speed, accel);
+          let targetVX = (dx / dist) * n.speed;
+          let targetVY = (dy / dist) * n.speed;
+          const sep = this.npcSeparationNudge(n);
+          targetVX += sep.x;
+          targetVY += sep.y;
+          n.velX = Phaser.Math.Linear(n.velX, targetVX, accel);
+          n.velY = Phaser.Math.Linear(n.velY, targetVY, accel);
+        }
+      } else if (n.state === 'look') {
+        const accel = Math.min(dt / NPC_ACCEL_TIME, 1);
+        n.velX = Phaser.Math.Linear(n.velX, 0, accel);
+        n.velY = Phaser.Math.Linear(n.velY, 0, accel);
+        if (n.stateTimer <= 0) {
+          n.targetX = n.pendingTargetX;
+          n.targetY = n.pendingTargetY;
+          n.state = 'walk';
+          n.stateTimer = Phaser.Math.Between(n.walkMin, n.walkMax);
         }
       } else {
+        // idle | pause
         const accel = Math.min(dt / NPC_ACCEL_TIME, 1);
         n.velX = Phaser.Math.Linear(n.velX, 0, accel);
         n.velY = Phaser.Math.Linear(n.velY, 0, accel);
@@ -1313,18 +1726,28 @@ export class WorldScene extends Phaser.Scene {
           // Pick a new wander target near home that lands ON the road network,
           // so citizens respect roads exactly like the player. Retry a few
           // random offsets; fall back to home (always a walkable plaza).
+          // Task 6/12/13/15 — also reject spawn-clearance, door-clearance,
+          // bridge-over-capacity, and other-NPC-target pileups.
           let tx = n.homeX, ty = n.homeY;
-          for (let attempt = 0; attempt < 6; attempt++) {
+          for (let attempt = 0; attempt < 8; attempt++) {
             const angle = Math.random() * Math.PI * 2;
             const dist  = Math.random() * n.wanderRadius;
             const cx = Phaser.Math.Clamp(n.homeX + Math.cos(angle) * dist, CHAR_W, this.worldW - CHAR_W);
             const cy = Phaser.Math.Clamp(n.homeY + Math.sin(angle) * dist, CHAR_H, this.worldH - CHAR_H);
-            if (this.isWalkable(cx, cy)) { tx = cx; ty = cy; break; }
+            if (this.isWalkable(cx, cy) && this.isGoodNpcTarget(cx, cy, n)) { tx = cx; ty = cy; break; }
           }
-          n.targetX = tx;
-          n.targetY = ty;
-          n.state = 'walk';
-          n.stateTimer = Phaser.Math.Between(n.walkMin, n.walkMax);
+          // Phase 11C Task 14 — "look before you walk": queue the target,
+          // turn to face it now, and hold briefly in 'look' before the
+          // walk actually starts (see the 'look' branch above).
+          n.pendingTargetX = tx;
+          n.pendingTargetY = ty;
+          const ldx = tx - n.px, ldy = ty - n.py;
+          if (Math.abs(ldx) > 2 || Math.abs(ldy) > 2) {
+            n.facing = Math.abs(ldx) >= Math.abs(ldy) ? (ldx > 0 ? 'right' : 'left') : (ldy > 0 ? 'down' : 'up');
+            n.lastFacingChangeMs = n.animTick;
+          }
+          n.state = 'look';
+          n.stateTimer = NPC_LOOK_AROUND_MS;
         }
       }
 
@@ -1347,11 +1770,21 @@ export class WorldScene extends Phaser.Scene {
         n.velY = 0;
       }
 
-      if (Math.abs(n.velX) > 6 || Math.abs(n.velY) > 6) {
-        if (Math.abs(n.velX) >= Math.abs(n.velY)) {
-          n.facing = n.velX > 0 ? 'right' : 'left';
-        } else {
-          n.facing = n.velY > 0 ? 'down' : 'up';
+      // Phase 11C — hysteresis: only let velocity re-decide facing after
+      // NPC_FACING_MIN_INTERVAL_MS has passed since the last change. Near
+      // a 45° heading, velX/velY can trade dominance frame to frame while
+      // accelerating, which snapped facing back and forth ("instant
+      // repeated 90-degree turns" per Task 14).
+      if (
+        (Math.abs(n.velX) > 6 || Math.abs(n.velY) > 6) &&
+        n.animTick - n.lastFacingChangeMs >= NPC_FACING_MIN_INTERVAL_MS
+      ) {
+        const next: Direction = Math.abs(n.velX) >= Math.abs(n.velY)
+          ? (n.velX > 0 ? 'right' : 'left')
+          : (n.velY > 0 ? 'down' : 'up');
+        if (next !== n.facing) {
+          n.facing = next;
+          n.lastFacingChangeMs = n.animTick;
         }
       }
       n.isMoving = moved && (Math.abs(n.velX) > 4 || Math.abs(n.velY) > 4);
@@ -1363,17 +1796,15 @@ export class WorldScene extends Phaser.Scene {
          redraw + go invisible. Cheap with 10 NPCs, necessary at 40-60. ── */
       const onScreen = n.px >= viewLeft && n.px <= viewRight && n.py >= viewTop && n.py <= viewBottom;
       if (!onScreen) {
-        if (n.body.visible) {
-          n.body.setVisible(false);
-          n.shadow.setVisible(false);
+        if (n.bitmap.root.visible) {
+          n.bitmap.setVisible(false);
           n.label.setVisible(false);
           n.speech.setVisible(false);
         }
         continue;
       }
-      if (!n.body.visible) {
-        n.body.setVisible(true);
-        n.shadow.setVisible(true);
+      if (!n.bitmap.root.visible) {
+        n.bitmap.setVisible(true);
         n.label.setVisible(true);
       }
 
@@ -1393,8 +1824,9 @@ export class WorldScene extends Phaser.Scene {
         if (n.speechTimerNext <= 0) {
           n.speechTimerNext = Phaser.Math.Between(NPC_SPEECH_MIN_GAP, NPC_SPEECH_MAX_GAP);
           if (Math.random() < NPC_SPEECH_CHANCE && this.countVisibleNpcSpeechBubbles() < NPC_SPEECH_MAX_VISIBLE) {
-            const pool = NPC_SPEECH_BY_PERSONALITY[n.personality];
-            const line = Phaser.Utils.Array.GetRandom(pool);
+            const line = Math.random() < 0.38
+              ? getRandomDistrictLine(n.districtId)
+              : Phaser.Utils.Array.GetRandom(NPC_SPEECH_BY_PERSONALITY[n.personality]);
             n.speech.setText(line);
             n.speech.setVisible(true);
             n.speechShowUntil = NPC_SPEECH_DURATION;
@@ -1406,18 +1838,12 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
-      /* ── Name label — hidden by default to keep the screen clean;
-         only shown when the player is very close (NPC_LABEL_NEAR_RADIUS)
-         OR the citizen is actively speaking (so you know who said it).
-         setText() only runs on an actual near/far transition. ── */
-      const dxLabel = this.px - n.px;
-      const dyLabel = this.py - n.py;
-      const nearPlayer = (dxLabel * dxLabel + dyLabel * dyLabel) <= NPC_LABEL_NEAR_RADIUS * NPC_LABEL_NEAR_RADIUS;
-      if (nearPlayer !== n.labelNear) {
-        n.labelNear = nearPlayer;
-        n.label.setText(nearPlayer ? `${n.name} · Citizen` : n.name);
-      }
-      n.label.setVisible(nearPlayer || n.speechShowUntil > 0);
+      /* ── Name label — Phase 8K Task 9: hidden beyond
+         NPC_LABEL_VISIBLE_RADIUS of the player so a crowded plaza
+         doesn't turn into a wall of overlapping nameplates. Speech
+         bubble hides when not speaking (handled below). ── */
+      const labelDist = Math.hypot(n.px - this.px, n.py - this.py);
+      n.label.setVisible(labelDist <= NPC_LABEL_VISIBLE_RADIUS);
 
       /* ── Blink timer — purely cosmetic, no movement/state impact ── */
       if (n.blinkUntil > 0) {
@@ -1430,72 +1856,68 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
-      if (this.charDrawThisFrame) this.drawNpc(n);
+      if (this.charDrawThisFrame) this.drawNpc(n, delta);
     }
   }
 
-  private drawNpc(n: NpcData) {
-    const t = n.animTick / 1000;
+  private drawNpc(n: NpcData, delta: number) {
+    n.bitmap.setPosition(n.px, n.py);
+    n.bitmap.setFacing(n.facing);
+    n.bitmap.update(delta, n.velX, n.velY, n.isMoving);
 
-    const breathPhase = t * IDLE_BREATH_SPEED;
-    const breathe      = Math.sin(breathPhase);
-    const idleBob       = Math.abs(breathe) * IDLE_BOB;
-    const idleSway       = Math.sin(breathPhase * 0.55) * IDLE_SWAY;
-    const breathScale     = n.isMoving ? 1 : 1 + breathe * IDLE_BREATH_SCALE;
-
-    const walkPhase = t * WALK_CYCLE_SPEED * Math.PI;
-    const stepL      = Math.sin(walkPhase);
-    const stepR       = -stepL;
-    const legLiftL      = n.isMoving ? Math.max(0, stepL) * LEG_LIFT : 0;
-    const legLiftR       = n.isMoving ? Math.max(0, stepR) * LEG_LIFT : 0;
-    const legStagger        = n.isMoving ? stepL * LEG_STAGGER_Y : 0;
-    const legSwingX           = n.isMoving ? stepL * LEG_SWING_X : 0;
-    const walkBob             = n.isMoving ? Math.abs(stepL) * BODY_BOB_WALK : 0;
-    const armSwing              = n.isMoving
-      ? stepL * ARM_SWING_WALK
-      : Math.sin(breathPhase * 0.55) * IDLE_ARM_SWAY;
-    const idleHeadBob            = n.isMoving ? 0 : Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB;
-
-    const bodyBob = n.isMoving ? walkBob : idleBob;
-    const sway    = n.isMoving ? 0 : idleSway;
-
-    n.shadow.clear();
-    n.shadow.fillStyle(0x000000, 0.16);
-    n.shadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 4) * NPC_SCALE * (1 - bodyBob * 0.05), (SHADOW_H + 2) * NPC_SCALE);
-    n.shadow.fillStyle(0x000000, 0.34);
-    n.shadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * NPC_SCALE * (1 - bodyBob * 0.05), SHADOW_H * NPC_SCALE);
-    n.shadow.setPosition(n.px, n.py);
-
-    drawHumanoid(n.body, n.px, n.py, {
-      facing: n.facing,
-      bodyBob,
-      legStagger,
-      legLiftL,
-      legLiftR,
-      armSwing,
-      legSwingX,
-      headBob: idleHeadBob,
-      rotation: n.lean + sway + (n.isMoving ? 0 : Math.sin((n.animTick / 1000) * 0.18) * 0.06),
-      breathScale,
-      scale: NPC_SCALE,
-      alpha: NPC_ALPHA,
-      appearance: n.resolvedAppearance,
-      blink: n.blinkUntil > 0 ? 1 : 0,
-    });
-
-    const headYLocal = -bodyBob - CHAR_H * 0.5;
-    const labelY = n.py + headYLocal * NPC_SCALE - 5;
+    const headYLocal = -TARGET_DISPLAY_HEIGHT * NPC_SCALE * 0.55;
+    const labelY = n.py + headYLocal - 3;
     n.label.setPosition(Math.round(n.px), Math.round(labelY));
     // Small fixed-per-citizen jitter (assigned once at spawn) so two
     // bubbles above nearby citizens don't perfectly overlap (req. D3).
-    n.speech.setPosition(n.px + n.speechOffsetX, labelY - 12 + n.speechOffsetY);
+    n.speech.setPosition(n.px + n.speechOffsetX, labelY - 10 + n.speechOffsetY);
+  }
+
+  /**
+   * Ambience only — turns `n` to face a random cardinal direction while paused.
+   */
+  private faceRandomDirection(n: NpcData) {
+    const dirs: Direction[] = ['up', 'down', 'left', 'right'];
+    n.facing = Phaser.Utils.Array.GetRandom(dirs);
+  }
+
+  /**
+   * Phase 11C Task 17 — lightweight personal-space steering. Returns a
+   * small extra velocity nudge (px/s) away from any other walking NPC
+   * within NPC_PERSONAL_SPACE_RADIUS, so citizens visibly bunching
+   * together get gently pushed apart instead of overlapping. This is a
+   * per-frame nudge on top of the normal seek-target velocity, not a
+   * physics/crowd simulation — O(n) over the current small population.
+   */
+  private npcSeparationNudge(n: NpcData): { x: number; y: number } {
+    let x = 0, y = 0;
+    for (const other of this.npcs) {
+      if (other === n) continue;
+      const dx = n.px - other.px;
+      const dy = n.py - other.py;
+      const distSq = dx * dx + dy * dy;
+      if (distSq >= NPC_PERSONAL_SPACE_RADIUS * NPC_PERSONAL_SPACE_RADIUS || distSq < 0.01) continue;
+      const dist = Math.sqrt(distSq);
+      const push = (1 - dist / NPC_PERSONAL_SPACE_RADIUS) * NPC_SEPARATION_PUSH;
+      x += (dx / dist) * push;
+      y += (dy / dist) * push;
+    }
+    return { x, y };
   }
 
   /**
    * Ambience only — turns `n` to face the nearest other NPC within
    * NPC_FACE_RADIUS, if any. Doesn't move anyone or change timing.
+   * Phase 8H (Task 13): skipped on the bridge — no conversation pairs on
+   * the narrow crossing.
    */
   private faceNearbyNpc(n: NpcData) {
+    const bridge = getWorldObject('bridge');
+    if (bridge) {
+      const bx = bridge.x * this.worldW, by = bridge.y * this.worldH;
+      if (Math.hypot(n.px - bx, n.py - by) < bridge.interactionRadius) return;
+    }
+
     let nearest: NpcData | null = null;
     let nearestDist = NPC_FACE_RADIUS;
 
@@ -1521,27 +1943,6 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     INTERACTION ZONES
-     Invisible trigger circles around landmarks. When the player is
-     inside one, we publish it to the registry so the React HUD can
-     show a "Press E to interact" prompt; pressing E emits a scene
-     event so the HUD can open the matching modal. Nothing is drawn
-     in the world — the zones are not visible.
-     ═══════════════════════════════════════════════════════════ */
-  private createZones() {
-    this.zones = getLiveWorldObjects().map(o => {
-      const { wx, wy } = toWorldPosition(o, this.worldW, this.worldH);
-      return {
-        id:     o.id,
-        name:   o.displayName,
-        wx,
-        wy,
-        radius: o.interactionRadius,
-      };
-    });
-  }
-
   /**
    * True once for an E key press OR a mobile interact-button tap —
    * whichever happened. The virtual flag is consumed (reset) on read so
@@ -1557,29 +1958,564 @@ export class WorldScene extends Phaser.Scene {
     return false;
   }
 
-  private updateZoneProximity() {
-    let nearest: ActiveZone | null = null;
-    let nearestDist = Infinity;
+  /**
+   * Phase 10D — gather candidates, pick one deterministic target, sync HUD,
+   * then execute on E / mobile interact. Interaction uses player world
+   * position (not camera).
+   */
+  private updateInteractionsUnified(): void {
+    const missionZoneId = this.mission.getHighlightedZoneId();
+    const currentEvent = this.registry.get('currentEvent') as { landmarkId?: string; phase?: string } | null;
+    const eventIds: string[] = [];
+    if (currentEvent?.landmarkId && (currentEvent.phase === 'live' || currentEvent.phase === 'announcement')) {
+      eventIds.push(currentEvent.landmarkId);
+    }
+    this.buildingGenerator?.setEventLandmarkIds(eventIds);
 
-    for (const z of this.zones) {
-      const dx = this.px - z.wx;
-      const dy = this.py - z.wy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= z.radius && dist < nearestDist) {
-        nearest = z;
-        nearestDist = dist;
+    const candidates: InteractCandidate[] = [];
+
+    for (const door of this.enterableDoors) {
+      const meta = this.landmarkCatalog.find((l) => l.interiorId === door.building.id);
+      const isMission = missionZoneId === door.building.worldObjectId;
+      candidates.push({
+        kind: 'door',
+        id: door.building.id,
+        name: door.building.displayName,
+        x: door.wx,
+        y: door.wy,
+        radius: door.radius,
+        priorityBand: isMission ? PRIORITY.MISSION_DOOR : PRIORITY.DOOR,
+        missionBoost: isMission,
+        access: door.building.access,
+        action: door.building.access === 'open' ? 'enter'
+          : door.building.access === 'coming_soon' ? 'coming_soon' : 'locked',
+        actionLabel: door.building.access === 'open' ? `Enter ${door.building.displayName}`
+          : door.building.access === 'coming_soon' ? 'Coming Soon' : 'Locked',
+        lockedReason: door.building.lockedMessage,
+        status: door.building.access === 'open' ? 'available'
+          : door.building.access === 'coming_soon' ? 'coming_soon' : 'locked',
+        mobileLabel: door.building.access === 'open' ? 'Enter' : door.building.access === 'coming_soon' ? 'Soon' : 'Locked',
+      });
+      if (meta) {
+        // Prefer door over zone for same building — skip zone duplicate via band
       }
     }
 
-    const nearestId = nearest?.id ?? null;
-    if (nearestId !== this.nearZoneId) {
-      this.nearZoneId = nearestId;
-      this.registry.set('nearZone', nearest ? { id: nearest.id, name: nearest.name } : null);
+    for (const z of this.interaction.getZones()) {
+      // Skip live zones that have an enterable door (door owns the interact)
+      if (this.enterableDoors.some((d) => d.building.worldObjectId === z.id)) continue;
+      const meta = this.landmarkCatalog.find((l) => l.id === z.id);
+      const isMission = missionZoneId === z.id;
+      candidates.push({
+        kind: 'zone',
+        id: z.id,
+        name: z.name,
+        x: z.wx,
+        y: z.wy,
+        radius: z.radius,
+        priorityBand: isMission ? PRIORITY.MISSION_ZONE : PRIORITY.ZONE,
+        missionBoost: isMission,
+        action: meta?.action ?? 'inspect',
+        actionLabel: meta?.actionLabel ?? 'Inspect',
+        status: isMission ? 'mission' : (meta?.status ?? 'available'),
+        lockedReason: meta?.lockedReason,
+        mobileLabel: meta?.action === 'gather' ? 'Gather'
+          : meta?.action === 'read' ? 'Read'
+          : meta?.action === 'open_market' ? 'Market'
+          : 'Inspect',
+      });
     }
 
-    if (nearest && this.consumeInteractPress()) {
-      this.events.emit('zone-interact', { id: nearest.id, name: nearest.name });
+    for (const n of this.npcs) {
+      candidates.push({
+        kind: 'npc',
+        id: `npc:${n.name}`,
+        name: n.name,
+        x: n.px,
+        y: n.py,
+        radius: NPC_TALK_RADIUS,
+        priorityBand: PRIORITY.NPC,
+        action: 'talk',
+        actionLabel: 'Talk',
+        mobileLabel: 'Talk',
+      });
     }
+
+    if (this.treasureChest) {
+      candidates.push({
+        kind: 'treasure',
+        id: 'treasure',
+        name: 'Treasure Chest',
+        x: this.treasureChest.wx,
+        y: this.treasureChest.wy,
+        radius: TREASURE_INTERACT_RADIUS,
+        priorityBand: PRIORITY.TREASURE,
+        mobileLabel: 'Open',
+      });
+    }
+    if (this.whaleMarker) {
+      candidates.push({
+        kind: 'whale',
+        id: 'whale-alert',
+        name: 'Whale Alert',
+        x: this.whaleMarker.wx,
+        y: this.whaleMarker.wy,
+        radius: WHALE_INTERACT_RADIUS,
+        priorityBand: PRIORITY.WHALE,
+        mobileLabel: 'Inspect',
+      });
+    }
+    if (this.townCrier) {
+      candidates.push({
+        kind: 'town_crier',
+        id: 'town-crier',
+        name: 'Town Crier',
+        x: this.townCrier.wx,
+        y: this.townCrier.wy,
+        radius: 86,
+        priorityBand: PRIORITY.TOWN_CRIER,
+        action: 'talk',
+        mobileLabel: 'Talk',
+      });
+    }
+    for (const s of this.hallOfFameStatues) {
+      candidates.push({
+        kind: 'statue',
+        id: `statue:${s.rank}`,
+        name: s.name,
+        x: s.wx,
+        y: s.wy,
+        radius: STATUE_INTERACT_RADIUS,
+        priorityBand: PRIORITY.STATUE,
+        mobileLabel: 'Inspect',
+      });
+    }
+
+    // Phase 10E — nearby real players (exclude local, reject stale)
+    const nowMs = Date.now();
+    const face = this.facing;
+    const faceVec =
+      face === 'up' ? { x: 0, y: -1 } :
+      face === 'down' ? { x: 0, y: 1 } :
+      face === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 };
+
+    let nearbyPlayerCount = 0;
+    this.remotePlayerEntries.forEach((entry) => {
+      if (isPresenceStale(entry.lastSeenAt, nowMs)) return;
+      const dx = entry.px - this.px;
+      const dy = entry.py - this.py;
+      const dist = Math.hypot(dx, dy);
+      if (dist > PLAYER_INTERACT_RADIUS) return;
+      nearbyPlayerCount++;
+      const len = dist || 1;
+      const facingScore = (dx / len) * faceVec.x + (dy / len) * faceVec.y;
+      const facingBoost = facingScore >= PLAYER_FACING_CONE;
+      candidates.push({
+        kind: 'player',
+        id: entry.presenceId,
+        name: entry.username,
+        x: entry.px,
+        y: entry.py,
+        radius: PLAYER_INTERACT_RADIUS,
+        priorityBand: facingBoost ? PRIORITY.PLAYER_FACING : PRIORITY.PLAYER,
+        mobileLabel: 'View',
+      });
+    });
+
+    const resolved = resolveInteractTarget(
+      { x: this.px, y: this.py, facing: this.facing },
+      candidates,
+      {
+        previousId: this.stickyInteractId,
+        heldSince: this.stickyInteractSince,
+        now: this.time.now,
+      },
+    );
+    const target = resolved.target;
+
+    if (target) {
+      if (target.id !== this.stickyInteractId) {
+        this.stickyInteractId = target.id;
+        this.stickyInteractSince = this.time.now;
+      }
+    } else {
+      this.stickyInteractId = null;
+      this.stickyInteractSince = 0;
+    }
+
+    // Sync legacy near-* registry so existing GamePage listeners keep working
+    this.syncNearFlagsFromTarget(target);
+
+    const prompt = target
+      ? formatInteractPrompt(target, { fountainUnclaimed: undefined })
+      : null;
+
+    this.registry.set('activeInteractTarget', target ? {
+      kind: target.kind,
+      id: target.id,
+      name: target.name,
+      access: target.access ?? null,
+      action: target.action ?? null,
+      actionLabel: target.actionLabel ?? null,
+      mobileLabel: target.mobileLabel ?? prompt?.mobile ?? 'Interact',
+      desktopPrompt: prompt?.desktop ?? '',
+      status: target.status ?? null,
+      lockedReason: target.lockedReason ?? null,
+      distance: resolved.distance,
+      facingScore: resolved.facingScore,
+      priorityScore: resolved.priorityScore,
+      hysteresisHeld: resolved.hysteresisHeld,
+    } : null);
+
+    // Landmark label highlight
+    const labelId =
+      target?.kind === 'door'
+        ? (this.enterableDoors.find((d) => d.building.id === target.id)?.building.worldObjectId ?? null)
+        : target?.kind === 'zone'
+          ? target.id
+          : null;
+    this.buildingGenerator?.setSelectedInteractTarget(labelId);
+
+    // Remote player selection highlight
+    const nextRemoteId = target?.kind === 'player' ? target.id : null;
+    if (nextRemoteId !== this.selectedRemotePlayerId) {
+      if (this.selectedRemotePlayerId) {
+        const prev = this.remotePlayerEntries.get(this.selectedRemotePlayerId);
+        if (prev) prev.selected = false;
+      }
+      this.selectedRemotePlayerId = nextRemoteId;
+      if (nextRemoteId) {
+        const cur = this.remotePlayerEntries.get(nextRemoteId);
+        if (cur) cur.selected = true;
+      }
+    }
+
+    // Interaction debug for F9
+    const selectedEntry = nextRemoteId ? this.remotePlayerEntries.get(nextRemoteId) : null;
+    this.registry.set('interactDebug', {
+      targetId: target?.id ?? null,
+      targetKind: target?.kind ?? null,
+      distance: resolved.distance,
+      facingScore: resolved.facingScore,
+      priorityScore: resolved.priorityScore,
+      hysteresisHeld: resolved.hysteresisHeld,
+      nearbyPlayerCount,
+      selectedPlayerId: nextRemoteId,
+      selectedPlayerName: selectedEntry?.username ?? null,
+      selectedPlayerStaleAge: selectedEntry ? nowMs - selectedEntry.lastSeenAt : null,
+      selectedPlayerX: selectedEntry?.px ?? null,
+      selectedPlayerY: selectedEntry?.py ?? null,
+      socialCardOpen: !!this.registry.get('socialCardOpen'),
+      dmRecipientId: (this.registry.get('dmRecipient') as { playerId?: string } | null)?.playerId ?? null,
+      candidateCount: candidates.filter((c) => {
+        const d = Math.hypot(c.x - this.px, c.y - this.py);
+        return d <= c.radius;
+      }).length,
+      labels: this.buildingGenerator?.getLabelSystem()?.getLastDebug() ?? [],
+    });
+
+    if (!target) return;
+    if (this.registry.get('socialCardOpen') || this.registry.get('dmRecipient')) return;
+    if (!this.consumeInteractPress()) return;
+    this.executeInteractTarget(target);
+  }
+
+  private syncNearFlagsFromTarget(target: InteractCandidate | null): void {
+    // Clear all, then set winner
+    const door = target?.kind === 'door'
+      ? this.enterableDoors.find((d) => d.building.id === target.id) ?? null
+      : null;
+    const doorId = door?.building.id ?? null;
+    if (doorId !== this.nearDoorId) {
+      this.nearDoorId = doorId;
+      this.registry.set('nearDoor', door ? {
+        id: door.building.id,
+        name: door.building.displayName,
+        access: door.building.access,
+      } : null);
+    } else if (!door && this.nearDoorId) {
+      this.nearDoorId = null;
+      this.registry.set('nearDoor', null);
+    }
+
+    if (target?.kind === 'zone') {
+      const z = this.interaction.getZones().find((zz) => zz.id === target.id) ?? null;
+      this.interaction.setNearZone(z);
+    } else {
+      this.interaction.clearNearZone();
+    }
+
+    const npcName = target?.kind === 'npc' ? target.name : null;
+    if (npcName !== this.nearNpcName) {
+      this.nearNpcName = npcName;
+      this.registry.set('nearNpc', npcName ? { name: npcName } : null);
+    }
+
+    const nearTreasure = target?.kind === 'treasure';
+    if (nearTreasure !== this.nearTreasure) {
+      this.nearTreasure = nearTreasure;
+      this.registry.set('nearTreasure', nearTreasure);
+    }
+
+    const nearWhale = target?.kind === 'whale';
+    if (nearWhale !== this.nearWhale) {
+      this.nearWhale = nearWhale;
+      this.registry.set('nearWhale', nearWhale);
+    }
+
+    const nearCrier = target?.kind === 'town_crier';
+    if (nearCrier !== this.nearTownCrier) {
+      this.nearTownCrier = nearCrier;
+      this.registry.set('nearTownCrier', nearCrier);
+    }
+
+    if (target?.kind === 'statue') {
+      const rank = Number(String(target.id).split(':')[1] ?? 0);
+      this.registry.set('nearStatue', { rank, name: target.name });
+    } else {
+      this.registry.set('nearStatue', null);
+    }
+  }
+
+  private executeInteractTarget(target: InteractCandidate): void {
+    if (target.kind === 'player') {
+      const entry = this.remotePlayerEntries.get(target.id);
+      if (!entry || isPresenceStale(entry.lastSeenAt)) {
+        this.events.emit('remote-player-gone', { id: target.id });
+        return;
+      }
+      const now = this.time.now;
+      if (now - this.lastSocialCardOpenAt < this.socialCardCooldownMs) return;
+      this.lastSocialCardOpenAt = now;
+      const summary = presenceToSocialSummary({
+        id: entry.presenceId,
+        username: entry.username,
+        x: entry.px,
+        y: entry.py,
+        appearance: entry.rawAppearance,
+        rep: entry.rep,
+        holderTier: entry.holderTier,
+        level: entry.level,
+        rankLabel: entry.rankLabel,
+        equippedTitle: entry.equippedTitle,
+      }, {
+        worldX: entry.px,
+        worldY: entry.py,
+        direction: entry.facing,
+        lastSeenAt: entry.lastSeenAt,
+        online: true,
+      });
+      this.events.emit('remote-player-interact', summary);
+      return;
+    }
+
+    if (target.kind === 'door') {
+      const door = this.enterableDoors.find((d) => d.building.id === target.id);
+      if (!door) return;
+      if (door.building.access === 'open') {
+        this.enterInterior(door.building.id);
+        return;
+      }
+      const now = this.time.now;
+      if (now - this.lastInteractFeedbackAt < this.lockedFeedbackSpamMs) return;
+      this.lastInteractFeedbackAt = now;
+      this.events.emit('door-message', {
+        buildingId: door.building.id,
+        title: door.building.displayName,
+        text: door.building.lockedMessage,
+        mode: door.building.access,
+      });
+      return;
+    }
+
+    if (target.kind === 'zone') {
+      if (target.action === 'locked' || target.action === 'coming_soon') {
+        const now = this.time.now;
+        if (now - this.lastInteractFeedbackAt < this.lockedFeedbackSpamMs) return;
+        this.lastInteractFeedbackAt = now;
+        this.events.emit('door-message', {
+          buildingId: target.id,
+          title: target.name,
+          text: target.lockedReason || (target.action === 'coming_soon' ? 'Coming soon.' : 'Locked.'),
+          mode: target.action === 'coming_soon' ? 'coming_soon' : 'locked',
+        });
+        return;
+      }
+      this.events.emit('zone-interact', { id: target.id, name: target.name });
+      return;
+    }
+
+    if (target.kind === 'npc') {
+      const npc = this.npcs.find((n) => n.name === target.name);
+      if (!npc) return;
+      this.events.emit('npc-interact', {
+        name: npc.name,
+        personality: npc.personality,
+        districtId: npc.districtId,
+      });
+      return;
+    }
+
+    if (target.kind === 'treasure' && this.treasureChest) {
+      const reward = this.eventManager.getCurrentEvent()?.definition.reward;
+      this.despawnTreasureChest();
+      this.events.emit('treasure-interact', {
+        rewardAmount: reward?.amount ?? 0,
+        rewardLabel: reward?.label ?? 'Treasure found!',
+      });
+      return;
+    }
+
+    if (target.kind === 'whale' && this.whaleMarker) {
+      const reward = this.eventManager.getCurrentEvent()?.definition.reward;
+      const intel = this.generateFakeWhaleIntel();
+      this.despawnWhaleMarker();
+      this.events.emit('whale-interact', {
+        wallet: intel.wallet,
+        buySol: intel.buySol,
+        tokenSymbol: intel.tokenSymbol,
+        riskLevel: intel.riskLevel,
+        rewardAmount: reward?.amount ?? 0,
+        rewardLabel: reward?.label ?? 'Whale spotted!',
+      });
+      return;
+    }
+
+    if (target.kind === 'town_crier') {
+      const tc = this.townCrier;
+      this.events.emit('town-crier-interact', { title: tc?.lines[1] ?? 'Town Crier' });
+      if (this.mission.markTownCrierTalked()) this.publishMissionState();
+      return;
+    }
+
+    if (target.kind === 'statue') {
+      const statue = this.hallOfFameStatues.find((s) => `statue:${s.rank}` === target.id);
+      if (!statue) return;
+      if (this.mission.markBuildingEntered('hall-of-fame')) this.publishMissionState();
+      this.events.emit('statue-interact', {
+        rank: statue.rank,
+        name: statue.name,
+        rep: statue.rep,
+        isPlayer: statue.isPlayer,
+      });
+    }
+  }
+
+  private updateDoorProximity() {
+    // Kept for compatibility; Phase 10D uses updateInteractionsUnified.
+  }
+
+  private enterInterior(buildingId: string) {
+    const building = getEnterableBuilding(buildingId);
+    if (!building || this.interiorActive) return;
+    this.interiorActive = true;
+    this.worldCamera?.setEnabled(false);
+    this.registry.set('nearZone', null);
+    this.registry.set('nearNpc', null);
+    this.registry.set('nearTreasure', false);
+    this.registry.set('nearWhale', false);
+    this.registry.set('nearStatue', null);
+    this.registry.set('nearTownCrier', false);
+    this.registry.set('nearDoor', null);
+    this.nearDoorId = null;
+    this.nearTownCrier = false;
+    this.setWorldKeyboardEnabled(false);
+    this.scene.launch('InteriorScene', {
+      buildingId,
+      appearance: this.appearance,
+    });
+    this.events.emit('interior-entered', {
+      buildingId,
+      displayName: building.displayName,
+    });
+    this.markInteriorVisited(buildingId);
+    this.events.emit('interior-discovered', { interiorId: buildingId, name: building.displayName });
+    if (this.mission.markBuildingEntered(buildingId)) {
+      this.publishMissionState();
+    }
+  }
+
+  /** Record an interior as visited (Phase 5), persist + republish if new. */
+  private markInteriorVisited(buildingId: string) {
+    if (this.visitedInteriors.has(buildingId)) return;
+    this.visitedInteriors.add(buildingId);
+    patchProgress({ visitedInteriors: Array.from(this.visitedInteriors) });
+    this.publishMissionState();
+  }
+
+  private exitInterior(buildingId: string) {
+    const returnPos = getWorldReturnPosition(buildingId, this.worldW, this.worldH);
+    const interior = this.getInteriorScene();
+    interior?.shutdownInterior();
+    this.scene.stop('InteriorScene');
+    this.interiorActive = false;
+    this.worldCamera?.setEnabled(true);
+    this.setWorldKeyboardEnabled(true);
+    if (returnPos) this.teleportTo(returnPos.x, returnPos.y);
+    this.events.emit('interior-exited', { buildingId });
+  }
+
+  private updateTownCrierProximity() {
+    const tc = this.townCrier;
+    if (!tc) {
+      if (this.nearTownCrier) {
+        this.nearTownCrier = false;
+        this.registry.set('nearTownCrier', false);
+      }
+      return;
+    }
+    const near = Phaser.Math.Distance.Between(this.px, this.py, tc.wx, tc.wy) <= 86;
+    if (near !== this.nearTownCrier) {
+      this.nearTownCrier = near;
+      this.registry.set('nearTownCrier', near);
+    }
+    if (near && !this.nearDoorId && !this.interaction.nearZoneId && !this.nearNpcName && this.consumeInteractPress()) {
+      this.events.emit('town-crier-interact', { title: tc.lines[1] ?? 'Town Crier' });
+      if (this.mission.markTownCrierTalked()) this.publishMissionState();
+    }
+  }
+
+  private publishMissionState() {
+    const missions = this.mission.getMissions();
+    const active = this.mission.getActiveMission();
+    const completedCount = missions.filter(m => m.completed).length;
+    const visited = Array.from(this.visitedInteriors);
+
+    this.registry.set('missionState', {
+      missions,
+      highlightZoneId: this.mission.getHighlightedZoneId(),
+      completed: this.mission.isComplete(),
+      activeMissionId: active?.id ?? null,
+      activeMissionTitle: active?.title ?? null,
+      activeMissionDescription: active?.description ?? null,
+      completedCount,
+      totalCount: missions.length,
+      visitedInteriors: visited,
+      visitedInteriorsCount: visited.length,
+    });
+
+    // Persist mission progress locally so it survives reloads.
+    patchProgress({
+      completedMissions: this.mission.getCompletedIds(),
+      activeMission: active?.id ?? null,
+    });
+  }
+
+  private getInteriorScene(): InteriorScene | null {
+    // Guard: setAppearance() (and other public API) can be called by
+    // RugTownGame right after construction, before Phaser boots the scene,
+    // when this.scene / this.scene.get is not yet available. Return null so
+    // callers using optional chaining simply no-op until the scene is ready.
+    if (!this.scene || typeof this.scene.get !== 'function') return null;
+    const scene = this.scene.get('InteriorScene');
+    return scene instanceof InteriorScene ? scene : null;
+  }
+
+  private setWorldKeyboardEnabled(enabled: boolean) {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+    kb.enabled = enabled;
+    if (enabled) kb.resetKeys();
   }
 
   /**
@@ -1588,7 +2524,7 @@ export class WorldScene extends Phaser.Scene {
    * we clear/skip NPC proximity entirely rather than racing both prompts.
    */
   private updateNpcProximity() {
-    if (this.nearZoneId) {
+    if (this.nearDoorId || this.interaction.nearZoneId || this.nearTownCrier) {
       if (this.nearNpcName !== null) {
         this.nearNpcName = null;
         this.registry.set('nearNpc', null);
@@ -1616,99 +2552,94 @@ export class WorldScene extends Phaser.Scene {
     }
 
     if (nearest && this.consumeInteractPress()) {
-      this.events.emit('npc-interact', { name: nearest.name, personality: nearest.personality });
+      this.events.emit('npc-interact', {
+        name: nearest.name,
+        personality: nearest.personality,
+        districtId: nearest.districtId,
+      });
     }
   }
 
   /* ═══════════════════════════════════════════════════════════
-     WALKABILITY — road-only movement
-     The world is BLOCKED by default; only the road / plaza / bridge
-     network (RoadNetwork.ts) is walkable. Both the player and the NPC
-     citizens are confined to it, spawns are snapped onto it, and events
-     spawn only on reachable road/plaza points. Geometry comes entirely
-     from RoadNetwork.ts — nothing is hardcoded here.
+     WALKABILITY — delegates to CollisionSystem (Phase 1 refactor)
+     NPC wander logic calls these private wrappers so the NPC code
+     doesn't need to be touched; all real work is in CollisionSystem.
      ═══════════════════════════════════════════════════════════ */
-  private createCollision() {
-    this.walkableRects = buildWalkableRects(this.worldW, this.worldH);
 
-    // Debug overlay (press C / Settings toggle): tints the WALKABLE network
-    // green so the road layout can be verified/tuned at a glance.
-    this.collisionDebugGraphics = this.add.graphics().setDepth(50).setVisible(false);
-    for (const r of this.walkableRects) {
-      const colour = r.kind === 'plaza' ? 0x38f0a0 : 0x4bd4ff;
-      this.collisionDebugGraphics.fillStyle(colour, 0.22);
-      this.collisionDebugGraphics.fillRect(r.x, r.y, r.w, r.h);
-      this.collisionDebugGraphics.lineStyle(1, colour, 0.7);
-      this.collisionDebugGraphics.strokeRect(r.x, r.y, r.w, r.h);
-    }
-  }
-
-  /** True if (x,y) is on a walkable road/plaza/bridge tile. Movement uses
-   *  the character's centre point; roads are wide (ROAD_WIDTH) so the body
-   *  never visually threads a needle. */
   private isWalkable(x: number, y: number): boolean {
-    return isWalkablePoint(this.walkableRects, x, y);
+    return this.collision.isWalkable(x, y);
   }
 
-  /**
-   * Resolve a desired move with axis sliding so movement stays smooth along
-   * road edges (no sticking / jitter — the Pokémon / Stardew feel). Tries the
-   * full move first, then X-only, then Y-only; if all are blocked the entity
-   * holds position. Returns the resolved position.
-   */
   private resolveWalk(
-    px: number, py: number, vx: number, vy: number, dt: number
+    px: number, py: number, vx: number, vy: number, dt: number,
   ): { x: number; y: number } {
-    const nx = px + vx * dt;
-    const ny = py + vy * dt;
-    if (this.isWalkable(nx, ny)) return { x: nx, y: ny };
-    if (vx !== 0 && this.isWalkable(nx, py)) return { x: nx, y: py };
-    if (vy !== 0 && this.isWalkable(px, ny)) return { x: px, y: ny };
-    return { x: px, y: py };
+    const r = this.collision.resolveWalk(px, py, vx, vy, dt);
+    return { x: r.x, y: r.y };
   }
 
-  /** Snap an arbitrary point to the nearest walkable point by scanning the
-   *  walkable rects (used for spawns so nothing ever starts off-road). */
+  private remoteAtPointer(pointer: Phaser.Input.Pointer): RemotePlayerEntry | null {
+    const hitR2 = (CHAR_H * 0.65) ** 2;
+    for (const entry of this.remotePlayerEntries.values()) {
+      const dx = pointer.worldX - entry.px;
+      const dy = pointer.worldY - entry.py;
+      if (dx * dx + dy * dy <= hitR2) return entry;
+    }
+    return null;
+  }
+
+  private hitRemotePlayerAt(pointer: Phaser.Input.Pointer): boolean {
+    return this.remoteAtPointer(pointer) !== null;
+  }
+
   private snapToWalkable(x: number, y: number): { x: number; y: number } {
-    if (this.isWalkable(x, y)) return { x, y };
-    let best = { x, y };
-    let bestD = Infinity;
-    for (const r of this.walkableRects) {
-      const cx = Phaser.Math.Clamp(x, r.x, r.x + r.w);
-      const cy = Phaser.Math.Clamp(y, r.y, r.y + r.h);
-      const d = (cx - x) * (cx - x) + (cy - y) * (cy - y);
-      if (d < bestD) { bestD = d; best = { x: cx, y: cy }; }
-    }
-    return best;
+    return this.collision.snapToNearest(x, y);
   }
 
-  /** A random reachable road/plaza point — used by events that have no fixed
-   *  landmark so treasure/whale/crier always land somewhere the player can
-   *  actually walk to. Area-weighted so bigger plazas aren't over-picked. */
+  /** Phase 8H — is (x,y) an acceptable NPC idle/wander target? Rejects
+   *  Spring Water's spawn clearance (Task 6), enterable-building door
+   *  clearance (Task 12), an over-capacity bridge region (Task 13), and
+   *  targets another NPC is already walking toward (Task 15 pileup
+   *  avoidance). Cheap O(population) scan — population is capped at
+   *  COMPACT_NPC_CONFIG.totalPopulation (~22), called only on state
+   *  transitions (every ~1-4s per NPC), never per-frame. */
+  private isGoodNpcTarget(x: number, y: number, self: NpcData): boolean {
+    const fountain = getWorldObject('fountain');
+    if (fountain) {
+      const fx = fountain.x * this.worldW, fy = fountain.y * this.worldH;
+      if (Math.hypot(x - fx, y - fy) < COMPACT_NPC_CONFIG.spawnClearanceRadius) return false;
+    }
+
+    for (const door of this.enterableDoors) {
+      if (Math.hypot(x - door.wx, y - door.wy) < door.radius) return false;
+    }
+
+    const bridge = getWorldObject('bridge');
+    if (bridge) {
+      const bx = bridge.x * this.worldW, by = bridge.y * this.worldH;
+      if (Math.hypot(x - bx, y - by) < bridge.interactionRadius) {
+        let occupants = 0;
+        for (const other of this.npcs) {
+          if (other === self) continue;
+          if (Math.hypot(other.px - bx, other.py - by) < bridge.interactionRadius) occupants++;
+        }
+        if (occupants >= COMPACT_NPC_CONFIG.bridgeCapacity) return false;
+      }
+    }
+
+    for (const other of this.npcs) {
+      if (other === self || other.state !== 'walk') continue;
+      if (Math.hypot(x - other.targetX, y - other.targetY) < 45) return false;
+    }
+
+    return true;
+  }
+
   private randomWalkablePoint(): { wx: number; wy: number } {
-    const rects = this.walkableRects;
-    if (rects.length === 0) return { wx: this.plazaX, wy: this.plazaY };
-    let total = 0;
-    for (const r of rects) total += r.w * r.h;
-    let pick = Math.random() * total;
-    let chosen = rects[0];
-    for (const r of rects) {
-      pick -= r.w * r.h;
-      if (pick <= 0) { chosen = r; break; }
-    }
-    // Keep away from the very edge of the rect so the body stays on-road.
-    const pad = 12;
-    const wx = Phaser.Math.Between(chosen.x + pad, chosen.x + chosen.w - pad);
-    const wy = Phaser.Math.Between(chosen.y + pad, chosen.y + chosen.h - pad);
-    return { wx, wy };
+    return this.collision?.randomWalkablePoint() ?? { wx: this.plazaX, wy: this.plazaY };
   }
 
-  /** Single place that actually flips the debug overlay — used by both
-   *  the C key and the Settings panel's toggle, so they stay in sync. */
   private setCollisionDebug(visible: boolean) {
-    this.collisionDebugVisible = visible;
-    this.collisionDebugGraphics.setVisible(visible);
-    this.registry.set('collisionDebug', visible);
+    this.collision.setDebugVisible(visible);
   }
 
   /**
@@ -1767,6 +2698,10 @@ export class WorldScene extends Phaser.Scene {
    * reward (e.g. the fountain's daily REP) is claimed.
    */
   playRewardEffect(text = '+5 REP') {
+    if (this.interiorActive) {
+      this.getInteriorScene()?.playRewardEffect(text);
+      return;
+    }
     this.spawnFloatingText(text);
     this.cameras.main.flash(320, 232, 184, 75);
   }
@@ -1776,6 +2711,10 @@ export class WorldScene extends Phaser.Scene {
    * Used by the chat panel — sending a message echoes it here.
    */
   showPlayerSpeech(text: string, duration = 3000) {
+    if (this.interiorActive) {
+      this.getInteriorScene()?.showPlayerSpeech(text, duration);
+      return;
+    }
     this.playerSpeech.setText(text);
     this.playerSpeech.setVisible(true);
     this.playerSpeechUntil = duration;
@@ -1786,6 +2725,10 @@ export class WorldScene extends Phaser.Scene {
    * their local animation. Purely cosmetic; doesn't touch movement.
    */
   playEmoteAnimation() {
+    if (this.interiorActive) {
+      this.getInteriorScene()?.playEmoteAnimation();
+      return;
+    }
     this.emotePulseUntil = EMOTE_PULSE_DURATION;
   }
 
@@ -1813,6 +2756,48 @@ export class WorldScene extends Phaser.Scene {
     n.speech.setText(text);
     n.speech.setVisible(true);
     n.speechShowUntil = NPC_SPEECH_DURATION;
+  }
+
+  /**
+   * Phase 6 — brief floating label above a district centre (living city events).
+   * World-space only; does not follow the player.
+   */
+  showDistrictFloatingText(fx: number, fy: number, text: string, color = '#e8c67a') {
+    // Phase 8K Task 10 — at most MAX_VISIBLE_EVENT_MESSAGES floating
+    // banners on screen at once; a short FIFO queue rather than letting
+    // them stack over the (now much smaller/denser) central plaza.
+    while (this.floatingTexts.length >= MAX_VISIBLE_EVENT_MESSAGES) {
+      const oldest = this.floatingTexts.shift();
+      oldest?.obj.destroy();
+    }
+    const x = fx * this.worldW;
+    const y = fy * this.worldH - 48;
+    const obj = this.add.text(x, y, text, {
+      fontFamily: '"Cinzel", serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color,
+      backgroundColor: 'rgba(4,8,12,0.82)',
+      padding: { x: 8, y: 4 },
+      stroke: '#000000',
+      strokeThickness: 3,
+      align: 'center',
+    }).setOrigin(0.5, 1).setDepth(18);
+
+    this.floatingTexts.push({ obj, vy: -18, life: 2800, maxLife: 2800 });
+  }
+
+  /** Number keys 1–4 trigger quick emotes (handled by GamePage). */
+  private updateQuickEmoteKeys() {
+    if (Phaser.Input.Keyboard.JustDown(this.keyEmote1)) {
+      this.events.emit('player-quick-emote', 'wave');
+    } else if (Phaser.Input.Keyboard.JustDown(this.keyEmote2)) {
+      this.events.emit('player-quick-emote', 'laugh');
+    } else if (Phaser.Input.Keyboard.JustDown(this.keyEmote3)) {
+      this.events.emit('player-quick-emote', 'bullish');
+    } else if (Phaser.Input.Keyboard.JustDown(this.keyEmote4)) {
+      this.events.emit('player-quick-emote', 'rug-alert');
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -2109,7 +3094,7 @@ export class WorldScene extends Phaser.Scene {
   private updateTreasureProximity() {
     if (!this.treasureChest) return;
 
-    if (this.nearZoneId || this.nearNpcName) {
+    if (this.nearDoorId || this.interaction.nearZoneId || this.nearNpcName || this.nearTownCrier) {
       if (this.nearTreasure) {
         this.nearTreasure = false;
         this.registry.set('nearTreasure', false);
@@ -2251,7 +3236,7 @@ export class WorldScene extends Phaser.Scene {
   private updateWhaleProximity() {
     if (!this.whaleMarker) return;
 
-    if (this.nearZoneId || this.nearNpcName) {
+    if (this.nearDoorId || this.interaction.nearZoneId || this.nearNpcName || this.nearTownCrier) {
       if (this.nearWhale) {
         this.nearWhale = false;
         this.registry.set('nearWhale', false);
@@ -2293,9 +3278,8 @@ export class WorldScene extends Phaser.Scene {
      Appears during the Announcement phase of ANY event — unlike the
      treasure chest/whale marker, this isn't tied to one definition id.
      Purely ambient: no proximity prompt, no E-press, no reward. Drawn
-     with the same shared drawHumanoid() renderer as the player/citizens
-     for visual consistency, just in the "Gold Holder Coat" outfit plus
-     a bell marker so he reads as a special character at a glance.
+     with BitmapCharacter like the player/citizens, plus a bell marker
+     so he reads as a special character at a glance.
      ═══════════════════════════════════════════════════════════ */
 
   /** "Somewhere in RugTown"-style events have no fixed landmark, so the
@@ -2313,8 +3297,14 @@ export class WorldScene extends Phaser.Scene {
     const def = instance.definition;
     const { wx, wy } = this.pickTownCrierSpawnPosition(def);
 
-    const shadow = this.add.graphics().setDepth(13);
-    const body = this.add.graphics().setDepth(14);
+    const bitmap = new BitmapCharacter(
+      this,
+      npcAppearanceFromId('town-crier', listNpcBodies()),
+      { depth: 14, visualScale: PLAYER_VISUAL_SCALE },
+    );
+    bitmap.setPosition(wx, wy);
+    bitmap.setFacing('down');
+
     const bell = this.add.text(wx, wy, '🔔', { fontSize: '13px' })
       .setOrigin(0.5, 1).setDepth(14.3);
     const label = this.add.text(wx, wy, 'Town Crier [NPC]', {
@@ -2343,12 +3333,11 @@ export class WorldScene extends Phaser.Scene {
       : def.description;
 
     this.townCrier = {
-      wx, wy, shadow, body, bell, label, speech,
+      wx, wy, bitmap, bell, label, speech,
       lines: ['Hear ye! Hear ye!', def.title, shortDescription],
       lineIndex: 0,
       lineTimer: 0,
       animTick: 0,
-      resolvedAppearance: resolveAppearance({ ...DEFAULT_APPEARANCE, jacket: 'goldHolderCoat' }),
     };
     this.registry.set('townCrier', { wx, wy });
 
@@ -2366,13 +3355,14 @@ export class WorldScene extends Phaser.Scene {
 
   private despawnTownCrier() {
     if (!this.townCrier) return;
-    this.townCrier.shadow.destroy();
-    this.townCrier.body.destroy();
+    this.townCrier.bitmap.destroy();
     this.townCrier.bell.destroy();
     this.townCrier.label.destroy();
     this.townCrier.speech.destroy();
     this.townCrier = null;
     this.registry.set('townCrier', null);
+    this.nearTownCrier = false;
+    this.registry.set('nearTownCrier', false);
   }
 
   private showTownCrierLine(index: number) {
@@ -2405,33 +3395,11 @@ export class WorldScene extends Phaser.Scene {
     if (!tc) return;
     tc.animTick += delta;
 
-    const t = tc.animTick / 1000;
-    const breathPhase = t * IDLE_BREATH_SPEED;
-    const breathe = Math.sin(breathPhase);
-    const idleBob = Math.abs(breathe) * IDLE_BOB;
-    const idleSway = Math.sin(breathPhase * 0.55) * IDLE_SWAY;
-    const breathScale = 1 + breathe * IDLE_BREATH_SCALE;
-    const idleHeadBob = Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB;
+    tc.bitmap.setPosition(tc.wx, tc.wy);
+    tc.bitmap.setFacing('down');
+    tc.bitmap.update(delta, 0, 0, false);
 
-    tc.shadow.clear();
-    tc.shadow.fillStyle(0x000000, 0.18);
-    tc.shadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 4) * (1 - idleBob * 0.05), SHADOW_H + 2);
-    tc.shadow.setPosition(tc.wx, tc.wy);
-
-    drawHumanoid(tc.body, tc.wx, tc.wy, {
-      facing: 'down',
-      bodyBob: idleBob,
-      legStagger: 0,
-      legLiftL: 0,
-      legLiftR: 0,
-      armSwing: 0,
-      headBob: idleHeadBob,
-      rotation: idleSway,
-      breathScale,
-      appearance: tc.resolvedAppearance,
-    });
-
-    const headYLocal = -idleBob - CHAR_H * 0.5;
+    const headYLocal = -TARGET_DISPLAY_HEIGHT * PLAYER_VISUAL_SCALE * 0.5;
     const labelY = tc.wy + headYLocal - 6;
     tc.label.setPosition(Math.round(tc.wx), Math.round(labelY));
     tc.bell.setPosition(tc.wx, labelY - 14);
@@ -2565,7 +3533,7 @@ export class WorldScene extends Phaser.Scene {
   private updateStatueProximity() {
     if (this.hallOfFameStatues.length === 0) return;
 
-    if (this.nearZoneId || this.nearNpcName || this.nearTreasure || this.nearWhale) {
+    if (this.nearDoorId || this.interaction.nearZoneId || this.nearNpcName || this.nearTreasure || this.nearWhale || this.nearTownCrier) {
       if (this.nearStatueRank !== null) {
         this.nearStatueRank = null;
         this.registry.set('nearStatue', null);
@@ -2592,6 +3560,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     if (nearest && this.consumeInteractPress()) {
+      if (this.mission.markBuildingEntered('hall-of-fame')) this.publishMissionState();
       this.events.emit('statue-interact', {
         rank: nearest.rank,
         name: nearest.name,
@@ -2707,348 +3676,6 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     FOUNTAIN ONBOARDING GUIDE
-     Pulsing glow around the Spawn Fountain to guide new players.
-     Disappears as soon as GamePage publishes 'fountainClaimed' to
-     the registry. Depth 3.5 — above background, below characters.
-     ═══════════════════════════════════════════════════════════ */
-  private createFountainGuide() {
-    const obj = getWorldObject('fountain');
-    if (!obj) return;
-    this.fountainGuide = this.add.graphics().setDepth(3.5);
-  }
-
-  private updateFountainGuide(delta: number) {
-    if (!this.fountainGuide) return;
-
-    // Hide permanently once the player has claimed the fountain reward.
-    if (this.registry.get('fountainClaimed') === true) {
-      if (this.fountainGuide.visible) this.fountainGuide.setVisible(false);
-      return;
-    }
-
-    const obj = getWorldObject('fountain');
-    if (!obj) return;
-    const wx = obj.x * this.worldW;
-    const wy = obj.y * this.worldH;
-
-    this.fountainGuideAnimTick += delta;
-    const t = this.fountainGuideAnimTick / 1000;
-    const pulse = (Math.sin(t * 2.6) + 1) / 2; // 0..1, ~2.6 rad/s ≈ nice pulse
-
-    // Brighten the glow when the player is standing nearby (inside interaction radius).
-    const dx = this.px - wx;
-    const dy = this.py - wy;
-    const distSq = dx * dx + dy * dy;
-    const isNear = distSq < 160 * 160;
-
-    const baseAlpha = isNear ? 0.55 + pulse * 0.40 : 0.18 + pulse * 0.14;
-
-    this.fountainGuide.clear();
-    // Draw concentric rings that expand/contract with the pulse.
-    for (let r = 80; r >= 8; r -= 18) {
-      const a = baseAlpha * (1 - r / 80) * 0.9;
-      this.fountainGuide.fillStyle(0xe8c840, a);
-      this.fountainGuide.fillCircle(wx, wy, r * (0.88 + pulse * 0.22));
-    }
-    // Bright inner core.
-    this.fountainGuide.fillStyle(0xfff0a0, Math.min(baseAlpha * 1.6, 0.85));
-    this.fountainGuide.fillCircle(wx, wy, 10 * (0.8 + pulse * 0.5));
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     LANDMARK LABELS (Part D)
-     Floating signboards above key landmarks — created 80ms after the
-     world is visible so they don't block the first frame. Fade out
-     when zoomed far out so they don't clutter the minimap-level view.
-     Pure visual, no gameplay effect — depth 4.5 (above background,
-     below everything else).
-     ═══════════════════════════════════════════════════════════ */
-  private createLandmarkLabels() {
-    const LABEL_IDS = ['fountain', 'market', 'fame', 'whale', 'alpha', 'notice', 'bridge'];
-    for (const id of LABEL_IDS) {
-      const obj = WORLD_OBJECTS.find(o => o.id === id);
-      if (!obj) continue;
-      const wx = obj.x * this.worldW;
-      const wy = obj.y * this.worldH - 50; // float above the landmark area
-      const lbl = this.add.text(wx, wy, `${obj.futureIcon}  ${obj.displayName}`, {
-        fontFamily: '"Cinzel", serif',
-        fontSize:   '11px',
-        fontStyle:  'bold',
-        color:      '#e8c878',
-        backgroundColor: 'rgba(4,8,12,0.78)',
-        padding: { x: 7, y: 4 },
-        stroke: '#000000',
-        strokeThickness: 3,
-        resolution: 2,
-      }).setOrigin(0.5, 1).setDepth(4.5).setAlpha(0);
-      this.landmarkLabelIds.push(id);
-      this.landmarkLabels.push(lbl);
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SPAWN PLAZA AMBIENCE
-     Purely decorative — particles, tweens, and a few static-looking
-     props layered around the fountain/spawn point. Everything here
-     is self-driving (Phaser's tween/particle/time systems tick it),
-     so nothing needs to be called from update() except the camera
-     breathing line above and the NPC face-check already wired into
-     updateNpcs(). No collision, no interaction, no gameplay effect.
-     ═══════════════════════════════════════════════════════════ */
-  private createPlazaAmbience() {
-    this.plazaX = this.worldW * SPAWN_FX;
-    this.plazaY = this.worldH * SPAWN_FY;
-
-    this.createFountainAmbience();
-    this.createLampAmbience();
-    this.createDustAndPollen();
-    this.createLeafAmbience();
-    this.createMarketSigns();
-    this.createCanalShimmer();
-    this.scheduleNextBird();
-  }
-
-  /** Fountain: a breathing glow plus tiny drifting specks for shimmer/reflections. */
-  private createFountainAmbience() {
-    const { plazaX: x, plazaY: y } = this;
-
-    const glow = this.add.graphics().setDepth(2).setPosition(x, y);
-    for (let r = 34; r > 0; r -= 6) {
-      glow.fillStyle(FOUNTAIN_GLOW_COLOR, 0.05 * (1 - r / 34));
-      glow.fillCircle(0, 0, r);
-    }
-    glow.setAlpha(FOUNTAIN_PULSE_MIN);
-    this.tweens.add({
-      targets: glow,
-      alpha: FOUNTAIN_PULSE_MAX,
-      scale: 1.12,
-      duration: 2400,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
-
-    this.add.particles(x, y, '__WHITE', {
-      x: { min: -26, max: 26 },
-      y: { min: -14, max: 14 },
-      lifespan: { min: 900, max: 1600 },
-      speedX: { min: -6, max: 6 },
-      speedY: { min: -4, max: 4 },
-      scale: { start: 0.9, end: 0 },
-      alpha: { start: 0.7, end: 0 },
-      tint: [ 0xbfe9ff, 0xffffff, 0x8fd8f0 ],
-      frequency: 90,
-      quantity: 1,
-      blendMode: 'ADD',
-    }).setDepth(3);
-  }
-
-  /** Lamps: a handful of warm glows, each flickering independently. */
-  private createLampAmbience() {
-    for (const off of LAMP_OFFSETS) {
-      const glow = this.add.graphics()
-        .setDepth(2)
-        .setPosition(this.plazaX + off.x, this.plazaY + off.y);
-
-      for (let r = 22; r > 0; r -= 4) {
-        glow.fillStyle(0xe8b84b, 0.10 * (1 - r / 22));
-        glow.fillCircle(0, 0, r);
-      }
-      glow.setAlpha(0.7);
-
-      const flicker = () => {
-        this.tweens.add({
-          targets: glow,
-          alpha: Phaser.Math.FloatBetween(0.45, 0.9),
-          scale: Phaser.Math.FloatBetween(0.92, 1.08),
-          duration: Phaser.Math.Between(180, 520),
-          ease: 'Sine.easeInOut',
-          onComplete: flicker,
-        });
-      };
-      flicker();
-    }
-  }
-
-  /** Environment: faint drifting dust and warm pollen across the plaza. */
-  private createDustAndPollen() {
-    const x = this.plazaX;
-    const y = this.plazaY;
-    const halfW = PLAZA_RADIUS;
-    const halfH = PLAZA_RADIUS * 0.6;
-
-    this.add.particles(0, 0, '__WHITE', {
-      x: { min: x - halfW, max: x + halfW },
-      y: { min: y - halfH, max: y + halfH },
-      lifespan: { min: 6000, max: 11000 },
-      speedX: { min: -4, max: 4 },
-      speedY: { min: -6, max: -1 },
-      scale: { min: 0.5, max: 1.1 },
-      alpha: { start: 0.22, end: 0 },
-      tint: 0xc8b89a,
-      frequency: 700,
-      quantity: 1,
-    }).setDepth(2);
-
-    this.add.particles(0, 0, '__WHITE', {
-      x: { min: x - halfW * 0.8, max: x + halfW * 0.8 },
-      y: { min: y - halfH, max: y + halfH },
-      lifespan: { min: 5000, max: 9000 },
-      speedX: { min: -8, max: 8 },
-      speedY: { min: -10, max: -3 },
-      scale: { min: 0.7, max: 1.3 },
-      alpha: { start: 0.3, end: 0 },
-      tint: [ 0xe8d8a0, 0xf0e0b0 ],
-      frequency: 900,
-      quantity: 1,
-      blendMode: 'ADD',
-    }).setDepth(2);
-  }
-
-  /** Trees: slow tiny falling/drifting leaves near a couple of canopy spots. */
-  private createLeafAmbience() {
-    for (const off of TREE_OFFSETS) {
-      const tx = this.plazaX + off.x;
-      const ty = this.plazaY + off.y;
-
-      this.add.particles(0, 0, '__WHITE', {
-        x: { min: tx - 22, max: tx + 22 },
-        y: { min: ty - 30, max: ty - 10 },
-        lifespan: { min: 3200, max: 5200 },
-        speedX: { min: -6, max: 6 },
-        speedY: { min: 10, max: 22 },
-        rotate: { min: 0, max: 360 },
-        scale: { min: 0.55, max: 1 },
-        alpha: { start: 0.55, end: 0 },
-        tint: [ 0x6a8a3a, 0x8aa84a, 0xb08a3a ],
-        frequency: 1100,
-        quantity: 1,
-      }).setDepth(3);
-    }
-  }
-
-  /** Marketplace: a few small signs hanging and swaying from a hook point. */
-  private createMarketSigns() {
-    for (const off of SIGN_OFFSETS) {
-      const sign = this.add.graphics()
-        .setDepth(4)
-        .setPosition(this.plazaX + off.x, this.plazaY + off.y);
-
-      sign.fillStyle(0x2a1c10, 0.85);
-      sign.fillRect(-9, 0, 18, 12);
-      sign.lineStyle(1, 0xc8902a, 0.6);
-      sign.strokeRect(-9, 0, 18, 12);
-      sign.lineStyle(1, 0x6a4c14, 0.8);
-      sign.lineBetween(0, -6, 0, 0);
-
-      const swayAmt = Phaser.Math.FloatBetween(3, 5);
-      sign.angle = -swayAmt;
-      this.tweens.add({
-        targets: sign,
-        angle: swayAmt,
-        duration: Phaser.Math.Between(2200, 3200),
-        delay: Phaser.Math.Between(0, 800),
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
-    }
-  }
-
-  /** Water canals: a very faint shimmer strip near the plaza's edge. */
-  private createCanalShimmer() {
-    const cx = this.plazaX + CANAL_OFFSET.x;
-    const cy = this.plazaY + CANAL_OFFSET.y;
-
-    this.add.particles(0, 0, '__WHITE', {
-      x: { min: cx - CANAL_OFFSET.w / 2, max: cx + CANAL_OFFSET.w / 2 },
-      y: { min: cy - CANAL_OFFSET.h / 2, max: cy + CANAL_OFFSET.h / 2 },
-      lifespan: { min: 1400, max: 2200 },
-      speedX: { min: -3, max: 3 },
-      speedY: { min: -2, max: 2 },
-      scale: { min: 0.4, max: 0.8 },
-      alpha: { start: 0.18, end: 0 },
-      tint: [ 0x9fcbe0, 0xffffff ],
-      frequency: 260,
-      quantity: 1,
-      blendMode: 'ADD',
-    }).setDepth(2);
-  }
-
-  /** A small bird-shape glides across the plaza's sky every so often. */
-  private spawnBird() {
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    const spanX = 360;
-    const startX = this.plazaX - dir * spanX;
-    const endX   = this.plazaX + dir * spanX;
-    const baseY  = this.plazaY - 200 - Math.random() * 70;
-    const endY   = baseY + (Math.random() - 0.5) * 50;
-
-    const bird = this.add.graphics().setDepth(15).setPosition(startX, baseY);
-    bird.lineStyle(2, 0x161616, 0.5);
-    bird.beginPath();
-    bird.moveTo(-6, 0);
-    bird.lineTo(0, -3);
-    bird.lineTo(6, 0);
-    bird.strokePath();
-
-    this.tweens.add({
-      targets: bird,
-      x: endX,
-      y: endY,
-      duration: Phaser.Math.Between(7000, 11000),
-      ease: 'Sine.easeInOut',
-      onComplete: () => bird.destroy(),
-    });
-  }
-
-  private scheduleNextBird() {
-    this.time.delayedCall(Phaser.Math.Between(10000, 20000), () => {
-      this.spawnBird();
-      this.scheduleNextBird();
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     FALLBACK BACKGROUND (when PNG is missing)
-     ═══════════════════════════════════════════════════════════ */
-  private drawFallback() {
-    const g = this.add.graphics().setDepth(0);
-
-    g.fillGradientStyle(0x030a0c, 0x04090e, 0x050c10, 0x030709, 1);
-    g.fillRect(0, 0, this.worldW, this.worldH);
-
-    for (let r = 600; r > 0; r -= 60) {
-      g.fillStyle(0xc87020, 0.015 * (600 - r) / 600);
-      g.fillCircle(this.worldW * 0.38, this.worldH * 0.58, r);
-    }
-
-    g.lineStyle(1, 0x1a2830, 0.25);
-    for (let x = 0; x < this.worldW; x += 200) g.lineBetween(x, 0, x, this.worldH);
-    for (let y = 0; y < this.worldH; y += 200) g.lineBetween(0, y, this.worldW, y);
-
-    this.add.text(this.worldW / 2, this.worldH / 2 - 80,
-      'Place rugtown-city.png in:', {
-        fontFamily: 'Courier New', fontSize: '22px', color: '#c8902a', align: 'center',
-      }
-    ).setOrigin(0.5).setDepth(1);
-
-    this.add.text(this.worldW / 2, this.worldH / 2 - 36,
-      'public/assets/backgrounds/rugtown-city.png', {
-        fontFamily: 'Courier New', fontSize: '16px', color: '#e8b84b', align: 'center',
-        backgroundColor: '#0d1a1e', padding: { x: 14, y: 8 },
-      }
-    ).setOrigin(0.5).setDepth(1);
-
-    this.add.text(this.worldW / 2, this.worldH / 2 + 16,
-      'Player spawns at fountain area.\nWASD to move. Scroll to zoom.', {
-        fontFamily: 'Courier New', fontSize: '14px', color: '#7a6a52',
-        align: 'center', lineSpacing: 6,
-      }
-    ).setOrigin(0.5).setDepth(1);
-  }
 
   /* ═══════════════════════════════════════════════════════════
      INPUT SETUP
@@ -3067,17 +3694,25 @@ export class WorldScene extends Phaser.Scene {
     this.keyZoomIn    = kb.addKey(Phaser.Input.Keyboard.KeyCodes.PLUS);
     this.keyZoomOut   = kb.addKey(Phaser.Input.Keyboard.KeyCodes.MINUS);
     this.keyZoomReset = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ZERO);
+    this.keyRecenter  = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyE         = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keyEmote1    = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+    this.keyEmote2    = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
+    this.keyEmote3    = kb.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
+    this.keyEmote4    = kb.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR);
     // C key collision-debug shortcut removed for public demo (use Settings panel)
 
     kb.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_ADD).on('down', () => {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom + ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
+      if (this.interiorActive) return;
+      this.worldCamera?.setTargetZoom((this.worldCamera?.getTargetZoom() ?? ZOOM_DEFAULT) + ZOOM_STEP * 2);
     });
     kb.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_SUBTRACT).on('down', () => {
-      this.targetZoom = Phaser.Math.Clamp(this.targetZoom - ZOOM_STEP * 2, this.zoomMin, ZOOM_MAX);
+      if (this.interiorActive) return;
+      this.worldCamera?.setTargetZoom((this.worldCamera?.getTargetZoom() ?? ZOOM_DEFAULT) - ZOOM_STEP * 2);
     });
     kb.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_ZERO).on('down', () => {
-      this.targetZoom = ZOOM_DEFAULT;
+      if (this.interiorActive) return;
+      this.worldCamera?.requestRecenter(true);
     });
   }
 
@@ -3095,11 +3730,13 @@ export class WorldScene extends Phaser.Scene {
     this.player.setPosition(this.px, this.py);
     this.velX = 0;
     this.velY = 0;
+    this.worldCamera?.snapFollowToPlayer(this.px, this.py);
     this.registry.set('playerX', this.px);
     this.registry.set('playerY', this.py);
   }
 
   panTo(x: number, y: number, duration = 600) {
+    if (this.interiorActive) return;
     const tx = Phaser.Math.Clamp(x, 0, this.worldW);
     const ty = Phaser.Math.Clamp(y, 0, this.worldH);
     this.tweens.add({
@@ -3122,36 +3759,49 @@ export class WorldScene extends Phaser.Scene {
   }
 
   setTargetZoom(z: number) {
-    this.targetZoom = Phaser.Math.Clamp(z, this.zoomMin, ZOOM_MAX);
+    if (this.interiorActive) return;
+    this.worldCamera?.setTargetZoom(z);
   }
 
   /**
-   * "Reset camera" (the ⌂ button) — resets zoom back to default and
-   * makes sure the camera is actively following the player again. Does
-   * NOT move the player: the camera already centers on the player via
-   * startFollow, so there's nothing else to "recenter". Deliberately
-   * does not use panTo()/tweens, which animate the player's own
-   * position and would fight live joystick/keyboard input.
+   * "Reset camera" (⌂) — default zoom + smooth recenter to player.
+   * Does NOT move the player. Uses WorldCameraController (no startFollow).
    */
   resetCamera() {
-    this.setTargetZoom(ZOOM_DEFAULT);
-    // Unconditional re-affirm — idempotent (same target/values) when
-    // follow was already active, and recovers it if it somehow wasn't.
-    this.cameras.main.startFollow(this.player, true, CAM_LERP, CAM_LERP);
-    this.cameras.main.setDeadzone(CAM_DEADZONE_X, CAM_DEADZONE_Y);
+    if (this.interiorActive) return;
+    this.worldCamera?.requestRecenter(true);
+  }
+
+  /** Smooth recenter only (SPACE / floating Recenter) — keeps current zoom. */
+  recenterCamera() {
+    if (this.interiorActive) return;
+    this.worldCamera?.requestRecenter(false);
+  }
+
+  /** Player bitmap appearance. Safe to call before or after create(). */
+  setAppearance(appearance: CharacterAppearanceV1 | unknown) {
+    this.appearance = coerceAppearanceV1(appearance);
+    this.bitmapPlayer?.setAppearance(this.appearance);
+    this.getInteriorScene()?.setAppearance(this.appearance);
+    if (this.bitmapPlayer) this.drawPlayer();
+  }
+
+  getPlayerBitmap(): BitmapCharacter | null {
+    return this.bitmapPlayer;
   }
 
   /**
-   * Player appearance, chosen on the pre-game character-creator screen.
-   * Safe to call before or after create() — RugTownGame calls it right
-   * after construction, before the Phaser.Game boots, so create()'s
-   * first drawPlayer() already picks it up; also safe to call later
-   * (e.g. if a future settings screen lets the player re-pick).
+   * Apply server-trusted public loadouts to remote players (Phase 10L).
+   * Presence movement packets must not be the authority for cosmetics.
    */
-  setAppearance(appearance: CharacterAppearance) {
-    this.appearance = appearance;
-    this.resolvedAppearance = resolveAppearance(appearance);
-    if (this.playerBody) this.drawPlayer();
+  applyTrustedRemoteAppearances(map: Record<string, CharacterAppearanceV1 | unknown>) {
+    for (const [id, appearance] of Object.entries(map)) {
+      const existing = this.remotePlayerEntries.get(id);
+      if (!existing) continue;
+      const next = coerceAppearanceV1(appearance);
+      existing.bitmap.setAppearance(next);
+      existing.rawAppearance = next;
+    }
   }
 
   getPlayerPos() {
@@ -3170,23 +3820,42 @@ export class WorldScene extends Phaser.Scene {
    * nothing gets stuck "pressed".
    */
   setKeyboardEnabled(enabled: boolean) {
-    const kb = this.input.keyboard;
-    if (!kb) return;
-    kb.enabled = enabled;
-    if (enabled) kb.resetKeys();
+    if (this.interiorActive) {
+      this.getInteriorScene()?.setKeyboardEnabled(enabled);
+      return;
+    }
+    this.setWorldKeyboardEnabled(enabled);
   }
 
   /** Settings panel's collision-debug toggle — mirrors the C key. */
   setCollisionDebugVisible(visible: boolean) {
-    this.setCollisionDebug(visible);
+    this.collision?.setDebugVisible(visible);
+  }
+
+  setAssetBoundsDebugVisible(visible: boolean) {
+    this.buildingGenerator?.getWorldAssetLoader()?.setBoundsDebugVisible(visible);
+  }
+
+  setAssetAnchorsDebugVisible(visible: boolean) {
+    this.buildingGenerator?.getWorldAssetLoader()?.setAnchorsDebugVisible(visible);
+  }
+
+  setAssetRoadClearanceDebugVisible(visible: boolean) {
+    this.buildingGenerator?.getWorldAssetLoader()?.setRoadClearanceDebugVisible(visible);
+  }
+
+  setAssetPlayerDepthDebugVisible(visible: boolean) {
+    this.buildingGenerator?.getWorldAssetLoader()?.setPlayerDepthDebugVisible(visible);
+  }
+
+  getWorldAssetLoadStats() {
+    return this.buildingGenerator?.getWorldAssetLoader()?.getStats();
   }
 
   /** Highlights the landmark label for the given zone ID with a gold pulse.
-   *  Pass null to clear the highlight (e.g. when the mission changes to a
-   *  non-zone objective type). Safe to call before create() returns. */
+   *  Pass null to clear the highlight. Safe to call before create() returns. */
   setActiveMissionZone(zoneId: string | null) {
-    this.missionZoneId = zoneId;
-    for (const lbl of this.landmarkLabels) lbl.clearTint();
+    this.buildingGenerator?.setMissionZone(zoneId);
   }
 
   /**
@@ -3195,12 +3864,20 @@ export class WorldScene extends Phaser.Scene {
    * the default and leaves keyboard movement completely unaffected.
    */
   setVirtualMove(x: number, y: number) {
+    if (this.interiorActive) {
+      this.getInteriorScene()?.setVirtualMove(x, y);
+      return;
+    }
     this.virtualMoveX = Phaser.Math.Clamp(x, -1, 1);
     this.virtualMoveY = Phaser.Math.Clamp(y, -1, 1);
   }
 
   /** Mobile interact button — same effect as a single E key press. */
   requestInteract() {
+    if (this.interiorActive) {
+      this.getInteriorScene()?.requestInteract();
+      return;
+    }
     this.virtualInteractRequested = true;
   }
 
@@ -3230,7 +3907,7 @@ export class WorldScene extends Phaser.Scene {
    * Safe to call before create() — returns immediately in that case.
    */
   setRemotePlayers(players: PresencePayload[], localId: string) {
-    if (!this.playerBody) return; // scene not yet initialised
+    if (!this.bitmapPlayer) return; // scene not yet initialised
 
     const activeIds = new Set(
       players.filter(p => p.id !== localId).map(p => p.id)
@@ -3240,11 +3917,16 @@ export class WorldScene extends Phaser.Scene {
     this.remotePlayerEntries.forEach((entry, id) => {
       if (!activeIds.has(id)) {
         entry.glow.destroy();
-        entry.shadow.destroy();
-        entry.body.destroy();
+        entry.bitmap.destroy();
         entry.label.destroy();
         entry.speech.destroy();
         this.remotePlayerEntries.delete(id);
+        this.events.emit('remote-player-gone', { id });
+        if (this.selectedRemotePlayerId === id) this.selectedRemotePlayerId = null;
+        if (this.stickyInteractId === id) {
+          this.stickyInteractId = null;
+          this.stickyInteractSince = 0;
+        }
       }
     });
 
@@ -3256,56 +3938,83 @@ export class WorldScene extends Phaser.Scene {
       if (existing) {
         existing.targetX          = p.x;
         existing.targetY          = p.y;
-        existing.resolvedAppearance = resolveAppearance(p.appearance);
+        const nextApp = decodeCharacterAppearance(p.appearance, assetExists);
+        const nextRev = p.appearanceRev ?? existing.appearanceRev;
+        const appearanceChanged = p.appearanceRev != null
+          ? p.appearanceRev !== existing.appearanceRev
+          : encodeCharacterAppearance(nextApp) !== encodeCharacterAppearance(existing.rawAppearance);
+        if (appearanceChanged) {
+          existing.bitmap.setAppearance(nextApp);
+          existing.rawAppearance = nextApp;
+          existing.appearanceRev = nextRev;
+        }
         existing.rep              = p.rep;
         existing.holderTier       = p.holderTier;
-        existing.rawAppearance    = p.appearance;
+        existing.level            = p.level;
+        existing.rankLabel        = p.rankLabel;
+        existing.equippedTitle    = p.equippedTitle;
+        existing.lastSeenAt       = Date.now();
         if (existing.username !== p.username) {
           existing.username = p.username;
-          existing.label.setText(p.username);
+          existing.label.setText(this.formatRemoteNameplate(p.username, p.rep, p.holderTier));
         }
       } else {
         const glow   = this.add.graphics().setDepth(8);
-        const shadow = this.add.graphics().setDepth(9);
-        const body   = this.add.graphics().setDepth(10);
+        const bitmap = new BitmapCharacter(
+          this,
+          decodeCharacterAppearance(p.appearance, assetExists),
+          { depth: 10, visualScale: REMOTE_PLAYER_VISUAL_SCALE },
+        );
+        bitmap.setPosition(p.x, p.y);
         // Cyan label — visually distinct from Citizens (grey) and the
-        // local player's label (gold), so anyone glancing can instantly
-        // tell this is another real human.
-        const label  = this.add.text(0, 0, p.username, {
+        // local player's label (gold).
+        const label  = this.add.text(0, 0, this.formatRemoteNameplate(p.username, p.rep, p.holderTier), {
           fontFamily: '"Cinzel", serif',
-          fontSize:   '8px',
+          fontSize:   '13px',
+          fontStyle:  'bold',
           color:      '#40e8f8',
-          backgroundColor: 'rgba(0,12,20,0.92)',
-          padding: { x: 4, y: 2 },
+          backgroundColor: 'rgba(0,12,20,0.94)',
+          padding: { x: 6, y: 3 },
           stroke: '#001828',
-          strokeThickness: 3,
-          resolution: Math.max(2, window.devicePixelRatio || 1),
+          strokeThickness: 4,
+          resolution: 2,
+          align: 'center',
         }).setOrigin(0.5, 1).setDepth(11);
 
         const speech = this.add.text(0, 0, '', {
           fontFamily: '"Cinzel", serif',
-          fontSize:   '9px',
+          fontSize:   '12px',
           color:      '#e8d8c0',
-          backgroundColor: 'rgba(10,14,18,0.92)',
-          padding: { x: 5, y: 3 },
+          backgroundColor: 'rgba(10,14,18,0.94)',
+          padding: { x: 7, y: 4 },
+          stroke: '#000000',
+          strokeThickness: 3,
           align: 'center',
+          resolution: 2,
         }).setOrigin(0.5, 1).setDepth(12).setVisible(false);
 
         this.remotePlayerEntries.set(p.id, {
-          glow, shadow, body, label, speech,
+          glow, bitmap, label, speech,
           px: p.x, py: p.y,
           targetX: p.x, targetY: p.y,
           animTick: 0,
           facing: 'down',
           isMoving: false,
-          resolvedAppearance: resolveAppearance(p.appearance),
+          blinkTimerNext: Phaser.Math.Between(2000, 6000),
+          blinkUntil: 0,
           username: p.username,
           speechUntil: 0,
           emotePulseUntil: 0,
           presenceId:    p.id,
           rep:           p.rep,
           holderTier:    p.holderTier,
-          rawAppearance: p.appearance,
+          rawAppearance: decodeCharacterAppearance(p.appearance, assetExists),
+          appearanceRev: p.appearanceRev,
+          level:         p.level,
+          rankLabel:     p.rankLabel,
+          equippedTitle: p.equippedTitle,
+          lastSeenAt:    Date.now(),
+          selected:      false,
         });
       }
     }
@@ -3325,6 +4034,9 @@ export class WorldScene extends Phaser.Scene {
         entry.px += dx * factor;
         entry.py += dy * factor;
         entry.isMoving = dist > 6;
+        // Task 6/16 — the network payload carries no facing; infer it from
+        // the interpolated position delta, same dominant-axis rule as the
+        // local player and NPCs.
         if (Math.abs(dx) >= Math.abs(dy)) {
           entry.facing = dx > 0 ? 'right' : 'left';
         } else {
@@ -3345,70 +4057,62 @@ export class WorldScene extends Phaser.Scene {
         entry.emotePulseUntil = Math.max(0, entry.emotePulseUntil - delta);
       }
 
-      if (this.charDrawThisFrame) this.drawRemotePlayer(entry);
+      // Task 16 — remote players blink too now, for animation parity with
+      // the local player/NPCs. Purely local/visual, never sent over the
+      // network.
+      if (entry.blinkUntil > 0) {
+        entry.blinkUntil -= delta;
+      } else {
+        entry.blinkTimerNext -= delta;
+        if (entry.blinkTimerNext <= 0) {
+          entry.blinkUntil = 120;
+          entry.blinkTimerNext = Phaser.Math.Between(2000, 6000);
+        }
+      }
+
+      // Remote players always draw every frame — they're real people and
+      // smooth animation is critical for a good multiplayer feel.
+      this.drawRemotePlayer(entry, delta);
     });
   }
 
-  private drawRemotePlayer(entry: RemotePlayerEntry) {
-    const t = entry.animTick / 1000;
-    const breathPhase  = t * IDLE_BREATH_SPEED;
-    const breathe       = Math.sin(breathPhase);
-    const idleBob        = Math.abs(breathe) * IDLE_BOB;
-    const breathScale    = entry.isMoving ? 1 : 1 + breathe * IDLE_BREATH_SCALE;
-
-    const walkPhase = t * WALK_CYCLE_SPEED * Math.PI;
-    const stepL      = Math.sin(walkPhase);
-    const stepR       = -stepL;
-    const legLiftL      = entry.isMoving ? Math.max(0, stepL) * LEG_LIFT : 0;
-    const legLiftR       = entry.isMoving ? Math.max(0, stepR) * LEG_LIFT : 0;
-    const legStagger        = entry.isMoving ? stepL * LEG_STAGGER_Y : 0;
-    const legSwingX           = entry.isMoving ? stepL * LEG_SWING_X : 0;
-    const walkBob             = entry.isMoving ? Math.abs(stepL) * BODY_BOB_WALK : 0;
-    const armSwing              = entry.isMoving
-      ? stepL * ARM_SWING_WALK
-      : Math.sin(breathPhase * 0.55) * IDLE_ARM_SWAY;
-    const bodyBob = entry.isMoving ? walkBob : idleBob;
-
-    // Emote pop — same math as the local player's emotePulse
-    const emoteProgress = entry.emotePulseUntil / EMOTE_PULSE_DURATION;
-    const emotePulse = emoteProgress > 0
-      ? 1 + Math.sin(emoteProgress * Math.PI) * EMOTE_PULSE_AMOUNT
-      : 1;
+  private drawRemotePlayer(entry: RemotePlayerEntry, delta: number) {
+    const vx = entry.targetX - entry.px;
+    const vy = entry.targetY - entry.py;
+    entry.bitmap.setPosition(entry.px, entry.py);
+    entry.bitmap.setFacing(entry.facing);
+    entry.bitmap.update(delta, vx, vy, entry.isMoving);
 
     // Cyan glow (gold = local player, nothing = NPC citizens)
     entry.glow.clear();
-    for (let r = 28; r >= 10; r -= 9) {
-      entry.glow.fillStyle(0x00c8e8, 0.042 * (1 - (r - 10) / 18));
-      entry.glow.fillCircle(0, CHAR_H / 4, r);
+    for (const r of [22, 14, 7]) {
+      entry.glow.fillStyle(0x00c8e8, 0.05 * (1 - r / 24));
+      entry.glow.fillCircle(0, TARGET_DISPLAY_HEIGHT * 0.15, r * REMOTE_PLAYER_VISUAL_SCALE);
+    }
+    // Selected interaction target — clearer ring at feet
+    if (entry.selected) {
+      entry.glow.lineStyle(2, 0x40e8f8, 0.85);
+      entry.glow.strokeCircle(0, TARGET_DISPLAY_HEIGHT * 0.2, 16 * REMOTE_PLAYER_VISUAL_SCALE);
+      entry.glow.fillStyle(0x40e8f8, 0.12);
+      entry.glow.fillCircle(0, TARGET_DISPLAY_HEIGHT * 0.2, 16 * REMOTE_PLAYER_VISUAL_SCALE);
     }
     entry.glow.setPosition(entry.px, entry.py);
 
-    entry.shadow.clear();
-    entry.shadow.fillStyle(0x000000, 0.20);
-    entry.shadow.fillEllipse(0, CHAR_H / 2 + 2, (SHADOW_W + 5) * (1 - bodyBob * 0.05), SHADOW_H + 2);
-    entry.shadow.fillStyle(0x000000, 0.42);
-    entry.shadow.fillEllipse(0, CHAR_H / 2 + 2, SHADOW_W * (1 - bodyBob * 0.05), SHADOW_H);
-    entry.shadow.setPosition(entry.px, entry.py);
+    const headYLocal = -TARGET_DISPLAY_HEIGHT * REMOTE_PLAYER_VISUAL_SCALE * 0.55;
+    // Anchor from character centre → head; foot-relative stability via rounded px
+    entry.label.setPosition(Math.round(entry.px), Math.round(entry.py + headYLocal - 4));
+    const invZoom = Phaser.Math.Clamp(1 / Math.max(0.85, this.currentZoom), 0.75, 1.12);
+    entry.label.setScale(invZoom);
+    if (entry.selected) {
+      entry.label.setStyle({ color: '#a8f8ff', backgroundColor: 'rgba(0,24,36,0.96)' });
+    } else {
+      entry.label.setStyle({ color: '#40e8f8', backgroundColor: 'rgba(0,12,20,0.94)' });
+    }
+    entry.speech.setPosition(entry.px, entry.py + headYLocal - 14);
+  }
 
-    drawHumanoid(entry.body, entry.px, entry.py, {
-      facing:     entry.facing,
-      bodyBob,
-      legStagger,
-      legLiftL,
-      legLiftR,
-      armSwing,
-      legSwingX,
-      headBob:    entry.isMoving ? 0 : Math.sin(breathPhase * 0.8 + 1) * IDLE_HEAD_BOB,
-      rotation:   0,
-      breathScale,
-      scale:      emotePulse,   // 1 normally; brief squash/stretch on emote
-      alpha:      1,
-      appearance: entry.resolvedAppearance,
-      blink:      0,
-    });
-
-    const headYLocal = -bodyBob - CHAR_H * 0.5;
-    entry.label.setPosition(Math.round(entry.px), Math.round(entry.py + headYLocal - 6));
-    entry.speech.setPosition(entry.px, entry.py + headYLocal - 18);
+  private formatRemoteNameplate(username: string, rep: number, holderTier: string): string {
+    const tier = holderTier && holderTier !== 'None' ? ` · ${holderTier}` : '';
+    return `${username}\n${rep.toLocaleString()} REP${tier}`;
   }
 }

@@ -1,0 +1,614 @@
+{
+ "frames": {
+  "headwear_baseball_c_01": {
+   "frame": {
+    "x": 3,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_ap_01": {
+   "frame": {
+    "x": 359,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_dad_cap_01": {
+   "frame": {
+    "x": 715,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_snapback_01": {
+   "frame": {
+    "x": 1071,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_beanie_01": {
+   "frame": {
+    "x": 1427,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_bucket_hat_01": {
+   "frame": {
+    "x": 3,
+    "y": 359,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_flat_cap_01": {
+   "frame": {
+    "x": 359,
+    "y": 359,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_newsboy_cap_01": {
+   "frame": {
+    "x": 715,
+    "y": 359,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_knit_beanie_01": {
+   "frame": {
+    "x": 1071,
+    "y": 359,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_pom_beanie_01": {
+   "frame": {
+    "x": 1427,
+    "y": 359,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_warm_winter_01": {
+   "frame": {
+    "x": 3,
+    "y": 715,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_hat_11_01": {
+   "frame": {
+    "x": 359,
+    "y": 715,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_lined_winter_h_01": {
+   "frame": {
+    "x": 715,
+    "y": 715,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_governm_01": {
+   "frame": {
+    "x": 1071,
+    "y": 715,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_ent_cap_01": {
+   "frame": {
+    "x": 1427,
+    "y": 715,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_researct_01": {
+   "frame": {
+    "x": 3,
+    "y": 1071,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_cap_01": {
+   "frame": {
+    "x": 359,
+    "y": 1071,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_fxls_nn_ulinnme_01": {
+   "frame": {
+    "x": 715,
+    "y": 1071,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_barista_cap_01": {
+   "frame": {
+    "x": 1071,
+    "y": 1071,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_coffee_beani_01": {
+   "frame": {
+    "x": 1427,
+    "y": 1071,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_creative_beanie_01": {
+   "frame": {
+    "x": 3,
+    "y": 1427,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_artist_hat_15_01": {
+   "frame": {
+    "x": 359,
+    "y": 1427,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_minimal_fashion_cap_20_sports_visor_21_r_01": {
+   "frame": {
+    "x": 715,
+    "y": 1427,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_premium_cap_01": {
+   "frame": {
+    "x": 1071,
+    "y": 1427,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_luxury_flat_c2_01": {
+   "frame": {
+    "x": 1427,
+    "y": 1427,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  }
+ },
+ "meta": {
+  "app": "rugtown-pipeline",
+  "version": "1",
+  "image": "atlas_headwear_1.png",
+  "size": {
+   "w": 2048,
+   "h": 2048
+  },
+  "scale": "1"
+ }
+}

@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { WorldScene } from './scenes/WorldScene';
-import type { CharacterAppearance } from './world/CharacterAppearance';
+import { InteriorScene } from './scenes/InteriorScene';
+import { AssetGalleryScene } from './scenes/AssetGalleryScene';
+import { isAssetGalleryRequested } from './assets/WorldAssetManifest';
+import type { CharacterAppearanceV1 } from './characters/appearance/CharacterAppearanceDefaults';
 
 /*
   RugTownGame.ts
@@ -8,28 +11,33 @@ import type { CharacterAppearance } from './world/CharacterAppearance';
   Creates and manages the Phaser.Game instance.
   Designed to be instantiated by GamePage.tsx and destroyed on unmount.
 
-  - Single scene: WorldScene
-  - Transparent background so React HUD overlays can sit on top
-  - RESIZE scale mode so canvas fills its container
-  - Physics OFF for now (world view only)
+  - Default: WorldScene + InteriorScene (+ AssetGalleryScene registered for F8)
+  - Dev QA: ?assetGallery=1 boots AssetGalleryScene only
 */
 
 export interface RugTownGameConfig {
   /** DOM element ID to mount the canvas inside */
   parentId: string;
-  /** Modular appearance chosen on the pre-game character-creator screen
-   *  (see src/game/world/CharacterAppearance.ts). */
-  appearance?: CharacterAppearance;
+  /** Bitmap appearance chosen on the pre-game character-creator screen. */
+  appearance?: CharacterAppearanceV1;
   /** Called when the scene is ready */
   onReady?: (scene: WorldScene) => void;
+  /** Force Asset Gallery boot (overrides URL when set). */
+  assetGallery?: boolean;
 }
 
 export class RugTownGame {
   private game: Phaser.Game;
   private worldScene: WorldScene;
+  private interiorScene: InteriorScene;
+  private assetGalleryScene: AssetGalleryScene;
+  readonly galleryMode: boolean;
 
   constructor(config: RugTownGameConfig) {
     this.worldScene = new WorldScene();
+    this.interiorScene = new InteriorScene();
+    this.assetGalleryScene = new AssetGalleryScene();
+    this.galleryMode = config.assetGallery === true || isAssetGalleryRequested();
 
     // Set before the scene's create() ever runs, so the player's first
     // draw already uses the chosen appearance.
@@ -39,7 +47,9 @@ export class RugTownGame {
     // after all NPCs are spawned, not at the raw create() return point.
     // This keeps the loading screen visible until the city is fully
     // populated so the player's first frame is guaranteed to be smooth.
-    if (config.onReady) this.worldScene.setOnReadyCallback(config.onReady);
+    if (config.onReady && !this.galleryMode) {
+      this.worldScene.setOnReadyCallback(config.onReady);
+    }
 
     this.game = new Phaser.Game({
       type: Phaser.AUTO,            // WebGL with Canvas fallback
@@ -79,7 +89,11 @@ export class RugTownGame {
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
 
-      scene: [this.worldScene],
+      // Gallery-only boot skips the live world; otherwise register gallery
+      // for F8 without starting it.
+      scene: this.galleryMode
+        ? [this.assetGalleryScene]
+        : [this.worldScene, this.interiorScene, this.assetGalleryScene],
 
       // No physics for world view
       physics: {
@@ -91,7 +105,6 @@ export class RugTownGame {
       autoFocus: true,
       disableContextMenu: true,
     });
-
   }
 
   /** Access the world scene directly */

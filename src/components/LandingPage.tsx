@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { FeatureCard } from './FeatureCard';
 import { subscribeCityPresenceCount, type PresenceCountState } from '../lib/presence';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { HOMEPAGE_VISUAL } from '../config/homepageVisual';
 
 /*
   LandingPage — matches Image 2 (05-homepage.png) as source of truth
@@ -104,7 +105,12 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onEnterRugtown }: LandingPageProps) {
-  const [particles] = useState(() => generateParticles(40));
+  const [particles] = useState(() => {
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    return generateParticles(reduced ? 0 : 28);
+  });
   const [mounted, setMounted] = useState(false);
 
   // Focus input when switching to guest mode
@@ -138,7 +144,13 @@ export function LandingPage({ onEnterRugtown }: LandingPageProps) {
           We recreate with a rich CSS gradient that evokes the warm
           teal-dark atmosphere of Images 3/4, plus animated overlays
           ──────────────────────────────────────────────────────── */}
-      <div className="landing__bg" aria-hidden>
+      <div
+        className="landing__bg"
+        aria-hidden
+        style={{
+          ['--homepage-bg-image' as string]: `url('${HOMEPAGE_VISUAL.backgroundUrl}')`,
+        } as React.CSSProperties}
+      >
 
         {/* Animated background — CSS gradient city atmosphere */}
         {/* Multi-layer to create depth: sky, mid city, foreground */}

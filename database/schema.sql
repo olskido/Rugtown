@@ -21,6 +21,8 @@
 -- privileged access.
 -- ──────────────────────────────────────────────────────────────────────────────
 
+-- Required for gen_random_uuid() defaults used throughout RugTown migrations.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ─── profiles ────────────────────────────────────────────────────────────────
 -- One row per auth.users entry.  Created automatically by the trigger at the

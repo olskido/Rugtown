@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-ssr/
+
+docs/**/*.png
+docs/**/*.jpg
+docs/**/*.jpeg
+docs/**/*.jfif
+
+public/assets/world/building-assets-v1/
+public/assets/world/environment-kit-v1/
+public/assets/world/commercial/
+public/assets/world/residential/
+public/assets/world/nature/
+public/assets/world/park/
+public/assets/world/props/
+public/assets/world/terrain/

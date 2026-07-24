@@ -1,0 +1,716 @@
+[
+  {
+    "id": "headwear_beanie_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_bucket_hat_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_knit_beanie_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_pom_beanie_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_warm_winter_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_lined_winter_h_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_governm_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_ent_cap_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_researct_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_cap_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_coffee_beani_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_creative_beanie_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_premium_cap_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_mus_of_ey_ee_ce_ee_ee_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_rain_t_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_sun_hat_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "headwear_jnod_01",
+    "category": "headwear",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_low_fade_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_mid_fade_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_high_fade_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_crew_cut_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_textured_crop_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_side_part_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_classic_cut_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_classic_cut_02",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_modern_cut_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_modern_cut_small_textured_qu_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_taper_fade_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_short_curls_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_medium_curls_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_large_curls_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_loose_curls_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_afro_small_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_afro_large_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_cornrows_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_box_braids_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_shoulder_braid_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_faded_fonyte_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_braided_bun_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_short_locs_rwatitramutaistwal_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_medium_locs_mit_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_long_locs_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_tied_locs_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_half_up_locs_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_pompadour_reative_gr_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_a_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_pigtails_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_bun_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_messy_bun_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_straight_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_layered_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_wavy_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_oose_ponytail_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_high_ponytail_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_low_ponytail_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_messy_bun_02",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_r_hctiy_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_y_coun_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_a_02",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_wa_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_undercut_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_asymmetrical_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_shaved_side_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_mohawk_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "hair_fextured_volume_01",
+    "category": "hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_act_a_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_linht_ctihhlo_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_waan_chihhla_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_a_short_reaard_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_full_beard_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_van_dyke_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_balbo_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_circle_beard_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_anchor_beard_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_goatee_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_box_beard_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_chin_strap_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_a_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_seah_ieiiententionditl_nee_oo_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_designer_stubbl_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_professional_bea_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_trimmed_beare_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "facialhair_i_tod_01",
+    "category": "facial-hair",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "pants_slim_jeans_iness_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "pants_relaxed_jean_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "pants_dark_jeans_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "pants_light_jeans_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "pants_straight_jean_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "pants_rolled_jeans_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "pants_relaxed_chin_peator_ni_01",
+    "category": "pants",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "base_skin_fair",
+    "category": "base",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "base_skin_light",
+    "category": "base",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "base_skin_medium",
+    "category": "base",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "base_skin_tan",
+    "category": "base",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "base_skin_deep",
+    "category": "base",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "base_skin_dark",
+    "category": "base",
+    "alignmentStatus": "ok",
+    "mirrorSafe": false,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "outfit_market_tunic",
+    "category": "outfit",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "outfit_guard_vest",
+    "category": "outfit",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "outfit_scholar_robe",
+    "category": "outfit",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "outfit_merchant_coat",
+    "category": "outfit",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "outfit_work_apron",
+    "category": "outfit",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  },
+  {
+    "id": "outfit_traveler_cloak",
+    "category": "outfit",
+    "alignmentStatus": "ok",
+    "mirrorSafe": true,
+    "compatibilityGroup": "bitmap_citizen_v1"
+  }
+]

@@ -9,8 +9,7 @@
  * to do with the returned data.
  */
 
-import { supabase, type DbProfile, type DbCharacterAppearance } from './supabase';
-import type { CharacterAppearance } from '../game/world/CharacterAppearance';
+import { supabase, type DbProfile } from './supabase';
 
 /* ─── profile ─────────────────────────────────────────────────── */
 
@@ -109,83 +108,29 @@ export async function fetchOrCreateProfile(user: AuthUserLike): Promise<DbProfil
 }
 
 /**
- * Persist the player's chosen display handle to profiles.username.
- * Silently no-ops on conflict or network errors so gameplay is unaffected.
+ * Persist the player's chosen display handle via server-authoritative
+ * update_player_username when available; fall back to direct update only
+ * if the RPC is missing (pre-10J databases).
  */
 export async function saveUsername(userId: string, username: string): Promise<void> {
   if (!supabase) return;
   const trimmed = username.trim();
   if (!trimmed) return;
+
+  const { error: rpcError } = await supabase.rpc('update_player_username', {
+    p_username: trimmed,
+  });
+  if (!rpcError) return;
+
+  const missing =
+    rpcError.code === 'PGRST202' ||
+    /does not exist|function .* does not exist|schema cache/i.test(rpcError.message ?? '');
+  if (!missing) return;
+
   await supabase
     .from('profiles')
     .update({ username: trimmed, display_name: trimmed })
     .eq('id', userId);
-}
-
-/* ─── character_appearance ────────────────────────────────────── */
-
-/**
- * Fetch the saved character appearance for `userId`.
- * Returns null if the user has no saved appearance yet (first login) or
- * on any error — caller uses DEFAULT_APPEARANCE in that case.
- */
-export async function fetchSavedAppearance(
-  userId: string,
-): Promise<CharacterAppearance | null> {
-  if (!supabase) return null;
-  const { data, error } = await supabase
-    .from('character_appearance')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-  if (error || !data) return null;
-
-  const row = data as DbCharacterAppearance;
-  return {
-    skinTone:   row.skin_tone,
-    hairstyle:  row.hairstyle,
-    facialHair: row.facial_hair,
-    hat:        row.hat,
-    glasses:    row.glasses,
-    accessory:  row.accessory,
-    jacket:     row.jacket,
-    pants:      row.pants,
-    shoes:      row.shoes,
-    backpack:   row.backpack,
-    handheld:   row.handheld,
-  };
-}
-
-/**
- * Upsert the player's character appearance.
- * Uses `user_id` as the conflict target (it's the PK).
- */
-export async function saveAppearance(
-  userId: string,
-  appearance: CharacterAppearance,
-): Promise<void> {
-  if (!supabase) return;
-  const { error } = await supabase
-    .from('character_appearance')
-    .upsert(
-      {
-        user_id:     userId,
-        skin_tone:   appearance.skinTone,
-        hairstyle:   appearance.hairstyle,
-        facial_hair: appearance.facialHair,
-        hat:         appearance.hat,
-        glasses:     appearance.glasses,
-        accessory:   appearance.accessory,
-        jacket:      appearance.jacket,
-        pants:       appearance.pants,
-        shoes:       appearance.shoes,
-        backpack:    appearance.backpack,
-        handheld:    appearance.handheld,
-        updated_at:  new Date().toISOString(),
-      },
-      { onConflict: 'user_id' },
-    );
-  if (error) throw error;
 }
 
 /* ─── badges ──────────────────────────────────────────────────── */
@@ -289,6 +234,14 @@ export async function saveDistrictUnlock(
 /**
  * Persist the player's current REP score to profiles.rep.
  * Called debounced from GamePage so writes are batched on inactivity.
+ */
+/**
+ * Overwrite profiles.rep for the authenticated user.
+ *
+ * Phase 10G: after `20260716_phase10g_rewards.sql` is applied, direct client
+ * updates to `rep` are ignored by trigger unless a SECURITY DEFINER RPC sets
+ * `app.rugtown_reward_mutation`. Prefer `award_gameplay_reward` for authority.
+ * This helper remains for backwards compatibility before the migration is applied.
  */
 export async function saveRep(userId: string, rep: number): Promise<void> {
   if (!supabase) return;

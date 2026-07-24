@@ -1,0 +1,182 @@
+{
+ "frames": {
+  "headwear_mus_of_ey_ee_ce_ee_ee_01": {
+   "frame": {
+    "x": 3,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_festival_hat_01": {
+   "frame": {
+    "x": 359,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_rain_t_01": {
+   "frame": {
+    "x": 715,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_sun_hat_01": {
+   "frame": {
+    "x": 1071,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_jnod_01": {
+   "frame": {
+    "x": 1427,
+    "y": 3,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_cycling_helmet_01": {
+   "frame": {
+    "x": 3,
+    "y": 359,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  },
+  "headwear_picnic_hat_30_simple_straw_hat_01": {
+   "frame": {
+    "x": 359,
+    "y": 359,
+    "w": 352,
+    "h": 352
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 352,
+    "h": 352
+   },
+   "sourceSize": {
+    "w": 352,
+    "h": 352
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   }
+  }
+ },
+ "meta": {
+  "app": "rugtown-pipeline",
+  "version": "1",
+  "image": "atlas_headwear_2.png",
+  "size": {
+   "w": 2048,
+   "h": 1024
+  },
+  "scale": "1"
+ }
+}

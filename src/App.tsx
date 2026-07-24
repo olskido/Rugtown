@@ -5,18 +5,18 @@ import './styles/game.css';
 import './styles/auth.css';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
+import { AuthCallbackPage } from './components/AuthCallbackPage';
 import { OutfitSelectPage } from './components/OutfitSelectPage';
 import { GamePage } from './components/GamePage';
-import { DEFAULT_APPEARANCE, type CharacterAppearance } from './game/world/CharacterAppearance';
+import { getCanonicalPlayerAppearance } from './game/characters/appearance/CanonicalPlayerAppearance';
 import { soundManager } from './audio/SoundManager';
+import { isAuthCallbackPath } from './lib/authRedirect';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import {
   fetchOrCreateProfile,
-  fetchSavedAppearance,
   fetchUserBadgeIds,
   fetchInventoryItemIds,
   fetchDistrictUnlockIds,
-  saveAppearance,
   saveUsername,
   type AuthUserLike,
 } from './lib/profile';
@@ -32,17 +32,20 @@ import {
       │                              │
       └─ (no Supabase) ──────────────┤
                                      ▼
-                              OutfitSelectPage (nickname + character)
+                              OutfitSelectPage (nickname)
                                      │
                                      ▼
                                  GamePage
                         (boots Phaser immediately; shows its own
                          readiness-gated cover while the world loads)
 
+  Email confirmation / OAuth return:
+    /auth/callback → AuthCallbackPage → AuthPage (signed-in Continue)
+
   Guests: local-only, unchanged when Supabase is not configured.
 */
 
-type Screen = 'landing' | 'auth' | 'outfit' | 'game';
+type Screen = 'landing' | 'auth' | 'auth-callback' | 'outfit' | 'game';
 
 interface AuthUser {
   id: string;
@@ -50,14 +53,17 @@ interface AuthUser {
 }
 
 export default function App() {
-  const [screen, setScreen]                 = useState<Screen>('landing');
+  const [screen, setScreen]                 = useState<Screen>(() =>
+    isAuthCallbackPath() ? 'auth-callback' : 'landing',
+  );
   const [playerName, setPlayerName]         = useState('');
-  const [appearance, setAppearance]         = useState<CharacterAppearance>(DEFAULT_APPEARANCE);
   const [user, setUser]                     = useState<AuthUser | null>(null);
   const [initialRep, setInitialRep]             = useState(0);
   const [initialBadgeIds, setInitialBadgeIds]   = useState<string[]>([]);
   const [initialOwnedItemIds, setInitialOwnedItemIds] = useState<string[]>([]);
   const [initialDistrictIds, setInitialDistrictIds]   = useState<string[]>([]);
+  /** Shown on AuthPage after a failed email-confirmation callback. */
+  const [authCallbackError, setAuthCallbackError] = useState<string | null>(null);
 
   /** True while an explicit email/password sign-in or sign-up is in flight. */
   const authActionPendingRef = useRef(false);
@@ -70,7 +76,6 @@ export default function App() {
 
   const resetGuestProgress = useCallback(() => {
     setPlayerName('');
-    setAppearance(DEFAULT_APPEARANCE);
     setInitialRep(0);
     setInitialBadgeIds([]);
     setInitialOwnedItemIds([]);
@@ -129,11 +134,10 @@ export default function App() {
       try {
         // fetchOrCreateProfile is the frontend fallback: it creates the row
         // from the account if the DB trigger didn't (never rely on the trigger
-        // alone). The other reads run in parallel — they key off user_id and
-        // return empty defaults when nothing is saved yet.
-        const [profile, savedApp, badgeIds, itemIds, districtIds] = await Promise.all([
+        // alone). Cosmetic saves are intentionally ignored because all players
+        // use the canonical appearance.
+        const [profile, badgeIds, itemIds, districtIds] = await Promise.all([
           fetchOrCreateProfile(sUser),
-          fetchSavedAppearance(sUser.id),
           fetchUserBadgeIds(sUser.id),
           fetchInventoryItemIds(sUser.id),
           fetchDistrictUnlockIds(sUser.id),
@@ -143,7 +147,6 @@ export default function App() {
         if (profile?.username) setPlayerName(profile.username);
         else setPlayerName(prev => prev || emailFallback);
 
-        if (savedApp) setAppearance(savedApp);
         if (profile) setInitialRep(profile.rep);
         if (badgeIds.length) setInitialBadgeIds(badgeIds);
         if (itemIds.length) setInitialOwnedItemIds(itemIds);
@@ -224,6 +227,17 @@ export default function App() {
     setScreen('outfit');
   }, []);
 
+  const handleAuthCallbackSuccess = useCallback(() => {
+    setAuthCallbackError(null);
+    // Session is persisted; AuthPage shows the signed-in Continue panel.
+    setScreen('auth');
+  }, []);
+
+  const handleAuthCallbackFailure = useCallback((message: string) => {
+    setAuthCallbackError(message);
+    setScreen('auth');
+  }, []);
+
   const handleAuthSignInAttempt = useCallback(() => {
     authActionPendingRef.current = true;
     pendingUsernameRef.current = null;
@@ -243,16 +257,11 @@ export default function App() {
     setScreen('outfit');
   }, [resetGuestProgress]);
 
-  const handleAppearanceSelect = useCallback(
-    (picked: CharacterAppearance, name: string) => {
-      setAppearance(picked);
+  const handleNameSelect = useCallback(
+    (name: string) => {
       setPlayerName(name);
-      // Straight into the game — GamePage shows its own readiness-gated
-      // cover while Phaser boots, so there's no separate timed loading
-      // screen wasting a second before the world even starts loading.
       setScreen('game');
       if (user?.id) {
-        saveAppearance(user.id, picked).catch(() => {});
         if (name.trim()) saveUsername(user.id, name.trim()).catch(() => {});
       }
     },
@@ -272,10 +281,10 @@ export default function App() {
     return (
       <GamePage
         playerName={playerName}
-        appearance={appearance}
+        appearance={getCanonicalPlayerAppearance()}
         userEmail={user?.email ?? null}
         userId={user?.id ?? null}
-        initialRep={initialRep}
+        initialRep={user ? initialRep : undefined}
         initialBadgeIds={initialBadgeIds}
         initialOwnedItemIds={initialOwnedItemIds}
         initialDistrictIds={initialDistrictIds}
@@ -288,8 +297,16 @@ export default function App() {
     return (
       <OutfitSelectPage
         playerName={playerName}
-        initialAppearance={appearance}
-        onSelect={handleAppearanceSelect}
+        onSelect={handleNameSelect}
+      />
+    );
+  }
+
+  if (screen === 'auth-callback') {
+    return (
+      <AuthCallbackPage
+        onSuccess={handleAuthCallbackSuccess}
+        onFailure={handleAuthCallbackFailure}
       />
     );
   }
@@ -300,6 +317,7 @@ export default function App() {
         loggedInEmail={user?.email ?? null}
         loggedInUsername={playerName || null}
         isLoggedIn={!!user}
+        initialError={authCallbackError}
         onContinue={handleAuthContinue}
         onGuest={handleGuestFromAuth}
         onSignInAttempt={handleAuthSignInAttempt}

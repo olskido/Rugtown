@@ -1,0 +1,2141 @@
+{
+  "version": "3.2-compact-street-density",
+  "status": "Phase 8F — compact-world landmarks + props + decorative filler buildings, all derived from canonical WorldObjects anchors",
+  "generatedAt": "2026-07-13T10:28:27.594Z",
+  "worldSize": {
+    "width": 3600,
+    "height": 2400
+  },
+  "worldWidth": 3600,
+  "worldHeight": 2400,
+  "coordinateModel": "canonical-landmark-relative",
+  "spawn": {
+    "x": 1800,
+    "y": 1200
+  },
+  "anchorConvention": "foundation centroid (x,y) + bottom-center sprite anchor (0.5, 1)",
+  "coordinateSource": "src/game/world/WorldObjects.ts fractions × 3600×2400 via scripts/generate-compact-world-placement-manifest.mjs — gameplay architecture is authoritative, not terrain-art measurement",
+  "roadClearance": {
+    "collisionLaneWidth": 88,
+    "visualLaneWidth": 128,
+    "marginPx": 20,
+    "rule": "Road collision from RoadNetwork.ts only; placements anchored to canonical WorldObjects coordinates"
+  },
+  "sources": {
+    "terrain": "public/assets/world/RugTown_World_V1_Final.png",
+    "buildings": "public/assets/world/landmarks/, public/assets/world/terrain/ (108-asset library)",
+    "visualBounds": "src/game/data/world-asset-visual-bounds.json"
+  },
+  "placements": [
+    {
+      "assetId": "bld-001",
+      "sourceImagePath": "landmarks/spawn_fountain.png",
+      "district": "spawn",
+      "x": 1800,
+      "y": 1200,
+      "scale": 0.55,
+      "depth": 1.38,
+      "collisionType": "none",
+      "notes": "Compact-world placement — anchored to WorldObjects \"fountain\" (1800,1200), visual offset (0,0).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 277,
+        "h": 246
+      },
+      "landmarkId": "fountain"
+    },
+    {
+      "assetId": "bld-002",
+      "sourceImagePath": "landmarks/notice_board.png",
+      "district": "spawn",
+      "x": 1800,
+      "y": 766,
+      "scale": 0.24,
+      "depth": 1.29,
+      "collisionType": "none",
+      "notes": "Compact-world placement — anchored to WorldObjects \"notice\" (1800,821), visual offset (0,-55).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 93,
+        "h": 98
+      },
+      "landmarkId": "notice"
+    },
+    {
+      "assetId": "bld-003",
+      "sourceImagePath": "landmarks/coffee_shop.png",
+      "district": "spawn",
+      "x": 1397,
+      "y": 1030,
+      "scale": 0.4,
+      "depth": 1.34,
+      "collisionType": "door-gap",
+      "notes": "Compact-world placement — anchored to WorldObjects \"coffee\" (1472,1010), visual offset (-75,20).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 154,
+        "h": 176
+      },
+      "landmarkId": "coffee"
+    },
+    {
+      "assetId": "bld-004",
+      "sourceImagePath": "landmarks/hall_of_fame.png",
+      "district": "fame",
+      "x": 1418,
+      "y": 479,
+      "scale": 0.53,
+      "depth": 1.22,
+      "collisionType": "door-gap",
+      "notes": "Compact-world placement — anchored to WorldObjects \"fame\" (1418,384), visual offset (0,95).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 281,
+        "h": 259
+      },
+      "landmarkId": "fame"
+    },
+    {
+      "assetId": "bld-005",
+      "sourceImagePath": "landmarks/government_quarter.png",
+      "district": "spawn",
+      "x": 1339,
+      "y": 779,
+      "scale": 0.46,
+      "depth": 1.29,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"government\" (1339,739), visual offset (0,40).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 212,
+        "h": 217
+      },
+      "landmarkId": "government"
+    },
+    {
+      "assetId": "bld-006",
+      "sourceImagePath": "landmarks/trading_academy.png",
+      "district": "fame",
+      "x": 665,
+      "y": 427,
+      "scale": 0.4,
+      "depth": 1.21,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"trading_academy\" (695,427), visual offset (-30,0).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 200,
+        "h": 197
+      },
+      "landmarkId": "trading_academy"
+    },
+    {
+      "assetId": "bld-007",
+      "sourceImagePath": "landmarks/whale_tower.png",
+      "district": "whale",
+      "x": 2410,
+      "y": 463,
+      "scale": 0.43,
+      "depth": 1.22,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"whale\" (2315,463), visual offset (95,0).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 199,
+        "h": 266
+      },
+      "landmarkId": "whale"
+    },
+    {
+      "assetId": "bld-008",
+      "sourceImagePath": "landmarks/financial_office.png",
+      "district": "whale",
+      "x": 2712,
+      "y": 461,
+      "scale": 0.59,
+      "depth": 1.22,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"financial_office\" (2682,461), visual offset (30,0).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 235,
+        "h": 219
+      },
+      "landmarkId": "financial_office"
+    },
+    {
+      "assetId": "bld-009",
+      "sourceImagePath": "landmarks/holder_bank.png",
+      "district": "cashback",
+      "x": 3054,
+      "y": 631,
+      "scale": 0.47,
+      "depth": 1.26,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"holder_bank\" (3024,631), visual offset (30,0).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 229,
+        "h": 219
+      },
+      "landmarkId": "holder_bank"
+    },
+    {
+      "assetId": "bld-010",
+      "sourceImagePath": "landmarks/research_observatory.png",
+      "district": "whale",
+      "x": 3024,
+      "y": 971,
+      "scale": 0.4,
+      "depth": 1.33,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"research_observatory\" (3024,941), visual offset (0,30).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 199,
+        "h": 219
+      },
+      "landmarkId": "research_observatory"
+    },
+    {
+      "assetId": "bld-011",
+      "sourceImagePath": "landmarks/meme_market_main_hall.png",
+      "district": "market",
+      "x": 2700,
+      "y": 1141,
+      "scale": 0.56,
+      "depth": 1.37,
+      "collisionType": "door-gap",
+      "notes": "Compact-world placement — anchored to WorldObjects \"market\" (2700,1231), visual offset (0,-90).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 260,
+        "h": 239
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "bld-012",
+      "sourceImagePath": "landmarks/market_shop.png",
+      "district": "market",
+      "x": 2916,
+      "y": 1508,
+      "scale": 0.42,
+      "depth": 1.45,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"market_shop\" (2916,1478), visual offset (0,30).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 186,
+        "h": 190
+      },
+      "landmarkId": "market_shop"
+    },
+    {
+      "assetId": "bld-013",
+      "sourceImagePath": "landmarks/tournament_hall.png",
+      "district": "arena",
+      "x": 3056,
+      "y": 1834,
+      "scale": 0.35,
+      "depth": 1.52,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"tournament_hall\" (3056,1814), visual offset (0,20).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 274,
+        "h": 153
+      },
+      "landmarkId": "tournament_hall"
+    },
+    {
+      "assetId": "bld-014",
+      "sourceImagePath": "landmarks/arena.png",
+      "district": "arena",
+      "x": 2920,
+      "y": 2049,
+      "scale": 0.6,
+      "depth": 1.56,
+      "collisionType": "door-gap",
+      "notes": "Compact-world placement — anchored to WorldObjects \"arena\" (2920,2074), visual offset (0,-25).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 307,
+        "h": 246
+      },
+      "landmarkId": "arena"
+    },
+    {
+      "assetId": "bld-015",
+      "sourceImagePath": "landmarks/alpha_lounge.png",
+      "district": "market",
+      "x": 932,
+      "y": 1508,
+      "scale": 0.4,
+      "depth": 1.45,
+      "collisionType": "door-gap",
+      "notes": "Compact-world placement — anchored to WorldObjects \"alpha\" (932,1433), visual offset (0,75).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 223,
+        "h": 217
+      },
+      "landmarkId": "alpha"
+    },
+    {
+      "assetId": "bld-016",
+      "sourceImagePath": "landmarks/nft_gallery.png",
+      "district": "market",
+      "x": 817,
+      "y": 1919,
+      "scale": 0.42,
+      "depth": 1.54,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"nft_gallery\" (817,1889), visual offset (0,30).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 214,
+        "h": 239
+      },
+      "landmarkId": "nft_gallery"
+    },
+    {
+      "assetId": "bld-017",
+      "sourceImagePath": "landmarks/nft_creator_studio.png",
+      "district": "market",
+      "x": 894,
+      "y": 2103,
+      "scale": 0.41,
+      "depth": 1.58,
+      "collisionType": "soft-block",
+      "notes": "Compact-world placement — anchored to WorldObjects \"nft_creator_studio\" (914,2083), visual offset (-20,20).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 190,
+        "h": 218
+      },
+      "landmarkId": "nft_creator_studio"
+    },
+    {
+      "assetId": "bld-018",
+      "sourceImagePath": "landmarks/park_entrance_gate.png",
+      "district": "spawn",
+      "x": 1400,
+      "y": 2132,
+      "scale": 0.34,
+      "depth": 1.58,
+      "collisionType": "none",
+      "notes": "Compact-world placement — anchored to WorldObjects \"park\" (1400,2062), visual offset (0,70).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 165,
+        "h": 158
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "bld-019",
+      "sourceImagePath": "terrain/main_bridge.png",
+      "district": "spawn",
+      "x": 1865,
+      "y": 1916,
+      "scale": 0.33,
+      "depth": 1.54,
+      "collisionType": "none",
+      "notes": "Compact-world placement — anchored to WorldObjects \"bridge\" (1865,1946), visual offset (0,-30).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 178,
+        "h": 117
+      },
+      "landmarkId": "bridge"
+    },
+    {
+      "assetId": "bld-020",
+      "sourceImagePath": "landmarks/cashback_vault.png",
+      "district": "cashback",
+      "x": 1652,
+      "y": 2008,
+      "scale": 0.32,
+      "depth": 1.56,
+      "collisionType": "door-gap",
+      "notes": "Compact-world placement — anchored to WorldObjects \"cashback\" (1652,2038), visual offset (0,-30).",
+      "kind": "building",
+      "placementType": "landmark",
+      "footprintPx": {
+        "w": 154,
+        "h": 165
+      },
+      "landmarkId": "cashback"
+    },
+    {
+      "assetId": "prop-001",
+      "sourceImagePath": "props/statue_01.png",
+      "district": "fountain",
+      "x": 1976,
+      "y": 1347,
+      "scale": 0.5,
+      "depth": 1.41,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"fountain\" (1800,1200), offset (176,147), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 134
+      },
+      "landmarkId": "fountain"
+    },
+    {
+      "assetId": "prop-002",
+      "sourceImagePath": "nature/stone_platter_01.png",
+      "district": "fountain",
+      "x": 1652,
+      "y": 1376,
+      "scale": 0.51,
+      "depth": 1.42,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"fountain\" (1800,1200), offset (-148,176), category \"planter\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 66,
+        "h": 89
+      },
+      "landmarkId": "fountain"
+    },
+    {
+      "assetId": "prop-003",
+      "sourceImagePath": "props/street_lamp_01.png",
+      "district": "notice",
+      "x": 1950,
+      "y": 821,
+      "scale": 0.39,
+      "depth": 1.3,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"notice\" (1800,821), offset (150,0), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "notice"
+    },
+    {
+      "assetId": "prop-004",
+      "sourceImagePath": "park/bench_01.png",
+      "district": "notice",
+      "x": 1650,
+      "y": 821,
+      "scale": 0.58,
+      "depth": 1.3,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"notice\" (1800,821), offset (-150,0), category \"seat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 109,
+        "h": 108
+      },
+      "landmarkId": "notice"
+    },
+    {
+      "assetId": "prop-005",
+      "sourceImagePath": "props/street_sign_01.png",
+      "district": "notice",
+      "x": 1800,
+      "y": 681,
+      "scale": 0.46,
+      "depth": 1.27,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"notice\" (1800,821), offset (0,-140), category \"sign\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 59,
+        "h": 153
+      },
+      "landmarkId": "notice"
+    },
+    {
+      "assetId": "prop-006",
+      "sourceImagePath": "park/bench_02.png",
+      "district": "coffee",
+      "x": 1579,
+      "y": 1100,
+      "scale": 0.58,
+      "depth": 1.36,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"coffee\" (1472,1010), offset (107,90), category \"seat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 109,
+        "h": 108
+      },
+      "landmarkId": "coffee"
+    },
+    {
+      "assetId": "prop-007",
+      "sourceImagePath": "nature/stone_platter_02.png",
+      "district": "coffee",
+      "x": 1424,
+      "y": 1142,
+      "scale": 0.5,
+      "depth": 1.37,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"coffee\" (1472,1010), offset (-48,132), category \"planter\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 90,
+        "h": 79
+      },
+      "landmarkId": "coffee"
+    },
+    {
+      "assetId": "prop-008",
+      "sourceImagePath": "props/mailbox_01.png",
+      "district": "coffee",
+      "x": 1537,
+      "y": 897,
+      "scale": 0.34,
+      "depth": 1.31,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"coffee\" (1472,1010), offset (65,-113), category \"mailbox\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 59,
+        "h": 50
+      },
+      "landmarkId": "coffee"
+    },
+    {
+      "assetId": "prop-009",
+      "sourceImagePath": "props/statue_02.png",
+      "district": "fame",
+      "x": 1367,
+      "y": 243,
+      "scale": 0.55,
+      "depth": 1.17,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"fame\" (1418,384), offset (-51,-141), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 63,
+        "h": 140
+      },
+      "landmarkId": "fame"
+    },
+    {
+      "assetId": "prop-010",
+      "sourceImagePath": "props/statue_01.png",
+      "district": "fame",
+      "x": 1469,
+      "y": 243,
+      "scale": 0.5,
+      "depth": 1.17,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"fame\" (1418,384), offset (51,-141), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 134
+      },
+      "landmarkId": "fame"
+    },
+    {
+      "assetId": "prop-011",
+      "sourceImagePath": "nature/flower_fence.png",
+      "district": "fame",
+      "x": 1418,
+      "y": 214,
+      "scale": 0.3,
+      "depth": 1.17,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"fame\" (1418,384), offset (0,-170), category \"flower\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 147,
+        "h": 41
+      },
+      "landmarkId": "fame"
+    },
+    {
+      "assetId": "prop-012",
+      "sourceImagePath": "props/street_lamp_02.png",
+      "district": "government",
+      "x": 1487,
+      "y": 765,
+      "scale": 0.39,
+      "depth": 1.29,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"government\" (1339,739), offset (148,26), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "government"
+    },
+    {
+      "assetId": "prop-013",
+      "sourceImagePath": "props/street_lamp_01.png",
+      "district": "government",
+      "x": 1191,
+      "y": 765,
+      "scale": 0.39,
+      "depth": 1.29,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"government\" (1339,739), offset (-148,26), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "government"
+    },
+    {
+      "assetId": "prop-014",
+      "sourceImagePath": "nature/fence_01.png",
+      "district": "government",
+      "x": 1339,
+      "y": 879,
+      "scale": 0.41,
+      "depth": 1.31,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"government\" (1339,739), offset (0,140), category \"fence\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 160,
+        "h": 90
+      },
+      "landmarkId": "government"
+    },
+    {
+      "assetId": "prop-015",
+      "sourceImagePath": "park/bench_01.png",
+      "district": "trading_academy",
+      "x": 647,
+      "y": 295,
+      "scale": 0.58,
+      "depth": 1.18,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"trading_academy\" (695,427), offset (-48,-132), category \"seat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 109,
+        "h": 108
+      },
+      "landmarkId": "trading_academy"
+    },
+    {
+      "assetId": "prop-016",
+      "sourceImagePath": "nature/stone_platter_03.png",
+      "district": "trading_academy",
+      "x": 647,
+      "y": 559,
+      "scale": 0.42,
+      "depth": 1.24,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"trading_academy\" (695,427), offset (-48,132), category \"planter\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 88,
+        "h": 67
+      },
+      "landmarkId": "trading_academy"
+    },
+    {
+      "assetId": "prop-017",
+      "sourceImagePath": "props/street_sign_02.png",
+      "district": "trading_academy",
+      "x": 555,
+      "y": 427,
+      "scale": 0.39,
+      "depth": 1.21,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"trading_academy\" (695,427), offset (-140,0), category \"sign\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 85
+      },
+      "landmarkId": "trading_academy"
+    },
+    {
+      "assetId": "prop-018",
+      "sourceImagePath": "props/street_lamp_02.png",
+      "district": "whale",
+      "x": 2264,
+      "y": 322,
+      "scale": 0.39,
+      "depth": 1.19,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"whale\" (2315,463), offset (-51,-141), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "whale"
+    },
+    {
+      "assetId": "prop-019",
+      "sourceImagePath": "props/street_lamp_01.png",
+      "district": "whale",
+      "x": 2366,
+      "y": 322,
+      "scale": 0.39,
+      "depth": 1.19,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"whale\" (2315,463), offset (51,-141), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "whale"
+    },
+    {
+      "assetId": "prop-020",
+      "sourceImagePath": "props/statue_02.png",
+      "district": "whale",
+      "x": 2315,
+      "y": 298,
+      "scale": 0.55,
+      "depth": 1.18,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"whale\" (2315,463), offset (0,-165), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 63,
+        "h": 140
+      },
+      "landmarkId": "whale"
+    },
+    {
+      "assetId": "prop-021",
+      "sourceImagePath": "props/street_lamp_02.png",
+      "district": "financial_office",
+      "x": 2682,
+      "y": 321,
+      "scale": 0.39,
+      "depth": 1.19,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"financial_office\" (2682,461), offset (0,-140), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "financial_office"
+    },
+    {
+      "assetId": "prop-022",
+      "sourceImagePath": "park/bench_02.png",
+      "district": "financial_office",
+      "x": 2638,
+      "y": 583,
+      "scale": 0.58,
+      "depth": 1.25,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"financial_office\" (2682,461), offset (-44,122), category \"seat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 109,
+        "h": 108
+      },
+      "landmarkId": "financial_office"
+    },
+    {
+      "assetId": "prop-023",
+      "sourceImagePath": "props/street_sign_01.png",
+      "district": "financial_office",
+      "x": 2772,
+      "y": 371,
+      "scale": 0.46,
+      "depth": 1.2,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"financial_office\" (2682,461), offset (90,-90), category \"sign\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 59,
+        "h": 153
+      },
+      "landmarkId": "financial_office"
+    },
+    {
+      "assetId": "prop-024",
+      "sourceImagePath": "nature/stone_platter_04.png",
+      "district": "holder_bank",
+      "x": 3156,
+      "y": 583,
+      "scale": 0.5,
+      "depth": 1.25,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"holder_bank\" (3024,631), offset (132,-48), category \"planter\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 90
+      },
+      "landmarkId": "holder_bank"
+    },
+    {
+      "assetId": "prop-025",
+      "sourceImagePath": "park/bench_01.png",
+      "district": "holder_bank",
+      "x": 3156,
+      "y": 679,
+      "scale": 0.58,
+      "depth": 1.27,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"holder_bank\" (3024,631), offset (132,48), category \"seat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 109,
+        "h": 108
+      },
+      "landmarkId": "holder_bank"
+    },
+    {
+      "assetId": "prop-026",
+      "sourceImagePath": "props/street_sign_02.png",
+      "district": "holder_bank",
+      "x": 3174,
+      "y": 631,
+      "scale": 0.39,
+      "depth": 1.26,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"holder_bank\" (3024,631), offset (150,0), category \"sign\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 85
+      },
+      "landmarkId": "holder_bank"
+    },
+    {
+      "assetId": "prop-027",
+      "sourceImagePath": "props/street_lamp_01.png",
+      "district": "research_observatory",
+      "x": 3154,
+      "y": 941,
+      "scale": 0.39,
+      "depth": 1.32,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"research_observatory\" (3024,941), offset (130,0), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "research_observatory"
+    },
+    {
+      "assetId": "prop-028",
+      "sourceImagePath": "props/street_lamp_02.png",
+      "district": "research_observatory",
+      "x": 2894,
+      "y": 941,
+      "scale": 0.39,
+      "depth": 1.32,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"research_observatory\" (3024,941), offset (-130,0), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "research_observatory"
+    },
+    {
+      "assetId": "prop-029",
+      "sourceImagePath": "props/statue_01.png",
+      "district": "research_observatory",
+      "x": 3024,
+      "y": 1071,
+      "scale": 0.5,
+      "depth": 1.35,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"research_observatory\" (3024,941), offset (0,130), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 134
+      },
+      "landmarkId": "research_observatory"
+    },
+    {
+      "assetId": "prop-030",
+      "sourceImagePath": "props/cart_01.png",
+      "district": "market",
+      "x": 2751,
+      "y": 1090,
+      "scale": 0.46,
+      "depth": 1.36,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market\" (2700,1231), offset (51,-141), category \"cart\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 138,
+        "h": 91
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "prop-031",
+      "sourceImagePath": "props/market_stall_01.png",
+      "district": "market",
+      "x": 2815,
+      "y": 1135,
+      "scale": 0.59,
+      "depth": 1.37,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market\" (2700,1231), offset (115,-96), category \"stall\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 129,
+        "h": 139
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "prop-032",
+      "sourceImagePath": "props/market_stall_02.png",
+      "district": "market",
+      "x": 2848,
+      "y": 1205,
+      "scale": 0.6,
+      "depth": 1.38,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market\" (2700,1231), offset (148,-26), category \"stall\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 106,
+        "h": 139
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "prop-033",
+      "sourceImagePath": "props/crate_01.png",
+      "district": "market",
+      "x": 2649,
+      "y": 1090,
+      "scale": 0.4,
+      "depth": 1.36,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market\" (2700,1231), offset (-51,-141), category \"crate\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 62,
+        "h": 69
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "prop-034",
+      "sourceImagePath": "props/barrel_01.png",
+      "district": "market",
+      "x": 2700,
+      "y": 1081,
+      "scale": 0.52,
+      "depth": 1.35,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market\" (2700,1231), offset (0,-150), category \"barrel\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 53
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "prop-035",
+      "sourceImagePath": "props/crate_02.png",
+      "district": "market",
+      "x": 2730,
+      "y": 1064,
+      "scale": 0.27,
+      "depth": 1.35,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market\" (2700,1231), offset (30,-167), category \"crate\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 65,
+        "h": 68
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "prop-036",
+      "sourceImagePath": "props/market_stall_03.png",
+      "district": "market",
+      "x": 2852,
+      "y": 1143,
+      "scale": 0.61,
+      "depth": 1.37,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market\" (2700,1231), offset (152,-88), category \"stall\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 110,
+        "h": 139
+      },
+      "landmarkId": "market"
+    },
+    {
+      "assetId": "prop-037",
+      "sourceImagePath": "props/crate_big_01.png",
+      "district": "market_shop",
+      "x": 3038,
+      "y": 1434,
+      "scale": 0.4,
+      "depth": 1.43,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market_shop\" (2916,1478), offset (122,-44), category \"crate\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 59
+      },
+      "landmarkId": "market_shop"
+    },
+    {
+      "assetId": "prop-038",
+      "sourceImagePath": "props/barrel_02.png",
+      "district": "market_shop",
+      "x": 3038,
+      "y": 1522,
+      "scale": 0.71,
+      "depth": 1.45,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market_shop\" (2916,1478), offset (122,44), category \"barrel\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 60
+      },
+      "landmarkId": "market_shop"
+    },
+    {
+      "assetId": "prop-039",
+      "sourceImagePath": "props/cart_01.png",
+      "district": "market_shop",
+      "x": 3012,
+      "y": 1363,
+      "scale": 0.46,
+      "depth": 1.42,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market_shop\" (2916,1478), offset (96,-115), category \"cart\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 138,
+        "h": 91
+      },
+      "landmarkId": "market_shop"
+    },
+    {
+      "assetId": "prop-040",
+      "sourceImagePath": "props/market_stall_01.png",
+      "district": "market_shop",
+      "x": 2875,
+      "y": 1591,
+      "scale": 0.59,
+      "depth": 1.46,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market_shop\" (2916,1478), offset (-41,113), category \"stall\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 129,
+        "h": 139
+      },
+      "landmarkId": "market_shop"
+    },
+    {
+      "assetId": "prop-041",
+      "sourceImagePath": "props/street_lamp_01.png",
+      "district": "market_shop",
+      "x": 2916,
+      "y": 1358,
+      "scale": 0.39,
+      "depth": 1.41,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"market_shop\" (2916,1478), offset (0,-120), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "market_shop"
+    },
+    {
+      "assetId": "prop-042",
+      "sourceImagePath": "nature/fence_01.png",
+      "district": "tournament_hall",
+      "x": 3188,
+      "y": 1766,
+      "scale": 0.41,
+      "depth": 1.5,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"tournament_hall\" (3056,1814), offset (132,-48), category \"fence\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 160,
+        "h": 90
+      },
+      "landmarkId": "tournament_hall"
+    },
+    {
+      "assetId": "prop-043",
+      "sourceImagePath": "nature/fence_01.png",
+      "district": "tournament_hall",
+      "x": 3188,
+      "y": 1862,
+      "scale": 0.41,
+      "depth": 1.52,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"tournament_hall\" (3056,1814), offset (132,48), category \"fence\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 160,
+        "h": 90
+      },
+      "landmarkId": "tournament_hall"
+    },
+    {
+      "assetId": "prop-044",
+      "sourceImagePath": "props/street_sign_01.png",
+      "district": "tournament_hall",
+      "x": 3226,
+      "y": 1814,
+      "scale": 0.46,
+      "depth": 1.51,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"tournament_hall\" (3056,1814), offset (170,0), category \"sign\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 59,
+        "h": 153
+      },
+      "landmarkId": "tournament_hall"
+    },
+    {
+      "assetId": "prop-045",
+      "sourceImagePath": "props/barrel_01.png",
+      "district": "tournament_hall",
+      "x": 3171,
+      "y": 1718,
+      "scale": 0.52,
+      "depth": 1.49,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"tournament_hall\" (3056,1814), offset (115,-96), category \"barrel\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 53
+      },
+      "landmarkId": "tournament_hall"
+    },
+    {
+      "assetId": "prop-046",
+      "sourceImagePath": "props/crate_stack_01.png",
+      "district": "tournament_hall",
+      "x": 3171,
+      "y": 1910,
+      "scale": 0.32,
+      "depth": 1.53,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"tournament_hall\" (3056,1814), offset (115,96), category \"crate\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 42
+      },
+      "landmarkId": "tournament_hall"
+    },
+    {
+      "assetId": "prop-047",
+      "sourceImagePath": "nature/fence_01.png",
+      "district": "arena",
+      "x": 3020,
+      "y": 2247,
+      "scale": 0.41,
+      "depth": 1.61,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"arena\" (2920,2074), offset (100,173), category \"fence\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 160,
+        "h": 90
+      },
+      "landmarkId": "arena"
+    },
+    {
+      "assetId": "prop-048",
+      "sourceImagePath": "nature/fence_01.png",
+      "district": "arena",
+      "x": 2820,
+      "y": 2247,
+      "scale": 0.41,
+      "depth": 1.61,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"arena\" (2920,2074), offset (-100,173), category \"fence\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 160,
+        "h": 90
+      },
+      "landmarkId": "arena"
+    },
+    {
+      "assetId": "prop-049",
+      "sourceImagePath": "props/statue_02.png",
+      "district": "arena",
+      "x": 2920,
+      "y": 2304,
+      "scale": 0.55,
+      "depth": 1.62,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"arena\" (2920,2074), offset (0,230), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 63,
+        "h": 140
+      },
+      "landmarkId": "arena"
+    },
+    {
+      "assetId": "prop-050",
+      "sourceImagePath": "props/barrel_02.png",
+      "district": "arena",
+      "x": 3107,
+      "y": 2041,
+      "scale": 0.71,
+      "depth": 1.56,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"arena\" (2920,2074), offset (187,-33), category \"barrel\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 60
+      },
+      "landmarkId": "arena"
+    },
+    {
+      "assetId": "prop-051",
+      "sourceImagePath": "props/crate_stack_02.png",
+      "district": "arena",
+      "x": 2733,
+      "y": 2107,
+      "scale": 0.4,
+      "depth": 1.58,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"arena\" (2920,2074), offset (-187,33), category \"crate\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 68
+      },
+      "landmarkId": "arena"
+    },
+    {
+      "assetId": "prop-052",
+      "sourceImagePath": "props/street_lamp_02.png",
+      "district": "alpha",
+      "x": 881,
+      "y": 1292,
+      "scale": 0.39,
+      "depth": 1.4,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"alpha\" (932,1433), offset (-51,-141), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "alpha"
+    },
+    {
+      "assetId": "prop-053",
+      "sourceImagePath": "nature/stone_platter_05.png",
+      "district": "alpha",
+      "x": 802,
+      "y": 1358,
+      "scale": 0.52,
+      "depth": 1.41,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"alpha\" (932,1433), offset (-130,-75), category \"planter\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 57,
+        "h": 89
+      },
+      "landmarkId": "alpha"
+    },
+    {
+      "assetId": "prop-054",
+      "sourceImagePath": "park/bench_02.png",
+      "district": "alpha",
+      "x": 782,
+      "y": 1433,
+      "scale": 0.58,
+      "depth": 1.43,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"alpha\" (932,1433), offset (-150,0), category \"seat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 109,
+        "h": 108
+      },
+      "landmarkId": "alpha"
+    },
+    {
+      "assetId": "prop-055",
+      "sourceImagePath": "props/statue_01.png",
+      "district": "nft_gallery",
+      "x": 957,
+      "y": 1889,
+      "scale": 0.5,
+      "depth": 1.53,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"nft_gallery\" (817,1889), offset (140,0), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 134
+      },
+      "landmarkId": "nft_gallery"
+    },
+    {
+      "assetId": "prop-056",
+      "sourceImagePath": "nature/stone_platter_06.png",
+      "district": "nft_gallery",
+      "x": 773,
+      "y": 2011,
+      "scale": 0.35,
+      "depth": 1.56,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"nft_gallery\" (817,1889), offset (-44,122), category \"planter\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 89,
+        "h": 85
+      },
+      "landmarkId": "nft_gallery"
+    },
+    {
+      "assetId": "prop-057",
+      "sourceImagePath": "park/bench_01.png",
+      "district": "nft_gallery",
+      "x": 685,
+      "y": 1937,
+      "scale": 0.58,
+      "depth": 1.54,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"nft_gallery\" (817,1889), offset (-132,48), category \"seat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 109,
+        "h": 108
+      },
+      "landmarkId": "nft_gallery"
+    },
+    {
+      "assetId": "prop-058",
+      "sourceImagePath": "nature/hanging_vines.png",
+      "district": "nft_creator_studio",
+      "x": 937,
+      "y": 1955,
+      "scale": 0.28,
+      "depth": 1.54,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"nft_creator_studio\" (914,2083), offset (23,-128), category \"flower\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 68,
+        "h": 60
+      },
+      "landmarkId": "nft_creator_studio"
+    },
+    {
+      "assetId": "prop-059",
+      "sourceImagePath": "props/statue_02.png",
+      "district": "nft_creator_studio",
+      "x": 914,
+      "y": 2213,
+      "scale": 0.55,
+      "depth": 1.6,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"nft_creator_studio\" (914,2083), offset (0,130), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 63,
+        "h": 140
+      },
+      "landmarkId": "nft_creator_studio"
+    },
+    {
+      "assetId": "prop-060",
+      "sourceImagePath": "nature/stone_platter_07.png",
+      "district": "nft_creator_studio",
+      "x": 830,
+      "y": 2183,
+      "scale": 0.49,
+      "depth": 1.59,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"nft_creator_studio\" (914,2083), offset (-84,100), category \"planter\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 59,
+        "h": 89
+      },
+      "landmarkId": "nft_creator_studio"
+    },
+    {
+      "assetId": "prop-061",
+      "sourceImagePath": "nature/tree_01.png",
+      "district": "park",
+      "x": 1400,
+      "y": 1912,
+      "scale": 0.61,
+      "depth": 1.53,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (0,-150), category \"tree\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 128,
+        "h": 162
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-062",
+      "sourceImagePath": "nature/tree_02.png",
+      "district": "park",
+      "x": 1345,
+      "y": 1912,
+      "scale": 0.47,
+      "depth": 1.53,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (-55,-150), category \"tree\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 118,
+        "h": 168
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-063",
+      "sourceImagePath": "nature/bush_01.png",
+      "district": "park",
+      "x": 1455,
+      "y": 1912,
+      "scale": 0.65,
+      "depth": 1.53,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (55,-150), category \"bush\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 90,
+        "h": 38
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-064",
+      "sourceImagePath": "park/park_bench_01.png",
+      "district": "park",
+      "x": 1400,
+      "y": 2212,
+      "scale": 0.65,
+      "depth": 1.6,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (0,150), category \"parkSeat\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 130,
+        "h": 77
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-065",
+      "sourceImagePath": "nature/tree_03.png",
+      "district": "park",
+      "x": 1455,
+      "y": 2212,
+      "scale": 0.62,
+      "depth": 1.6,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (55,150), category \"tree\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 107,
+        "h": 170
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-066",
+      "sourceImagePath": "nature/tree_04.png",
+      "district": "park",
+      "x": 1345,
+      "y": 2212,
+      "scale": 0.66,
+      "depth": 1.6,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (-55,150), category \"tree\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 129,
+        "h": 140
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-067",
+      "sourceImagePath": "park/park_gazebo_small.png",
+      "district": "park",
+      "x": 1553,
+      "y": 2191,
+      "scale": 0.35,
+      "depth": 1.59,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (153,129), category \"gazebo\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 176,
+        "h": 134
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-068",
+      "sourceImagePath": "park/park_lamp_01.png",
+      "district": "park",
+      "x": 1521,
+      "y": 1992,
+      "scale": 0.44,
+      "depth": 1.55,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"park\" (1400,2062), offset (121,-70), category \"parkLamp\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 88
+      },
+      "landmarkId": "park"
+    },
+    {
+      "assetId": "prop-069",
+      "sourceImagePath": "props/street_lamp_01.png",
+      "district": "bridge",
+      "x": 1865,
+      "y": 1796,
+      "scale": 0.39,
+      "depth": 1.51,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"bridge\" (1865,1946), offset (0,-150), category \"light\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 40,
+        "h": 139
+      },
+      "landmarkId": "bridge"
+    },
+    {
+      "assetId": "prop-070",
+      "sourceImagePath": "props/barrel_01.png",
+      "district": "bridge",
+      "x": 1865,
+      "y": 2086,
+      "scale": 0.52,
+      "depth": 1.57,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"bridge\" (1865,1946), offset (0,140), category \"barrel\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 60,
+        "h": 53
+      },
+      "landmarkId": "bridge"
+    },
+    {
+      "assetId": "prop-071",
+      "sourceImagePath": "nature/fence_01.png",
+      "district": "cashback",
+      "x": 1712,
+      "y": 2202,
+      "scale": 0.41,
+      "depth": 1.6,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"cashback\" (1652,2038), offset (60,164), category \"fence\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 160,
+        "h": 90
+      },
+      "landmarkId": "cashback"
+    },
+    {
+      "assetId": "prop-072",
+      "sourceImagePath": "nature/fence_01.png",
+      "district": "cashback",
+      "x": 1592,
+      "y": 2202,
+      "scale": 0.41,
+      "depth": 1.6,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"cashback\" (1652,2038), offset (-60,164), category \"fence\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 160,
+        "h": 90
+      },
+      "landmarkId": "cashback"
+    },
+    {
+      "assetId": "prop-073",
+      "sourceImagePath": "props/statue_01.png",
+      "district": "cashback",
+      "x": 1652,
+      "y": 2233,
+      "scale": 0.5,
+      "depth": 1.6,
+      "collisionType": "none",
+      "notes": "Compact-world prop cluster — anchored to WorldObjects \"cashback\" (1652,2038), offset (0,195), category \"statue\".",
+      "kind": "prop",
+      "placementType": "prop",
+      "footprintPx": {
+        "w": 70,
+        "h": 134
+      },
+      "landmarkId": "cashback"
+    },
+    {
+      "assetId": "flr-001",
+      "placementId": "filler_plaza_se_01",
+      "sourceImagePath": "residential/residential_tall_01.png",
+      "district": "fountain",
+      "x": 2075,
+      "y": 1593,
+      "scale": 0.9,
+      "depth": 1.47,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"fountain\" (bearing 145°, radius 480px), tier \"medium\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 173,
+        "h": 297
+      }
+    },
+    {
+      "assetId": "flr-002",
+      "placementId": "filler_government_east_01",
+      "sourceImagePath": "residential/residential_tall_02.png",
+      "district": "fame",
+      "x": 1664,
+      "y": 212,
+      "scale": 0.75,
+      "depth": 1.17,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"fame\" (bearing 55°, radius 300px), tier \"medium\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 179,
+        "h": 243
+      }
+    },
+    {
+      "assetId": "flr-003",
+      "placementId": "filler_government_west_01",
+      "sourceImagePath": "residential/residential_tall_03.png",
+      "district": "government",
+      "x": 1079,
+      "y": 739,
+      "scale": 0.68,
+      "depth": 1.28,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"government\" (bearing 270°, radius 260px), tier \"medium\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 178,
+        "h": 273
+      }
+    },
+    {
+      "assetId": "flr-004",
+      "placementId": "filler_government_south_01",
+      "sourceImagePath": "residential/residential_tall_04.png",
+      "district": "trading_academy",
+      "x": 695,
+      "y": 677,
+      "scale": 0.62,
+      "depth": 1.27,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"trading_academy\" (bearing 180°, radius 250px), tier \"medium\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 144,
+        "h": 298
+      }
+    },
+    {
+      "assetId": "flr-005",
+      "placementId": "filler_market_north_01",
+      "sourceImagePath": "commercial/commercial_small_01.png",
+      "district": "market",
+      "x": 2608,
+      "y": 977,
+      "scale": 0.65,
+      "depth": 1.33,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"market\" (bearing 340°, radius 270px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 160,
+        "h": 177
+      }
+    },
+    {
+      "assetId": "flr-006",
+      "placementId": "filler_market_northeast_01",
+      "sourceImagePath": "commercial/commercial_small_02.png",
+      "district": "market",
+      "x": 2814,
+      "y": 986,
+      "scale": 0.62,
+      "depth": 1.33,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"market\" (bearing 25°, radius 270px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 160,
+        "h": 184
+      }
+    },
+    {
+      "assetId": "flr-007",
+      "placementId": "filler_market_east_01",
+      "sourceImagePath": "commercial/commercial_small_03.png",
+      "district": "market",
+      "x": 3029,
+      "y": 1202,
+      "scale": 0.66,
+      "depth": 1.38,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"market\" (bearing 85°, radius 330px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 158,
+        "h": 195
+      }
+    },
+    {
+      "assetId": "flr-008",
+      "placementId": "filler_market_shop_north_01",
+      "sourceImagePath": "commercial/commercial_small_04.png",
+      "district": "market_shop",
+      "x": 3167,
+      "y": 1411,
+      "scale": 0.7,
+      "depth": 1.43,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"market_shop\" (bearing 75°, radius 260px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 151,
+        "h": 199
+      }
+    },
+    {
+      "assetId": "flr-009",
+      "placementId": "filler_market_shop_east_01",
+      "sourceImagePath": "commercial/commercial_small_05.png",
+      "district": "market_shop",
+      "x": 3150,
+      "y": 1613,
+      "scale": 0.62,
+      "depth": 1.47,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"market_shop\" (bearing 120°, radius 270px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 159,
+        "h": 166
+      }
+    },
+    {
+      "assetId": "flr-010",
+      "placementId": "filler_financial_whale_north_01",
+      "sourceImagePath": "residential/residential_tall_05.png",
+      "district": "whale",
+      "x": 2085,
+      "y": 270,
+      "scale": 0.68,
+      "depth": 1.18,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"whale\" (bearing 310°, radius 300px), tier \"tall\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 197,
+        "h": 233
+      }
+    },
+    {
+      "assetId": "flr-011",
+      "placementId": "filler_financial_office_north_01",
+      "sourceImagePath": "residential/residential_tall_06.png",
+      "district": "financial_office",
+      "x": 2489,
+      "y": 231,
+      "scale": 0.89,
+      "depth": 1.17,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"financial_office\" (bearing 320°, radius 300px), tier \"tall\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 199,
+        "h": 267
+      }
+    },
+    {
+      "assetId": "flr-012",
+      "placementId": "filler_financial_holder_east_01",
+      "sourceImagePath": "residential/residential_tall_07.png",
+      "district": "holder_bank",
+      "x": 3287,
+      "y": 535,
+      "scale": 0.8,
+      "depth": 1.24,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"holder_bank\" (bearing 70°, radius 280px), tier \"tall\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 198,
+        "h": 278
+      }
+    },
+    {
+      "assetId": "flr-013",
+      "placementId": "filler_financial_observatory_east_01",
+      "sourceImagePath": "residential/residential_tall_08.png",
+      "district": "research_observatory",
+      "x": 3304,
+      "y": 941,
+      "scale": 0.91,
+      "depth": 1.32,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"research_observatory\" (bearing 90°, radius 280px), tier \"tall\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 198,
+        "h": 295
+      }
+    },
+    {
+      "assetId": "flr-014",
+      "placementId": "filler_financial_alpha_west_01",
+      "sourceImagePath": "residential/residential_tall_09.png",
+      "district": "alpha",
+      "x": 656,
+      "y": 1384,
+      "scale": 0.59,
+      "depth": 1.42,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"alpha\" (bearing 280°, radius 280px), tier \"medium\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 137,
+        "h": 296
+      }
+    },
+    {
+      "assetId": "flr-015",
+      "placementId": "filler_nft_gallery_east_01",
+      "sourceImagePath": "residential/residential_tall_10.png",
+      "district": "nft_gallery",
+      "x": 1087,
+      "y": 1889,
+      "scale": 0.64,
+      "depth": 1.53,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"nft_gallery\" (bearing 90°, radius 270px), tier \"medium\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 165,
+        "h": 296
+      }
+    },
+    {
+      "assetId": "flr-016",
+      "placementId": "filler_nft_studio_south_01",
+      "sourceImagePath": "commercial/commercial_small_06.png",
+      "district": "nft_creator_studio",
+      "x": 914,
+      "y": 2293,
+      "scale": 0.69,
+      "depth": 1.62,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"nft_creator_studio\" (bearing 180°, radius 210px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 159,
+        "h": 188
+      }
+    },
+    {
+      "assetId": "flr-017",
+      "placementId": "filler_nft_studio_west_01",
+      "sourceImagePath": "residential/residential_tall_01.png",
+      "district": "nft_creator_studio",
+      "x": 670,
+      "y": 2172,
+      "scale": 0.9,
+      "depth": 1.59,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"nft_creator_studio\" (bearing 250°, radius 260px), tier \"medium\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 173,
+        "h": 297
+      }
+    },
+    {
+      "assetId": "flr-018",
+      "placementId": "filler_arena_east_01",
+      "sourceImagePath": "commercial/commercial_small_07.png",
+      "district": "arena",
+      "x": 3220,
+      "y": 2074,
+      "scale": 0.64,
+      "depth": 1.57,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"arena\" (bearing 90°, radius 300px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 160,
+        "h": 157
+      }
+    },
+    {
+      "assetId": "flr-019",
+      "placementId": "filler_tournament_north_01",
+      "sourceImagePath": "commercial/commercial_small_08.png",
+      "district": "tournament_hall",
+      "x": 3351,
+      "y": 1762,
+      "scale": 0.57,
+      "depth": 1.5,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"tournament_hall\" (bearing 80°, radius 300px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 158,
+        "h": 152
+      }
+    },
+    {
+      "assetId": "flr-020",
+      "placementId": "filler_park_edge_01",
+      "sourceImagePath": "commercial/commercial_small_09.png",
+      "district": "park",
+      "x": 1239,
+      "y": 2254,
+      "scale": 0.64,
+      "depth": 1.61,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"park\" (bearing 220°, radius 250px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 155,
+        "h": 198
+      }
+    },
+    {
+      "assetId": "flr-021",
+      "placementId": "filler_waterfront_bridge_north_01",
+      "sourceImagePath": "commercial/commercial_small_10.png",
+      "district": "bridge",
+      "x": 2090,
+      "y": 1816,
+      "scale": 0.61,
+      "depth": 1.51,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"bridge\" (bearing 60°, radius 260px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 142,
+        "h": 198
+      }
+    },
+    {
+      "assetId": "flr-022",
+      "placementId": "filler_waterfront_cashback_south_01",
+      "sourceImagePath": "commercial/commercial_small_11.png",
+      "district": "cashback",
+      "x": 1748,
+      "y": 2301,
+      "scale": 0.64,
+      "depth": 1.62,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — offset from WorldObjects \"cashback\" (bearing 160°, radius 280px), tier \"small\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 159,
+        "h": 186
+      }
+    },
+    {
+      "assetId": "flr-023",
+      "placementId": "filler_edge_northwest_01",
+      "sourceImagePath": "residential/residential_tall_02.png",
+      "district": "edge",
+      "x": 350,
+      "y": 900,
+      "scale": 0.84,
+      "depth": 1.32,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — world-edge absolute position, tier \"tall\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 200,
+        "h": 272
+      }
+    },
+    {
+      "assetId": "flr-024",
+      "placementId": "filler_edge_southeast_01",
+      "sourceImagePath": "residential/residential_tall_03.png",
+      "district": "edge",
+      "x": 3460,
+      "y": 2100,
+      "scale": 0.76,
+      "depth": 1.58,
+      "collisionType": "none",
+      "notes": "Phase 8F filler building — world-edge absolute position, tier \"tall\". Decorative only — no landmarkId, no gameplay identity.",
+      "kind": "building",
+      "placementType": "filler_building",
+      "footprintPx": {
+        "w": 199,
+        "h": 306
+      }
+    }
+  ],
+  "landmarkCount": 20,
+  "propCount": 73,
+  "fillerBuildingCount": 24,
+  "totalPlacementCount": 117
+}

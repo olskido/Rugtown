@@ -78,6 +78,96 @@ export interface DbWalletVerification {
   updated_at: string;
 }
 
+/** Phase 10G+ player progression row (subset used by the client). */
+export interface DbPlayerProgression {
+  player_id: string;
+  schema_version: number;
+  lifetime_xp: number;
+  level: number;
+  rep: number;
+  rug_points: number;
+  season_id: string | null;
+  season_points: number;
+  progression_curve_version: number;
+  claimed_reward_keys: unknown;
+  migrated_from_local: boolean;
+  updated_at: string;
+}
+
+/** Phase 13 Chapter One mission state (read via RPC; clients cannot write). */
+export interface DbChapterMissionState {
+  user_id: string;
+  mission_id: string;
+  mission_version: number;
+  status: 'locked' | 'active' | 'completed';
+  progress: Record<string, unknown>;
+  started_at: string | null;
+  updated_at: string;
+  completed_at: string | null;
+  reward_claimed_at: string | null;
+}
+
+/**
+ * Locally maintained RPC argument / return shapes for Phase 13+.
+ * Not remotely generated — keep in sync with database/migrations.
+ */
+export interface DbRpcMap {
+  ensure_chapter_missions: {
+    Args: Record<string, never>;
+    Returns: { missions: DbChapterMissionState[] };
+  };
+  get_my_chapter_missions: {
+    Args: Record<string, never>;
+    Returns: {
+      missions: Array<{
+        missionId: string;
+        status: DbChapterMissionState['status'];
+        missionVersion: number;
+        title: string;
+        xpReward: number;
+        repReward: number;
+        missionOrder: number;
+        completedAt: string | null;
+        rewardClaimedAt: string | null;
+      }>;
+    };
+  };
+  complete_chapter_mission: {
+    Args: { p_mission_id: string };
+    Returns: {
+      awarded: boolean;
+      duplicate: boolean;
+      missionId: string;
+      xpAwarded?: number;
+      repAwarded?: number;
+      progression?: DbPlayerProgression;
+    };
+  };
+  claim_mission_reward: {
+    Args: { p_assignment_id: string };
+    Returns: {
+      claimed: boolean;
+      duplicate: boolean;
+      assignment?: unknown;
+      xpAwarded?: number;
+      repAwarded?: number;
+      seasonPointsAwarded?: number;
+      rugPointsAwarded?: number;
+      progression?: DbPlayerProgression;
+    };
+  };
+  migrate_progression_curve_v2: {
+    Args: Record<string, never>;
+    Returns: {
+      migrated: boolean;
+      already?: boolean;
+      computedLevel?: number;
+      grandfatheredLevel?: number;
+      progression?: DbPlayerProgression;
+    };
+  };
+}
+
 // ─── Client ──────────────────────────────────────────────────────
 
 const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL      as string | undefined;
@@ -109,7 +199,19 @@ if (!isSupabaseConfigured) {
  * Supabase client — null when env vars are not configured.
  * All consumers must check `isSupabaseConfigured` (or null-guard `supabase`)
  * before use so that guest mode is unaffected.
+ *
+ * Auth options:
+ * - PKCE flow; session persisted in localStorage with auto refresh.
+ * - detectSessionInUrl is false — `/auth/callback` exchanges the code once
+ *   via `handleAuthCallback()` so we never double-consume the PKCE code.
  */
 export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabaseAnonKey!)
+  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        flowType: 'pkce',
+        detectSessionInUrl: false,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
   : null;

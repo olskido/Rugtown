@@ -66,76 +66,59 @@
   overflow: hidden;
 }
 
-/* ── City background ── */
-/*
-  We cannot use an image file, so we build a multi-layer CSS gradient
-  that evokes the color palette of Images 2/3/4:
-  - Overall: deep dark teal (#060e10 to #030608)
-  - Warm light pools: amber/gold radials (lanterns, windows)
-  - Cool teal highlights: building tops, steeples (from Images 3/4)
-  - Red accent upper-right: the red building visible in Image 2
-  - Gold accent upper-right corner: the gold vault/banner in Image 2
-*/
+/* ── City background — matches ACTIVE in-game world (main_rugtown.png) ── */
 .landing__bg-city {
   position: absolute;
-  inset: -5%;     /* Slightly oversized for camera drift room */
-  width: 110%;
-  height: 110%;
+  inset: -4%;
+  width: 108%;
+  height: 108%;
 
-  /* The real city artwork is the base layer; the radial-gradient glow
-     pools sit in front of it as warm/cool atmospheric light, and the
-     deep gradient behind it is a graceful fallback if the art is
-     missing (matches WorldScene's own city-art path). */
   background:
-    /* Gold vault glow — upper right (Image 2: gold illuminated building) */
-    radial-gradient(ellipse 30% 40% at 88% 15%,
-      rgba(200, 144, 42, 0.22) 0%,
-      rgba(180, 120, 20, 0.10) 35%,
-      transparent 65%),
-
-    /* Teal tower glow — upper center-right (Image 2: blue teal tall building) */
-    radial-gradient(ellipse 20% 30% at 65% 8%,
-      rgba(30, 203, 203, 0.18) 0%,
-      rgba(20, 140, 140, 0.08) 40%,
-      transparent 70%),
-
-    /* Warm center lantern glow — the main plaza light from Image 2 */
-    radial-gradient(ellipse 55% 45% at 38% 60%,
-      rgba(200, 120, 30, 0.20) 0%,
-      rgba(160, 90, 20, 0.12) 30%,
-      rgba(100, 60, 10, 0.05) 55%,
-      transparent 75%),
-
-    /* Right side warm glow — the fire/fountain glow from Image 2 right */
-    radial-gradient(ellipse 30% 35% at 78% 62%,
-      rgba(220, 100, 20, 0.18) 0%,
-      rgba(180, 80, 15, 0.08) 40%,
-      transparent 65%),
-
-    /* Red building area — upper right quad in Image 2 */
-    radial-gradient(ellipse 20% 35% at 82% 35%,
-      rgba(160, 30, 20, 0.20) 0%,
-      rgba(120, 20, 15, 0.08) 40%,
-      transparent 65%),
-
-    /* Real city artwork — same asset WorldScene renders in-game */
-    url('/assets/backgrounds/rugtown-city.png') center / cover no-repeat,
-
-    /* Deep fallback gradient, visible if the art fails to load */
+    /* Near-black + gold readability wash */
     linear-gradient(
-      168deg,
-      #03080a 0%,
-      #04090c 15%,
-      #050c10 30%,
-      #060e12 45%,
-      #040b0e 60%,
-      #030609 80%,
-      #020407 100%
-    );
+      180deg,
+      rgba(4, 8, 10, 0.42) 0%,
+      rgba(4, 8, 10, 0.28) 40%,
+      rgba(8, 6, 4, 0.55) 100%
+    ),
+    radial-gradient(ellipse 50% 40% at 50% 70%,
+      rgba(200, 144, 42, 0.14) 0%,
+      transparent 70%),
+    var(--homepage-bg-image, url('/assets/world/main_rugtown.png'))
+      var(--homepage-bg-position, center 42%) / cover no-repeat,
+    linear-gradient(168deg, #03080a 0%, #050c10 40%, #020407 100%);
 
-  /* Slow parallax camera drift — "living city" feel */
-  animation: cameraDrift 28s ease-in-out infinite;
+  animation: cameraDrift 32s ease-in-out infinite;
   will-change: transform;
+}
+
+@media (max-width: 900px) {
+  .landing__bg-city {
+    --homepage-bg-position: center 48%;
+  }
+}
+
+@media (max-width: 600px) {
+  .landing__bg-city {
+    --homepage-bg-position: 38% 52%;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing__bg-city,
+  .landing__fog--1,
+  .landing__fog--2,
+  .landing__fog--3,
+  .landing__particle {
+    animation: none !important;
+  }
+  .landing__bg-city {
+    will-change: auto;
+  }
 }
 
 /* ── Fog layers ── */
